@@ -607,9 +607,9 @@ main.landing {
   overflow: hidden;
   font-size: 0.875rem;
   font-weight: 600;
+  line-height: 1.25;
   text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-wrap: balance;
 }
 
 #save-state[data-state="saved"] {
@@ -669,10 +669,11 @@ main.landing {
   font-weight: 600;
 }
 
-.nav-grid {
+/* The id outranks Pico's negative nav ol margins, which pushed bubbles past the box. */
+#question-nav .nav-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--ge-touch), 1fr));
-  gap: var(--ge-space-1);
+  gap: var(--ge-space-2) var(--ge-space-1);
   margin: 0;
   padding: 0;
 }
@@ -831,7 +832,10 @@ main.landing {
   justify-content: flex-end;
 }
 
-.dialog-actions button {
+/* The id outranks Pico's full-width submit button and its footer button margin. */
+#submit-dialog .dialog-actions button {
+  flex: 1 1 auto;
+  width: auto;
   min-height: var(--ge-touch);
   margin: 0;
 }

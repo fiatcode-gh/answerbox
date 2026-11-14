@@ -343,8 +343,11 @@ func TestStudent_FlowStartAnswerReloadSubmit(t *testing.T) {
 			t.Errorf("#%s is not initially hidden", banner)
 		}
 	}
-	if strings.Contains(body, "<script") {
-		t.Error("exam page has a script tag")
+	if !regexp.MustCompile(`<script src="/static/exam\.js\?v=[0-9a-f]{8}" defer></script>`).MatchString(body) {
+		t.Error("exam page does not load exam.js")
+	}
+	if strings.Count(body, "<script") != 1 {
+		t.Error("exam page must have exactly one script tag (no inline script)")
 	}
 	first := pageQuestions(t, body)
 	if len(first) != 3 {
