@@ -461,6 +461,517 @@ table th {
   font-weight: 600;
 }
 
+/* Student: landing. */
+main.landing {
+  padding-top: var(--ge-space-6);
+  padding-bottom: var(--ge-space-6);
+}
+
+.landing-title {
+  margin-bottom: var(--ge-space-4);
+}
+
+#start-form button,
+#resume-form button {
+  width: 100%;
+  min-height: var(--ge-touch);
+  margin-bottom: 0;
+}
+
+.landing-note {
+  margin-top: var(--ge-space-3);
+  color: var(--ge-muted);
+  font-size: 0.9375rem;
+}
+
+.no-exam {
+  margin-bottom: var(--ge-space-5);
+}
+
+.last-result {
+  margin: var(--ge-space-4) 0;
+  font-weight: 600;
+}
+
+.resume {
+  margin-top: var(--ge-space-5);
+  padding: var(--ge-space-3) var(--ge-space-4);
+  border: 1px solid var(--ge-rule);
+  border-radius: var(--ge-radius);
+  background: var(--ge-surface);
+}
+
+.resume summary {
+  font-weight: 600;
+}
+
+#code {
+  font-family: var(--ge-font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Student: exam page. Designed at 412 px, then a two-column layout from 992 px. */
+.exam-header,
+#exam {
+  --ge-column: 720px;
+}
+
+/* Pico pads body > header/main; the exam bar sits flush under the header. */
+.exam-header {
+  padding: 0;
+  background: var(--ge-surface);
+}
+
+#exam {
+  padding-top: 0;
+}
+
+.exam-header-inner,
+.exam-layout {
+  max-width: var(--ge-column);
+  margin: 0 auto;
+  padding: 0 var(--ge-space-4);
+}
+
+.exam-header-inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-1) var(--ge-space-4);
+  align-items: baseline;
+  justify-content: space-between;
+  padding-top: var(--ge-space-3);
+  padding-bottom: var(--ge-space-2);
+}
+
+.exam-title {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.student-name {
+  margin: 0;
+  color: var(--ge-muted);
+  font-size: 0.875rem;
+}
+
+/* Sticky top bar: timer, save state, navigator toggle — one 56 px row. */
+.exam-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  gap: var(--ge-space-3);
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  padding: 0 max(var(--ge-space-4), calc((100% - var(--ge-column)) / 2 + var(--ge-space-4)));
+  border-top: 1px solid var(--ge-rule);
+  border-bottom: 1px solid var(--ge-rule);
+  background: var(--ge-surface);
+}
+
+.timer-box {
+  flex: none;
+  margin: 0;
+}
+
+#timer {
+  display: inline-block;
+  min-width: 4.5ch;
+  padding: var(--ge-space-1) var(--ge-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--ge-radius);
+  color: var(--ge-ink);
+  font-size: 1.25rem;
+  font-weight: 700;
+  text-align: center;
+  transition: background-color var(--ge-transition), border-color var(--ge-transition), color var(--ge-transition);
+}
+
+#timer[data-level="warn"] {
+  border-color: var(--ge-warn);
+  background: var(--ge-warn-bg);
+  color: var(--ge-warn);
+}
+
+#timer[data-level="danger"] {
+  border-color: var(--ge-danger);
+  background: var(--ge-danger-bg);
+  color: var(--ge-danger);
+}
+
+#save-state {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#save-state[data-state="saved"] {
+  color: var(--ge-ok);
+}
+
+#save-state[data-state="saving"] {
+  color: var(--ge-muted);
+}
+
+#save-state[data-state="error"] {
+  color: var(--ge-danger);
+}
+
+#nav-toggle {
+  flex: none;
+  width: auto;
+  min-height: var(--ge-touch);
+  margin: 0;
+  padding: 0 var(--ge-space-3);
+}
+
+.banner {
+  max-width: 720px;
+  margin: var(--ge-space-3) auto;
+  padding: var(--ge-space-3) var(--ge-space-4);
+  border: 1px solid var(--ge-rule);
+  border-radius: var(--ge-radius);
+  font-weight: 600;
+}
+
+.banner-danger {
+  border-color: var(--ge-danger);
+  background: var(--ge-danger-bg);
+  color: var(--ge-danger);
+}
+
+.banner-warn {
+  border-color: var(--ge-warn);
+  background: var(--ge-warn-bg);
+  color: var(--ge-warn);
+}
+
+/* Pico lays out nav as a flex row; the navigator is a block with a grid. */
+#question-nav {
+  display: block;
+  margin: var(--ge-space-4) 0;
+  padding: var(--ge-space-3);
+  border: 1px solid var(--ge-rule);
+  border-radius: var(--ge-radius);
+  background: var(--ge-surface);
+}
+
+#answered-count {
+  margin-bottom: var(--ge-space-2);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.nav-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--ge-touch), 1fr));
+  gap: var(--ge-space-1);
+  margin: 0;
+  padding: 0;
+}
+
+.nav-grid li {
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nav-grid .bubble {
+  --ge-bubble-size: 40px;
+  position: relative;
+}
+
+/* 44 px hit area around the 40 px bubble. */
+.nav-grid .bubble::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+}
+
+/* Without exam.js the navigator stays open; with it, the phone panel opens
+   from the toggle and sits under the top bar. */
+@media (max-width: 991.98px) {
+  html.js #question-nav[data-open="false"] {
+    display: none;
+  }
+
+  html.js #question-nav[data-open="true"] {
+    position: sticky;
+    top: 56px;
+    z-index: 9;
+    max-height: calc(100vh - 56px);
+    margin-top: 0;
+    overflow-y: auto;
+    border-top: 0;
+    border-radius: 0 0 var(--ge-radius) var(--ge-radius);
+  }
+}
+
+/* Questions. */
+.question {
+  scroll-margin-top: calc(56px + var(--ge-space-2));
+  margin: var(--ge-space-4) 0 var(--ge-space-5);
+  padding: var(--ge-space-4);
+  border: 1px solid var(--ge-rule);
+  border-radius: var(--ge-radius);
+  background: var(--ge-surface);
+}
+
+.question-head {
+  display: flex;
+  gap: var(--ge-space-3);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.question-head .eyebrow {
+  margin: 0 0 var(--ge-space-2);
+}
+
+.q-state {
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.q-state[data-state="saved"] {
+  color: var(--ge-ok);
+}
+
+.q-state[data-state="saving"] {
+  color: var(--ge-muted);
+}
+
+.q-state[data-state="error"] {
+  color: var(--ge-danger);
+}
+
+.options {
+  margin: var(--ge-space-4) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+/* .options raises specificity above Pico's fit-content radio labels. */
+.options .option {
+  position: relative;
+  display: flex;
+  gap: var(--ge-space-3);
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  margin: 0 0 var(--ge-space-2);
+  padding: var(--ge-space-2) var(--ge-space-3);
+  border: 1px solid var(--ge-rule);
+  border-radius: var(--ge-radius);
+  background: var(--ge-surface);
+  cursor: pointer;
+  transition: background-color var(--ge-transition), border-color var(--ge-transition);
+}
+
+/* The native radio stays focusable and announced, but is not drawn. */
+.option input[type="radio"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+.option:has(input:checked) {
+  padding: calc(var(--ge-space-2) - 1px) calc(var(--ge-space-3) - 1px);
+  border: 2px solid var(--ge-accent);
+  background: var(--ge-accent-soft);
+}
+
+.option:has(input:checked) .bubble {
+  border-color: var(--ge-accent);
+  background: var(--ge-accent);
+  color: var(--ge-surface);
+}
+
+.option:has(input:focus-visible) {
+  outline: 3px solid var(--ge-accent);
+  outline-offset: 2px;
+}
+
+.option:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.exam-footer {
+  margin-top: var(--ge-space-6);
+  padding: var(--ge-space-4) 0 var(--ge-space-6);
+  border-top: 1px solid var(--ge-rule);
+}
+
+.answered-summary {
+  font-weight: 600;
+}
+
+#submit-open {
+  width: 100%;
+  min-height: var(--ge-touch);
+}
+
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-3);
+  justify-content: flex-end;
+}
+
+.dialog-actions button {
+  min-height: var(--ge-touch);
+  margin: 0;
+}
+
+@media (min-width: 992px) {
+  .exam-header,
+  #exam {
+    --ge-column: calc(220px + var(--ge-space-6) + 720px);
+  }
+
+  .banner {
+    max-width: var(--ge-column);
+  }
+
+  .exam-layout {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 720px);
+    gap: var(--ge-space-6);
+    align-items: start;
+  }
+
+  #question-nav {
+    position: sticky;
+    top: calc(56px + var(--ge-space-4));
+    max-height: calc(100vh - 56px - var(--ge-space-5));
+    overflow-y: auto;
+  }
+
+  #nav-toggle {
+    display: none;
+  }
+
+  #submit-open {
+    width: auto;
+  }
+}
+
+/* Student: result. */
+main.result {
+  max-width: 720px;
+  padding-top: var(--ge-space-6);
+  padding-bottom: var(--ge-space-6);
+}
+
+.result-meta {
+  color: var(--ge-muted);
+}
+
+.result-recorded {
+  font-size: 1.125rem;
+}
+
+.score-block {
+  margin: var(--ge-space-5) 0;
+  padding: var(--ge-space-4) var(--ge-space-5);
+  border: 1px solid var(--ge-rule);
+  border-radius: var(--ge-radius);
+  background: var(--ge-surface);
+  text-align: center;
+}
+
+#score {
+  margin: 0;
+  font-size: 3rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.score-caption {
+  margin: 0;
+  color: var(--ge-muted);
+}
+
+.review-question {
+  margin: var(--ge-space-4) 0 var(--ge-space-5);
+  padding: var(--ge-space-4);
+  border: 1px solid var(--ge-rule);
+  border-radius: var(--ge-radius);
+  background: var(--ge-surface);
+}
+
+.no-answer {
+  margin: var(--ge-space-3) 0 0;
+  color: var(--ge-muted);
+  font-weight: 600;
+}
+
+.review-options {
+  margin: var(--ge-space-4) 0 0;
+  padding: 0;
+}
+
+.review-option {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2) var(--ge-space-3);
+  align-items: center;
+  min-height: 48px;
+  margin: 0 0 var(--ge-space-2);
+  padding: var(--ge-space-2) var(--ge-space-3);
+  border: 1px solid var(--ge-rule);
+  border-radius: var(--ge-radius);
+  background: var(--ge-surface);
+  list-style: none;
+}
+
+.review-option .option-body {
+  flex: 1 1 12rem;
+}
+
+.review-option[data-picked="true"] .bubble {
+  border-color: var(--ge-accent);
+  background: var(--ge-accent);
+  color: var(--ge-surface);
+}
+
+.review-option[data-correct="true"] {
+  border-color: var(--ge-ok);
+  background: var(--ge-ok-bg);
+}
+
+.review-option[data-picked="true"][data-correct="false"] {
+  border-color: var(--ge-danger);
+  background: var(--ge-danger-bg);
+}
+
+.review-mark {
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.review-option[data-correct="true"] .review-mark {
+  color: var(--ge-ok);
+}
+
+.review-option[data-picked="true"][data-correct="false"] .review-mark {
+  color: var(--ge-danger);
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root[data-theme="light"] {
     --pico-transition: 0s;

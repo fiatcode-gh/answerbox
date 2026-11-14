@@ -17,6 +17,7 @@ import (
 	_ "time/tzdata" // GOEXAM_TIME_ZONE works without host zoneinfo
 
 	"github.com/fiatcode-gh/go-exam/internal/adminauth"
+	"github.com/fiatcode-gh/go-exam/internal/attempt"
 	"github.com/fiatcode-gh/go-exam/internal/config"
 	"github.com/fiatcode-gh/go-exam/internal/exam"
 	"github.com/fiatcode-gh/go-exam/internal/platform/clientip"
@@ -53,9 +54,11 @@ func run() error {
 	}
 	defer media.Close()
 
+	attempts := attempt.NewService(db, time.Now, rand.Reader)
 	handler, err := web.NewHandler(web.Deps{
 		DB:       db,
 		Exams:    exam.NewService(db, media, time.Now, rand.Reader),
+		Attempts: attempts,
 		Admin:    adminauth.NewService(db, cfg.AdminPassword, time.Now, rand.Reader),
 		ClientIP: clientip.New(cfg.TrustedProxies),
 		Location: cfg.Location,
@@ -83,6 +86,17 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	sweeperDone := make(chan struct{})
+	go func() {
+		runSweeper(ctx, sweepInterval, attempts.Sweep, logger)
+		close(sweeperDone)
+	}()
+	// Runs before the deferred db.Close, so no sweep outlives the database.
+	defer func() {
+		stop()
+		<-sweeperDone
+	}()
+
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- srv.Serve(ln) }()
 	logger.Info("listening", "addr", ln.Addr().String(), "data_dir", cfg.DataDir)
@@ -99,4 +113,30 @@ func run() error {
 		return err
 	}
 	return nil
+}
+
+const (
+	sweepInterval = 5 * time.Second
+	sweepTimeout  = 5 * time.Second
+)
+
+// runSweeper calls sweep every interval, each call bounded by sweepTimeout,
+// so an abandoned attempt times out with no browser connected. It returns
+// when ctx is cancelled; sweep errors are logged and the loop goes on.
+func runSweeper(ctx context.Context, every time.Duration, sweep func(context.Context) error, logger *slog.Logger) {
+	ticker := time.NewTicker(every)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		sweepCtx, cancel := context.WithTimeout(ctx, sweepTimeout)
+		err := sweep(sweepCtx)
+		cancel()
+		if err != nil && ctx.Err() == nil {
+			logger.Error("sweep failed", "err", err)
+		}
+	}
 }

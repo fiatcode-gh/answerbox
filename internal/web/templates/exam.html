@@ -1,0 +1,75 @@
+{{define "title"}}{{.ExamTitle}} · go-exam{{end}}
+
+{{define "header"}}
+<header class="exam-header">
+  <div class="exam-header-inner">
+    <h1 class="exam-title">{{.ExamTitle}}</h1>
+    <p class="student-name"><span class="visually-hidden">Student: </span>{{.StudentName}}</p>
+  </div>
+</header>
+{{end}}
+
+{{define "main"}}
+<main id="exam" data-remaining-ms="{{.RemainingMS}}" data-answer-url="/exam/answer" data-status-url="/exam/status">
+  <div class="exam-bar">
+    <p class="timer-box"><span class="visually-hidden">Time remaining</span><span id="timer" role="timer" data-level="{{.Level}}">{{.Timer}}</span></p>
+    <span id="save-state" role="status" data-state="saved">✓ All answers saved</span>
+    <button type="button" id="nav-toggle" aria-expanded="false" aria-controls="question-nav" hidden>Questions</button>
+  </div>
+  <p id="timer-announce" class="visually-hidden" aria-live="polite"></p>
+
+  <noscript><p class="banner banner-danger">This exam needs JavaScript to save your answers.</p></noscript>
+  <div id="time-up" class="banner banner-danger" role="alert" hidden>Time is up. Finishing your exam…</div>
+  <div id="moved" class="banner banner-warn" role="alert" hidden>This attempt is no longer active on this device. <a href="/">Go to the start page</a></div>
+
+  <div class="exam-layout">
+    <nav id="question-nav" data-open="false" aria-label="Questions">
+      <p id="answered-count">Answered {{.Answered}} of {{.Total}}</p>
+      <ol class="nav-grid">
+        {{range .Questions}}<li><a class="bubble" href="#q{{.Number}}" data-answered="{{.Answered}}">{{.Number}}</a></li>
+        {{end}}
+      </ol>
+    </nav>
+
+    <div class="exam-questions">
+      {{$total := .Total}}
+      {{range $q := .Questions}}
+      <section class="question" id="q{{$q.Number}}" data-question-id="{{$q.ID}}">
+        <div class="question-head">
+          <p class="eyebrow">Question {{$q.Number}} of {{$total}}</p>
+          {{if $q.Answered}}<span class="q-state" data-state="saved">Saved</span>{{else}}<span class="q-state" data-state="idle"></span>{{end}}
+        </div>
+        <div class="question-body">{{$q.BodyHTML}}</div>
+        <fieldset class="options">
+          <legend class="visually-hidden">Answer for question {{$q.Number}}</legend>
+          {{range $q.Options}}
+          <label class="option" for="o{{.ID}}">
+            <input type="radio" name="q{{$q.ID}}" value="{{.ID}}" id="o{{.ID}}"{{if .Picked}} checked{{end}}>
+            <span class="bubble">{{.Letter}}</span>
+            <span class="option-body">{{.BodyHTML}}</span>
+          </label>
+          {{end}}
+        </fieldset>
+      </section>
+      {{end}}
+
+      <footer class="exam-footer">
+        <p class="answered-summary">Answered {{.Answered}} of {{.Total}}</p>
+        <form id="submit-form" method="post" action="/exam/submit">
+          <button type="button" id="submit-open">Submit exam</button>
+          <dialog id="submit-dialog" aria-labelledby="submit-title">
+            <article>
+              <h2 id="submit-title">Submit your exam?</h2>
+              <p id="submit-summary">You answered {{.Answered}} of {{.Total}} questions. {{.Unanswered}} {{if eq .Unanswered 1}}question has{{else}}questions have{{end}} no answer. You can't change answers after submitting.</p>
+              <footer class="dialog-actions">
+                <button type="button" id="submit-cancel" class="secondary">Keep working</button>
+                <button type="submit" id="submit-confirm">Submit</button>
+              </footer>
+            </article>
+          </dialog>
+        </form>
+      </footer>
+    </div>
+  </div>
+</main>
+{{end}}

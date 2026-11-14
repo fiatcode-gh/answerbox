@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/fiatcode-gh/go-exam/internal/adminauth"
+	"github.com/fiatcode-gh/go-exam/internal/attempt"
 	"github.com/fiatcode-gh/go-exam/internal/exam"
 	"github.com/fiatcode-gh/go-exam/internal/platform/clientip"
 )
@@ -19,6 +20,7 @@ import (
 type Deps struct {
 	DB       *sql.DB
 	Exams    *exam.Service
+	Attempts *attempt.Service
 	Admin    *adminauth.Service
 	ClientIP clientip.Resolver
 	Location *time.Location
@@ -36,8 +38,8 @@ type server struct {
 // NewHandler parses templates, indexes static assets and returns the
 // complete application handler with its middleware.
 func NewHandler(d Deps) (http.Handler, error) {
-	if d.DB == nil || d.Exams == nil || d.Admin == nil || d.Location == nil || d.Now == nil || d.Logger == nil {
-		return nil, errors.New("web: Deps.DB, Exams, Admin, Location, Now and Logger are required")
+	if d.DB == nil || d.Exams == nil || d.Attempts == nil || d.Admin == nil || d.Location == nil || d.Now == nil || d.Logger == nil {
+		return nil, errors.New("web: Deps.DB, Exams, Attempts, Admin, Location, Now and Logger are required")
 	}
 	s, err := newServer(d)
 	if err != nil {
@@ -66,6 +68,7 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("GET /static/{path...}", s.serveStatic)
 	mux.HandleFunc("GET /media/{key}/{name}", s.serveMedia)
 	s.mountAdmin(mux)
+	s.mountStudent(mux)
 	mux.HandleFunc("/", s.notFound)
 
 	cop := http.NewCrossOriginProtection()

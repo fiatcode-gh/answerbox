@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/fiatcode-gh/go-exam/internal/adminauth"
+	"github.com/fiatcode-gh/go-exam/internal/attempt"
 	"github.com/fiatcode-gh/go-exam/internal/exam"
 	"github.com/fiatcode-gh/go-exam/internal/platform/clientip"
 	"github.com/fiatcode-gh/go-exam/internal/platform/sqlite/sqlitetest"
@@ -46,11 +47,12 @@ type envConfig struct {
 }
 
 type testEnv struct {
-	h     http.Handler
-	db    *sql.DB
-	admin *adminauth.Service
-	exams *exam.Service
-	clock time.Time
+	h        http.Handler
+	db       *sql.DB
+	admin    *adminauth.Service
+	exams    *exam.Service
+	attempts *attempt.Service
+	clock    time.Time
 }
 
 func newTestEnv(t *testing.T) *testEnv {
@@ -73,9 +75,11 @@ func newTestEnvWith(t *testing.T, db *sql.DB, cfg envConfig) *testEnv {
 	now := func() time.Time { return env.clock }
 	env.admin = adminauth.NewService(db, testPassword, now, rand.NewChaCha8([32]byte{1}))
 	env.exams = exam.NewService(db, media, now, rand.NewChaCha8([32]byte{2}))
+	env.attempts = attempt.NewService(db, now, rand.NewChaCha8([32]byte{3}))
 	env.h, err = NewHandler(Deps{
 		DB:       db,
 		Exams:    env.exams,
+		Attempts: env.attempts,
 		Admin:    env.admin,
 		ClientIP: clientip.New(cfg.trusted),
 		Location: time.UTC,
