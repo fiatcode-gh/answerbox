@@ -1,0 +1,35 @@
+{{define "title"}}Exams · go-exam{{end}}
+
+{{define "header"}}{{template "admin_header" .}}{{end}}
+
+{{define "main"}}
+<main class="container admin">
+  <h1>Exams</h1>
+  {{if .Exams}}
+  <div class="overflow-auto">
+    <table id="exams">
+      <thead>
+        <tr>
+          <th scope="col">Title</th>
+          <th scope="col">Status</th>
+          <th scope="col">Questions</th>
+          <th scope="col">Attempts</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Exams}}
+        <tr data-exam-id="{{.ID}}">
+          <td>{{.Title}}</td>
+          <td>{{if .Open}}<span class="badge badge-ok">Open</span>{{else}}<span class="badge badge-muted">Closed</span>{{end}}</td>
+          <td class="numeric">{{.QuestionCount}}</td>
+          <td class="numeric">{{.AttemptCount}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <p class="empty">No exams yet. Import one above.</p>
+  {{end}}
+</main>
+{{end}}

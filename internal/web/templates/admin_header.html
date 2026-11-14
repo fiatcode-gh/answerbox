@@ -1,0 +1,18 @@
+{{define "admin_header"}}
+<header class="admin-header">
+  <nav class="container">
+    <ul>
+      <li><a class="wordmark" href="/admin/exams">go-exam</a></li>
+    </ul>
+    <ul>
+      <li><a href="/admin/exams">Exams</a></li>
+      <li>
+        <form class="logout-form" method="post" action="/admin/logout">
+          <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+          <button type="submit" class="secondary">Log out</button>
+        </form>
+      </li>
+    </ul>
+  </nav>
+</header>
+{{end}}

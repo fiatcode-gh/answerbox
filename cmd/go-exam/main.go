@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -15,7 +16,9 @@ import (
 	"time"
 	_ "time/tzdata" // GOEXAM_TIME_ZONE works without host zoneinfo
 
+	"github.com/fiatcode-gh/go-exam/internal/adminauth"
 	"github.com/fiatcode-gh/go-exam/internal/config"
+	"github.com/fiatcode-gh/go-exam/internal/exam"
 	"github.com/fiatcode-gh/go-exam/internal/platform/clientip"
 	"github.com/fiatcode-gh/go-exam/internal/platform/sqlite"
 	"github.com/fiatcode-gh/go-exam/internal/web"
@@ -35,7 +38,8 @@ func run() error {
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
-	if err := os.MkdirAll(cfg.DataDir, 0o750); err != nil {
+	mediaDir := filepath.Join(cfg.DataDir, "media")
+	if err := os.MkdirAll(mediaDir, 0o750); err != nil {
 		return err
 	}
 	db, err := sqlite.Open(filepath.Join(cfg.DataDir, "go-exam.db"))
@@ -43,10 +47,19 @@ func run() error {
 		return err
 	}
 	defer db.Close()
+	media, err := os.OpenRoot(mediaDir)
+	if err != nil {
+		return err
+	}
+	defer media.Close()
 
 	handler, err := web.NewHandler(web.Deps{
 		DB:       db,
+		Exams:    exam.NewService(db, media, time.Now, rand.Reader),
+		Admin:    adminauth.NewService(db, cfg.AdminPassword, time.Now, rand.Reader),
 		ClientIP: clientip.New(cfg.TrustedProxies),
+		Location: cfg.Location,
+		Now:      time.Now,
 		Logger:   logger,
 	})
 	if err != nil {

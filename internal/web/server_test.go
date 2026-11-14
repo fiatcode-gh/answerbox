@@ -14,24 +14,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fiatcode-gh/go-exam/internal/platform/clientip"
 	"github.com/fiatcode-gh/go-exam/internal/platform/sqlite/sqlitetest"
 )
 
 func newTestHandler(t *testing.T, db *sql.DB, logOut io.Writer) http.Handler {
 	t.Helper()
-	if logOut == nil {
-		logOut = io.Discard
-	}
-	h, err := NewHandler(Deps{
-		DB:       db,
-		ClientIP: clientip.New(nil),
-		Logger:   slog.New(slog.NewTextHandler(logOut, nil)),
-	})
-	if err != nil {
-		t.Fatalf("NewHandler: %v", err)
-	}
-	return h
+	return newTestEnvWith(t, db, envConfig{logOut: logOut}).h
 }
 
 func do(h http.Handler, method, target string, header http.Header) *httptest.ResponseRecorder {

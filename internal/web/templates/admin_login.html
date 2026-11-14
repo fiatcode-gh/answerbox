@@ -1,0 +1,23 @@
+{{define "title"}}Log in · go-exam{{end}}
+
+{{define "header"}}
+<header class="admin-header">
+  <nav class="container">
+    <ul>
+      <li><span class="wordmark">go-exam</span></li>
+    </ul>
+  </nav>
+</header>
+{{end}}
+
+{{define "main"}}
+<main class="container narrow login">
+  <h1>Teacher log in</h1>
+  {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
+  <form id="login-form" method="post" action="/admin/login">
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password" autocomplete="current-password" required autofocus>
+    <button type="submit">Log in</button>
+  </form>
+</main>
+{{end}}

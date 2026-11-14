@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"io/fs"
 	"net/http"
+	"slices"
 )
 
 //go:embed templates
@@ -14,18 +15,26 @@ var templateFS embed.FS
 
 const baseTemplate = "base.html"
 
-// renderer holds one template set per page: base.html plus that page file,
-// parsed once at startup.
+// partials only define named templates shared by pages; they are parsed into
+// every page set and are not pages themselves.
+var partials = []string{"admin_header.html"}
+
+// renderer holds one template set per page: base.html and the partials plus
+// that page file, parsed once at startup.
 type renderer struct {
 	pages map[string]*template.Template
 }
 
 func newRenderer(a assets) (*renderer, error) {
+	shared := append([]string{baseTemplate}, partials...)
+	for i, name := range shared {
+		shared[i] = "templates/" + name
+	}
 	base, err := template.New(baseTemplate).
 		Funcs(template.FuncMap{"static": a.url}).
-		ParseFS(templateFS, "templates/"+baseTemplate)
+		ParseFS(templateFS, shared...)
 	if err != nil {
-		return nil, fmt.Errorf("web: parse %s: %w", baseTemplate, err)
+		return nil, fmt.Errorf("web: parse %s and partials: %w", baseTemplate, err)
 	}
 	entries, err := fs.ReadDir(templateFS, "templates")
 	if err != nil {
@@ -33,7 +42,7 @@ func newRenderer(a assets) (*renderer, error) {
 	}
 	r := &renderer{pages: make(map[string]*template.Template)}
 	for _, e := range entries {
-		if e.IsDir() || e.Name() == baseTemplate {
+		if e.IsDir() || e.Name() == baseTemplate || slices.Contains(partials, e.Name()) {
 			continue
 		}
 		t, err := base.Clone()
@@ -81,15 +90,24 @@ type errorData struct {
 var errorMessages = map[int]errorData{
 	http.StatusForbidden:             {Title: "Not allowed", Message: "This request was refused."},
 	http.StatusNotFound:              {Title: "Page not found", Message: "There is nothing at this address."},
-	http.StatusRequestEntityTooLarge: {Title: "Upload too large", Message: "The file is larger than the allowed size."},
+	http.StatusRequestEntityTooLarge: {Title: "Upload too large", Message: "Upload is larger than 10 MB."},
 	http.StatusInternalServerError:   {Title: "Something went wrong", Message: "The server could not finish this request. Please try again."},
 }
 
-// errorPage renders error.html for status.
+// errorPage renders error.html for status with its standard message.
 func (s *server) errorPage(w http.ResponseWriter, r *http.Request, status int) {
+	s.errorPageMessage(w, r, status, "")
+}
+
+// errorPageMessage renders error.html for status; a non-empty message
+// replaces the standard one.
+func (s *server) errorPageMessage(w http.ResponseWriter, r *http.Request, status int, message string) {
 	data, ok := errorMessages[status]
 	if !ok {
 		data = errorData{Title: http.StatusText(status), Message: "The request could not be completed."}
+	}
+	if message != "" {
+		data.Message = message
 	}
 	data.Status = status
 	s.page(w, r, status, "error.html", data)
