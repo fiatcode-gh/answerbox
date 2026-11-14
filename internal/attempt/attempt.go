@@ -99,6 +99,28 @@ type Summary struct {
 	ResumeCode            string        // in progress only, "ABCD-EFGH"
 }
 
+// Detail is one attempt as the teacher sees it: the summary and every
+// question in original file order with the key and the student's picks.
+type Detail struct {
+	Summary
+	Questions []DetailQuestion
+}
+
+// DetailQuestion is a question in original file order.
+type DetailQuestion struct {
+	Position int
+	BodyHTML template.HTML
+	Answered bool
+	Options  []DetailOption
+}
+
+// DetailOption is an option in original file order.
+type DetailOption struct {
+	Position        int
+	BodyHTML        template.HTML
+	Picked, Correct bool
+}
+
 // Service applies the attempt rules to the database.
 type Service struct {
 	db     *sql.DB

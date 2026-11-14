@@ -1,0 +1,50 @@
+{{define "title"}}Results: {{.Exam.Title}} · go-exam{{end}}
+
+{{define "header"}}{{template "admin_header" .}}{{end}}
+
+{{define "main"}}
+<main class="container admin attempts-page" data-exam-id="{{.Exam.ID}}">
+  <p class="back"><a href="/admin/exams/{{.Exam.ID}}">← {{.Exam.Title}}</a></p>
+  <p class="eyebrow">Results</p>
+  <h1>{{.Exam.Title}}</h1>
+  {{if .Rows}}
+  <div class="results-bar">
+    <p class="counts">{{.Counts}}</p>
+    <a id="export-csv" role="button" class="secondary" href="/admin/exams/{{.Exam.ID}}/attempts.csv">Export CSV</a>
+  </div>
+  <p class="zone-note">Times are shown in {{.Zone}}.</p>
+  <div class="overflow-auto">
+    <table id="attempts">
+      <thead>
+        <tr>
+          <th scope="col"{{with .Name.AriaSort}} aria-sort="{{.}}"{{end}}><a href="{{.NameHref}}" class="sort-link">Name{{with .Name.Arrow}} <span aria-hidden="true">{{.}}</span>{{end}}</a></th>
+          <th scope="col"{{with .Started.AriaSort}} aria-sort="{{.}}"{{end}}>Started{{with .Started.Arrow}} <span aria-hidden="true">{{.}}</span>{{end}}</th>
+          <th scope="col">Finished</th>
+          <th scope="col">Status</th>
+          <th scope="col"{{with .Score.AriaSort}} aria-sort="{{.}}"{{end}}><a href="{{.ScoreHref}}" class="sort-link">Score{{with .Score.Arrow}} <span aria-hidden="true">{{.}}</span>{{end}}</a></th>
+          <th scope="col">Time left</th>
+          <th scope="col">Resume code</th>
+          <th scope="col">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Rows}}
+        <tr data-attempt-id="{{.ID}}">
+          <td>{{.Name}}</td>
+          <td class="numeric">{{.Started}}</td>
+          <td class="numeric">{{if .InProgress}}—{{else}}{{.Finished}}{{end}}</td>
+          <td><span class="badge {{.Status.Badge}}">{{.Status.Text}}</span></td>
+          <td class="numeric">{{.Score}} / {{.Total}}</td>
+          <td class="numeric">{{if .InProgress}}{{.TimeLeft}}{{else}}—{{end}}</td>
+          <td>{{if .InProgress}}<code class="resume-code">{{.ResumeCode}}</code>{{else}}—{{end}}</td>
+          <td class="row-actions"><a href="/admin/exams/{{$.Exam.ID}}/attempts/{{.ID}}">View</a> <a class="danger-link" href="/admin/exams/{{$.Exam.ID}}/attempts/{{.ID}}/delete">Delete</a></td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <p class="empty">No attempts yet.</p>
+  {{end}}
+</main>
+{{end}}

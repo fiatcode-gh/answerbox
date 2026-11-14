@@ -25,7 +25,7 @@ import (
 )
 
 // adminRoutes lists every route under /admin/ except login; each must
-// require a session. Tasks 06 and 09 append their routes.
+// require a session.
 var adminRoutes = []struct{ Method, Path string }{
 	{"POST", "/admin/logout"},
 	{"GET", "/admin/"},
@@ -35,6 +35,11 @@ var adminRoutes = []struct{ Method, Path string }{
 	{"POST", "/admin/exams/1/replace"},
 	{"POST", "/admin/exams/1/open"},
 	{"POST", "/admin/exams/1/close"},
+	{"GET", "/admin/exams/1/attempts"},
+	{"GET", "/admin/exams/1/attempts.csv"},
+	{"GET", "/admin/exams/1/attempts/1"},
+	{"GET", "/admin/exams/1/attempts/1/delete"},
+	{"POST", "/admin/exams/1/attempts/1/delete"},
 }
 
 const testPassword = "correct-horse-battery"
@@ -42,8 +47,9 @@ const testPassword = "correct-horse-battery"
 var testStart = time.Date(2026, 11, 14, 9, 30, 0, 0, time.UTC)
 
 type envConfig struct {
-	logOut  io.Writer
-	trusted []netip.Prefix
+	logOut   io.Writer
+	trusted  []netip.Prefix
+	location *time.Location // time.UTC when nil
 }
 
 type testEnv struct {
@@ -65,6 +71,9 @@ func newTestEnvWith(t *testing.T, db *sql.DB, cfg envConfig) *testEnv {
 	if cfg.logOut == nil {
 		cfg.logOut = io.Discard
 	}
+	if cfg.location == nil {
+		cfg.location = time.UTC
+	}
 	media, err := os.OpenRoot(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -82,7 +91,7 @@ func newTestEnvWith(t *testing.T, db *sql.DB, cfg envConfig) *testEnv {
 		Attempts: env.attempts,
 		Admin:    env.admin,
 		ClientIP: clientip.New(cfg.trusted),
-		Location: time.UTC,
+		Location: cfg.location,
 		Now:      now,
 		Logger:   slog.New(slog.NewTextHandler(cfg.logOut, nil)),
 	})

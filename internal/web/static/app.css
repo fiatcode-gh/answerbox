@@ -461,6 +461,117 @@ table th {
   font-weight: 600;
 }
 
+/* Results: attempts table, attempt detail, delete confirmation. */
+.results-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-3);
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--ge-space-2);
+}
+
+.results-bar .counts {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.results-bar [role="button"] {
+  margin: 0;
+  min-height: var(--ge-touch);
+}
+
+.zone-note {
+  margin-bottom: var(--ge-space-3);
+  color: var(--ge-muted);
+  font-size: 0.875rem;
+}
+
+.sort-link {
+  display: inline-block;
+  padding: var(--ge-space-2) 0;
+  color: inherit;
+}
+
+th[aria-sort] {
+  color: var(--ge-ink);
+}
+
+.resume-code {
+  padding: 2px var(--ge-space-1);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.row-actions .danger-link {
+  color: var(--ge-danger);
+}
+
+.detail-question {
+  margin-bottom: var(--ge-space-5);
+  padding: var(--ge-space-4);
+  border: 1px solid var(--ge-rule);
+  border-radius: var(--ge-radius);
+  background: var(--ge-surface);
+}
+
+.detail-options li[data-picked="true"][data-correct="false"] {
+  border-color: var(--ge-danger);
+  background: var(--ge-danger-bg);
+}
+
+.detail-options li[data-picked="true"] {
+  border-width: 2px;
+}
+
+.option-marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-3);
+  margin: var(--ge-space-1) 0 0;
+}
+
+.option-marks .correct-mark {
+  margin-top: 0;
+}
+
+.pick-mark {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.detail-options li[data-correct="false"] .pick-mark {
+  color: var(--ge-danger);
+}
+
+.no-answer {
+  color: var(--ge-danger);
+  font-weight: 600;
+}
+
+.confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-3);
+  align-items: center;
+}
+
+.confirm-actions form {
+  margin: 0;
+}
+
+.confirm-actions button,
+.confirm-actions [role="button"] {
+  margin: 0;
+  min-height: var(--ge-touch);
+}
+
+.danger-button {
+  border-color: var(--ge-danger);
+  background: var(--ge-danger);
+  color: var(--ge-surface);
+}
+
 /* Student: landing. */
 main.landing {
   padding-top: var(--ge-space-6);

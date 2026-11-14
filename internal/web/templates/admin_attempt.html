@@ -1,0 +1,34 @@
+{{define "title"}}{{.Attempt.StudentName}} · {{.Exam.Title}} · go-exam{{end}}
+
+{{define "header"}}{{template "admin_header" .}}{{end}}
+
+{{define "main"}}
+<main class="container admin attempt-detail" data-exam-id="{{.Exam.ID}}" data-attempt-id="{{.Attempt.ID}}">
+  <p class="back"><a href="/admin/exams/{{.Exam.ID}}/attempts">← Results: {{.Exam.Title}}</a></p>
+  <div class="exam-head">
+    <h1>{{.Attempt.StudentName}}</h1>
+    <span class="badge {{.Status.Badge}}">{{.Status.Text}}</span>
+  </div>
+  <dl class="settings attempt-summary">
+    <dt>Score</dt>
+    <dd class="numeric">{{.Attempt.Score}} / {{.Attempt.Total}}</dd>
+    <dt>Started</dt>
+    <dd class="numeric">{{.Started}}</dd>
+    <dt>Finished</dt>
+    <dd class="numeric">{{.Finished}}</dd>
+  </dl>
+  <p class="zone-note">Times are shown in {{.Zone}}. Questions and options are in the order of the exam file.</p>
+
+  {{range .Attempt.Questions}}
+  <section class="detail-question" id="q{{.Position}}">
+    <p class="eyebrow">Question {{.Position}}{{if not .Answered}} · <span class="no-answer">No answer</span>{{end}}</p>
+    <div class="question-body">{{.BodyHTML}}</div>
+    <ol class="preview-options detail-options">
+      {{range .Options}}
+      <li data-correct="{{.Correct}}" data-picked="{{.Picked}}"><div class="option-body">{{.BodyHTML}}</div>{{if or .Correct .Picked}}<p class="option-marks">{{if .Correct}}<span class="correct-mark">✓ Correct</span>{{end}}{{if .Picked}}<span class="pick-mark">{{if not .Correct}}✗ {{end}}Student's pick</span>{{end}}</p>{{end}}</li>
+      {{end}}
+    </ol>
+  </section>
+  {{end}}
+</main>
+{{end}}
