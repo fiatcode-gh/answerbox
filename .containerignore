@@ -1,0 +1,4 @@
+.git/
+.flow/
+data/
+e2e/out/
