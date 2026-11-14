@@ -29,6 +29,11 @@ var adminRoutes = []struct{ Method, Path string }{
 	{"POST", "/admin/logout"},
 	{"GET", "/admin/"},
 	{"GET", "/admin/exams"},
+	{"POST", "/admin/exams"},
+	{"GET", "/admin/exams/1"},
+	{"POST", "/admin/exams/1/replace"},
+	{"POST", "/admin/exams/1/open"},
+	{"POST", "/admin/exams/1/close"},
 }
 
 const testPassword = "correct-horse-battery"

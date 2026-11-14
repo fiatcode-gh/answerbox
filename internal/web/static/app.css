@@ -282,6 +282,185 @@ table th {
   color: var(--ge-muted);
 }
 
+/* Exams list: import form, format help, row actions. */
+.import {
+  margin-bottom: var(--ge-space-5);
+}
+
+.upload-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-3);
+  align-items: center;
+}
+
+.upload-row input[type="file"] {
+  flex: 1 1 16rem;
+  margin: 0;
+}
+
+.upload-row button,
+#replace-form button {
+  margin: 0;
+  min-height: var(--ge-touch);
+}
+
+.format-help {
+  margin-top: var(--ge-space-4);
+  padding: var(--ge-space-3) var(--ge-space-4);
+  border: 1px solid var(--ge-rule);
+  border-radius: var(--ge-radius);
+  background: var(--ge-surface);
+}
+
+.format-help summary {
+  font-weight: 600;
+}
+
+.format-help pre {
+  padding: var(--ge-space-3);
+  border: 1px solid var(--ge-rule);
+  border-radius: var(--ge-radius);
+  background: var(--ge-paper);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.format-help ul {
+  margin-bottom: 0;
+}
+
+.row-actions {
+  white-space: nowrap;
+}
+
+.row-actions form {
+  display: inline-block;
+  margin: 0 var(--ge-space-3) 0 0;
+}
+
+.row-actions button {
+  margin: 0;
+  padding: var(--ge-space-1) var(--ge-space-3);
+  min-height: var(--ge-touch);
+}
+
+.row-actions a {
+  display: inline-block;
+  margin-right: var(--ge-space-3);
+  padding: var(--ge-space-2) 0;
+}
+
+/* Exam detail: heading, actions, settings, replace form, preview. */
+.back {
+  margin-bottom: var(--ge-space-3);
+  font-size: 0.875rem;
+}
+
+.exam-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-3);
+  align-items: center;
+  margin-bottom: var(--ge-space-4);
+}
+
+.exam-head h1 {
+  margin: 0;
+}
+
+.exam-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-3);
+  align-items: center;
+  margin-bottom: var(--ge-space-5);
+}
+
+.exam-actions form {
+  margin: 0;
+}
+
+.exam-actions button,
+.exam-actions [role="button"] {
+  margin: 0;
+  min-height: var(--ge-touch);
+}
+
+.settings {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--ge-space-2) var(--ge-space-4);
+  margin-bottom: var(--ge-space-5);
+}
+
+.settings dt {
+  color: var(--ge-muted);
+  font-weight: 600;
+}
+
+.settings dd {
+  margin: 0;
+}
+
+.replace {
+  margin-bottom: var(--ge-space-6);
+}
+
+.frozen-notice {
+  padding: var(--ge-space-3) var(--ge-space-4);
+  border: 1px solid var(--ge-warn);
+  border-radius: var(--ge-radius);
+  background: var(--ge-warn-bg);
+  color: var(--ge-warn);
+  font-weight: 600;
+}
+
+.preview-question {
+  margin-bottom: var(--ge-space-5);
+  padding: var(--ge-space-4);
+  border: 1px solid var(--ge-rule);
+  border-radius: var(--ge-radius);
+  background: var(--ge-surface);
+}
+
+.eyebrow {
+  margin-bottom: var(--ge-space-2);
+  color: var(--ge-muted);
+  font-size: 0.875rem;
+}
+
+.preview-options {
+  margin: var(--ge-space-3) 0 0;
+  padding-left: var(--ge-space-5);
+  list-style-type: upper-alpha;
+}
+
+.preview-options li {
+  margin-bottom: var(--ge-space-2);
+  padding: var(--ge-space-2) var(--ge-space-3);
+  border: 1px solid var(--ge-rule);
+  border-radius: var(--ge-radius);
+}
+
+.preview-options li[data-correct="true"] {
+  border-color: var(--ge-ok);
+  background: var(--ge-ok-bg);
+}
+
+.question-body > :last-child,
+.option-body > :last-child {
+  margin-bottom: 0;
+}
+
+.correct-mark {
+  display: inline-block;
+  margin-top: var(--ge-space-1);
+  color: var(--ge-ok);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root[data-theme="light"] {
     --pico-transition: 0s;

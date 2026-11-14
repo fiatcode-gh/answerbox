@@ -64,6 +64,7 @@ func (s *server) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.healthz)
 	mux.HandleFunc("GET /static/{path...}", s.serveStatic)
+	mux.HandleFunc("GET /media/{key}/{name}", s.serveMedia)
 	s.mountAdmin(mux)
 	mux.HandleFunc("/", s.notFound)
 

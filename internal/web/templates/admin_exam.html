@@ -1,0 +1,64 @@
+{{define "title"}}{{.Exam.Title}} · go-exam{{end}}
+
+{{define "header"}}{{template "admin_header" .}}{{end}}
+
+{{define "main"}}
+<main class="container admin exam-detail" data-exam-id="{{.Exam.ID}}">
+  <p class="back"><a href="/admin/exams">← All exams</a></p>
+  {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
+  <div class="exam-head">
+    <h1>{{.Exam.Title}}</h1>
+    {{if .Exam.Open}}<span class="badge badge-ok">Open</span>{{else}}<span class="badge badge-muted">Closed</span>{{end}}
+  </div>
+  <div class="exam-actions">
+    {{if .Exam.Open}}
+    <form method="post" action="/admin/exams/{{.Exam.ID}}/close">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button type="submit" class="secondary">Close</button>
+    </form>
+    {{else}}
+    <form method="post" action="/admin/exams/{{.Exam.ID}}/open">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button type="submit">Open</button>
+    </form>
+    {{end}}
+    <a role="button" class="secondary" href="/admin/exams/{{.Exam.ID}}/attempts">Results</a>
+  </div>
+
+  <dl class="settings">
+    <dt>Shuffle</dt>
+    <dd>{{.ShuffleText}}</dd>
+    <dt>Result shown to students</dt>
+    <dd>{{.ShowResultText}}</dd>
+    <dt>Questions</dt>
+    <dd>{{.Exam.QuestionCount}}</dd>
+  </dl>
+
+  <section class="replace">
+    <h2>Replace questions</h2>
+    {{if eq .Exam.AttemptCount 0}}
+    <form id="replace-form" method="post" action="/admin/exams/{{.Exam.ID}}/replace" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <label for="replace-file">New exam file (.md, .txt or .zip)</label>
+      <input type="file" id="replace-file" name="file" accept=".md,.txt,.zip" required>
+      <button type="submit">Replace exam</button>
+    </form>
+    {{else}}
+    <p class="frozen-notice">{{.FrozenNotice}}</p>
+    {{end}}
+  </section>
+
+  <h2>Preview</h2>
+  {{range .Questions}}
+  <section class="preview-question" id="q{{.Position}}">
+    <p class="eyebrow">Question {{.Position}}</p>
+    <div class="question-body">{{.BodyHTML}}</div>
+    <ol class="preview-options">
+      {{range .Options}}
+      <li data-correct="{{.Correct}}"><div class="option-body">{{.BodyHTML}}</div>{{if .Correct}}<span class="correct-mark">✓ Correct</span>{{end}}</li>
+      {{end}}
+    </ol>
+  </section>
+  {{end}}
+</main>
+{{end}}

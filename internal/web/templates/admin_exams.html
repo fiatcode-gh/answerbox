@@ -5,6 +5,51 @@
 {{define "main"}}
 <main class="container admin">
   <h1>Exams</h1>
+  {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
+  <section class="import">
+    <form id="import-form" method="post" action="/admin/exams" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <label for="import-file">Exam file (.md, .txt or .zip, up to 10 MB)</label>
+      <div class="upload-row">
+        <input type="file" id="import-file" name="file" accept=".md,.txt,.zip" required>
+        <button type="submit">Import exam</button>
+      </div>
+    </form>
+    <details class="format-help">
+      <summary>Exam file format</summary>
+      <p>A complete example:</p>
+<pre id="format-example">
+# Chapter 3 quiz
+shuffle: questions, options
+show_result: review
+
+1. What is the **area** of this triangle?
+![A right triangle with legs 3 and 4](triangle.png)
+- 6 *
+- 7
+- 12
+- 14
+
+2. What does this program print?
+```
+fmt.Println(2 + 3)
+```
+- `5` *
+- `23`
+- `2 + 3`
+</pre>
+      <ul>
+        <li>The first line is the title: <code># Title</code>.</li>
+        <li>Optional settings follow the title: <code>shuffle: none | questions | questions, options</code> (default <code>questions</code>) and <code>show_result: none | score | review</code> (default <code>score</code>).</li>
+        <li>Questions are numbered <code>1.</code>, <code>2.</code>, … at the start of a line.</li>
+        <li>Options start with <code>- </code>. Each question needs at least two.</li>
+        <li>Mark exactly one option per question as correct with a trailing <code>*</code>.</li>
+        <li>Text supports <strong>bold</strong> (<code>**bold**</code>), <em>italics</em> (<code>*italics*</code>), inline <code>`code`</code>, line breaks, fenced code blocks (<code>```</code>) and images (<code>![description](file.png)</code>).</li>
+        <li>To use images, upload a <code>.zip</code> containing the text file and the image files (PNG, JPEG, GIF or WebP).</li>
+        <li>Uploads are limited to 10 MB.</li>
+      </ul>
+    </details>
+  </section>
   {{if .Exams}}
   <div class="overflow-auto">
     <table id="exams">
@@ -14,6 +59,7 @@
           <th scope="col">Status</th>
           <th scope="col">Questions</th>
           <th scope="col">Attempts</th>
+          <th scope="col">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -23,6 +69,7 @@
           <td>{{if .Open}}<span class="badge badge-ok">Open</span>{{else}}<span class="badge badge-muted">Closed</span>{{end}}</td>
           <td class="numeric">{{.QuestionCount}}</td>
           <td class="numeric">{{.AttemptCount}}</td>
+          <td class="row-actions">{{if .Open}}<form method="post" action="/admin/exams/{{.ID}}/close"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit" class="secondary">Close</button></form>{{else}}<form method="post" action="/admin/exams/{{.ID}}/open"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit">Open</button></form>{{end}} <a href="/admin/exams/{{.ID}}">View</a> <a href="/admin/exams/{{.ID}}/attempts">Results</a></td>
         </tr>
         {{end}}
       </tbody>
