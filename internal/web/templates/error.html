@@ -1,0 +1,9 @@
+{{define "title"}}{{.Title}} · go-exam{{end}}
+
+{{define "main"}}
+<main class="container narrow" id="error" data-status="{{.Status}}">
+  <h1>{{.Title}}</h1>
+  <p>{{.Message}}</p>
+  <p><a href="/">Go to the start page</a></p>
+</main>
+{{end}}

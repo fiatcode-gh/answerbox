@@ -1,0 +1,222 @@
+/* go-exam — design tokens and base rules (PLAN section 8).
+   Pico variables are mapped from the --ge-* tokens, never the reverse. */
+
+:root {
+  --ge-paper: #fbfaf7;
+  --ge-surface: #ffffff;
+  --ge-ink: #1c2430;
+  --ge-muted: #5b6573;
+  --ge-rule: #d9d5cc;
+  --ge-accent: #1f4fa3;
+  --ge-accent-soft: #eef3fb;
+  --ge-ok: #1d6b3a;
+  --ge-ok-bg: #e7f3ea;
+  --ge-warn: #8a5300;
+  --ge-warn-bg: #fff3d6;
+  --ge-danger: #a12622;
+  --ge-danger-bg: #fbe9e7;
+
+  --ge-font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --ge-font-paper: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --ge-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+  --ge-space-1: 4px;
+  --ge-space-2: 8px;
+  --ge-space-3: 12px;
+  --ge-space-4: 16px;
+  --ge-space-5: 24px;
+  --ge-space-6: 32px;
+  --ge-radius: 6px;
+  --ge-touch: 44px;
+  --ge-bubble-size: 32px;
+  --ge-transition: 150ms ease-in-out;
+}
+
+/* Higher specificity than Pico's light-theme selector, so these win. */
+:root[data-theme="light"] {
+  --pico-font-family: var(--ge-font-ui);
+  --pico-font-family-sans-serif: var(--ge-font-ui);
+  --pico-font-family-monospace: var(--ge-font-mono);
+  --pico-background-color: var(--ge-paper);
+  --pico-color: var(--ge-ink);
+  --pico-h1-color: var(--ge-ink);
+  --pico-h2-color: var(--ge-ink);
+  --pico-h3-color: var(--ge-ink);
+  --pico-h4-color: var(--ge-ink);
+  --pico-h5-color: var(--ge-ink);
+  --pico-h6-color: var(--ge-ink);
+  --pico-muted-color: var(--ge-muted);
+  --pico-muted-border-color: var(--ge-rule);
+  --pico-border-radius: var(--ge-radius);
+  --pico-primary: var(--ge-accent);
+  --pico-primary-background: var(--ge-accent);
+  --pico-primary-border: var(--ge-accent);
+  --pico-primary-underline: var(--ge-accent);
+  --pico-primary-hover: var(--ge-ink);
+  --pico-primary-hover-background: var(--ge-ink);
+  --pico-primary-hover-border: var(--ge-ink);
+  --pico-primary-hover-underline: var(--ge-ink);
+  --pico-primary-inverse: var(--ge-surface);
+  --pico-secondary-background: var(--ge-surface);
+  --pico-secondary-border: var(--ge-rule);
+  --pico-secondary-inverse: var(--ge-ink);
+  --pico-secondary-hover-background: var(--ge-accent-soft);
+  --pico-secondary-hover-border: var(--ge-accent);
+  --pico-secondary-hover: var(--ge-ink);
+  --pico-card-background-color: var(--ge-surface);
+  --pico-card-sectioning-background-color: var(--ge-surface);
+  --pico-card-box-shadow: none;
+  --pico-box-shadow: none;
+  --pico-dropdown-background-color: var(--ge-surface);
+  --pico-form-element-background-color: var(--ge-surface);
+  --pico-form-element-border-color: var(--ge-rule);
+  --pico-form-element-active-border-color: var(--ge-accent);
+  --pico-form-element-focus-color: var(--ge-accent);
+  --pico-form-element-invalid-border-color: var(--ge-danger);
+  --pico-form-element-valid-border-color: var(--ge-rule);
+  --pico-table-border-color: var(--ge-rule);
+  --pico-table-row-stripped-background-color: var(--ge-paper);
+  --pico-code-background-color: var(--ge-paper);
+  --pico-code-color: var(--ge-ink);
+  --pico-del-color: var(--ge-danger);
+  --pico-ins-color: var(--ge-ok);
+  --pico-outline-width: 0px; /* focus is shown by the :focus-visible outline below */
+  --pico-transition: var(--ge-transition);
+}
+
+body {
+  background: var(--ge-paper);
+  color: var(--ge-ink);
+  font-family: var(--ge-font-ui);
+}
+
+/* The "paper" voice: question and option text. */
+.paper,
+.question-body,
+.option-body {
+  font-family: var(--ge-font-paper);
+  font-size: 1.125rem;
+  line-height: 1.6;
+}
+
+.numeric,
+.tabular,
+#timer,
+#score,
+td,
+th {
+  font-variant-numeric: tabular-nums;
+}
+
+code,
+kbd,
+pre,
+samp {
+  font-family: var(--ge-font-mono);
+}
+
+pre {
+  overflow-x: auto;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+.narrow {
+  max-width: 28rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Focus: one ring everywhere. */
+:focus-visible {
+  outline: 3px solid var(--ge-accent);
+  outline-offset: 2px;
+}
+
+/* The answer-sheet bubble: empty outline = open, filled ink = answered/picked. */
+.bubble {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--ge-bubble-size);
+  height: var(--ge-bubble-size);
+  border: 2px solid var(--ge-rule);
+  border-radius: 50%;
+  background: var(--ge-surface);
+  color: var(--ge-ink);
+  font-family: var(--ge-font-ui);
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-decoration: none;
+  transition: background-color var(--ge-transition), border-color var(--ge-transition), color var(--ge-transition);
+}
+
+.bubble[data-answered="true"],
+.bubble.filled {
+  background: var(--ge-accent);
+  border-color: var(--ge-accent);
+  color: var(--ge-surface);
+}
+
+/* Status badges always carry text; colour only reinforces it. */
+.badge {
+  display: inline-block;
+  padding: 2px var(--ge-space-2);
+  border: 1px solid var(--ge-rule);
+  border-radius: var(--ge-radius);
+  background: var(--ge-surface);
+  color: var(--ge-ink);
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-ok {
+  background: var(--ge-ok-bg);
+  border-color: var(--ge-ok);
+  color: var(--ge-ok);
+}
+
+.badge-warn {
+  background: var(--ge-warn-bg);
+  border-color: var(--ge-warn);
+  color: var(--ge-warn);
+}
+
+.badge-danger {
+  background: var(--ge-danger-bg);
+  border-color: var(--ge-danger);
+  color: var(--ge-danger);
+}
+
+.badge-muted {
+  color: var(--ge-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="light"] {
+    --pico-transition: 0s;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+  }
+}
