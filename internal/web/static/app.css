@@ -503,6 +503,25 @@ th[aria-sort] {
   white-space: nowrap;
 }
 
+/* Dense attempts table: dates, times and scores never break mid-value, and
+   tighter cells keep all eight columns inside the 1100 px column at 1280 px. */
+#attempts th,
+#attempts td {
+  padding-inline: var(--ge-space-2);
+}
+
+#attempts td {
+  font-size: 0.875rem;
+}
+
+#attempts td.numeric {
+  white-space: nowrap;
+}
+
+.row-actions a:last-child {
+  margin-right: 0;
+}
+
 .row-actions .danger-link {
   color: var(--ge-danger);
 }

@@ -76,16 +76,26 @@ def teacher_login(page: Page, base_url: str, password: str) -> None:
     expect(page).to_have_url(re.compile(r"/admin/exams$"))
 
 
-def import_and_open(page: Page, zip_path) -> int:
-    """Import the exam file from the exams page and open it; returns its id."""
+def import_exam(page: Page, zip_path) -> int:
+    """Import the exam file from the exams page; returns its id (on its detail page)."""
     form = page.locator("#import-form")
     form.locator("input[type=file][name=file]").set_input_files(str(zip_path))
     form.locator("button[type=submit]").click()
     expect(page).to_have_url(re.compile(r"/admin/exams/\d+$"))
-    exam_id = int(re.search(r"/admin/exams/(\d+)$", page.url).group(1))
+    return int(re.search(r"/admin/exams/(\d+)$", page.url).group(1))
+
+
+def open_exam(page: Page, exam_id: int) -> None:
+    """Press Open for exam_id on its detail or the exams page; lands on the exams list."""
     page.locator(f"form[action='/admin/exams/{exam_id}/open'] button[type=submit]").click()
     expect(page).to_have_url(re.compile(r"/admin/exams$"))
     expect(page.locator(f"#exams tr[data-exam-id='{exam_id}']")).to_contain_text("Open")
+
+
+def import_and_open(page: Page, zip_path) -> int:
+    """Import the exam file from the exams page and open it; returns its id."""
+    exam_id = import_exam(page, zip_path)
+    open_exam(page, exam_id)
     return exam_id
 
 
