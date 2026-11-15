@@ -372,15 +372,26 @@ func (s *server) writeJSON(w http.ResponseWriter, r *http.Request, status int, v
 	w.Write(body)
 }
 
-func (s *server) answer(w http.ResponseWriter, r *http.Request) {
+// studentJSONForm returns the request's attempt token after parsing its
+// urlencoded body of at most studentBodyLimit bytes. On failure it has
+// written the JSON error (401 no_attempt, 422 invalid) and reports false.
+func (s *server) studentJSONForm(w http.ResponseWriter, r *http.Request) (string, bool) {
 	token, ok, _ := attemptToken(r)
 	if !ok {
 		s.writeJSON(w, r, http.StatusUnauthorized, errorResponse{"no_attempt"})
-		return
+		return "", false
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, studentBodyLimit)
 	if err := r.ParseForm(); err != nil {
 		s.writeJSON(w, r, http.StatusUnprocessableEntity, errorResponse{"invalid"})
+		return "", false
+	}
+	return token, true
+}
+
+func (s *server) answer(w http.ResponseWriter, r *http.Request) {
+	token, ok := s.studentJSONForm(w, r)
+	if !ok {
 		return
 	}
 	questionID, qErr := strconv.ParseInt(r.PostFormValue("question"), 10, 64)

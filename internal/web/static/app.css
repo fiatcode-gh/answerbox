@@ -783,7 +783,9 @@ main.landing {
   color: var(--ge-warn);
 }
 
-/* The monitor warning stays in view under the exam bar while scrolling. */
+/* The monitor warning stays in view under the exam bar while scrolling.
+   While it is shown, exam.js sets --ge-monitor-offset to its height plus
+   margin, and jump targets and the sticky navigator move below it. */
 #monitor-banner {
   position: sticky;
   top: calc(56px + var(--ge-space-2));
@@ -844,9 +846,9 @@ main.landing {
 
   html.js #question-nav[data-open="true"] {
     position: sticky;
-    top: 56px;
+    top: calc(56px + var(--ge-monitor-offset, 0px));
     z-index: 9;
-    max-height: calc(100vh - 56px);
+    max-height: calc(100vh - 56px - var(--ge-monitor-offset, 0px));
     margin-top: 0;
     overflow-y: auto;
     border-top: 0;
@@ -856,7 +858,7 @@ main.landing {
 
 /* Questions. */
 .question {
-  scroll-margin-top: calc(56px + var(--ge-space-2));
+  scroll-margin-top: calc(56px + var(--ge-space-2) + var(--ge-monitor-offset, 0px));
   margin: var(--ge-space-4) 0 var(--ge-space-5);
   padding: var(--ge-space-4);
   border: 1px solid var(--ge-rule);
@@ -996,8 +998,8 @@ main.landing {
 
   #question-nav {
     position: sticky;
-    top: calc(56px + var(--ge-space-4));
-    max-height: calc(100vh - 56px - var(--ge-space-5));
+    top: calc(56px + var(--ge-space-4) + var(--ge-monitor-offset, 0px));
+    max-height: calc(100vh - 56px - var(--ge-space-5) - var(--ge-monitor-offset, 0px));
     overflow-y: auto;
   }
 

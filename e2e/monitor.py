@@ -127,6 +127,18 @@ def wait_for_events(teacher: Page, base_url: str, exam_id: int, name: str, want:
         teacher.wait_for_timeout(250)
 
 
+def flag_count(teacher: Page, base_url: str, exam_id: int, name: str) -> int:
+    return int(attempt_row(teacher, base_url, exam_id, name).locator("td.flags").inner_text())
+
+
+def wait_for_count(teacher: Page, base_url: str, exam_id: int, name: str, want: int, seconds: float) -> None:
+    deadline = time.monotonic() + seconds
+    while (got := flag_count(teacher, base_url, exam_id, name)) != want:
+        if time.monotonic() > deadline:
+            raise AssertionError(f"teacher sees {got} flags, want {want}")
+        teacher.wait_for_timeout(500)
+
+
 def right_click(page: Page) -> bool:
     page.locator("section.question#q4 .question-body").click(button="right")
     page.wait_for_function("'contextmenu' in window.__blocked")
@@ -207,6 +219,54 @@ def run(base_url: str, password: str, out: Path) -> None:
             row = attempt_row(teacher, base_url, on_id, "Ayu Lestari")
             expect(row.locator("td.flags")).to_have_text("3")
 
+        with step("6a the banner hides by itself"):
+            expect(s1.locator("#monitor-banner")).to_be_hidden(timeout=8000)
+
+        with step("6b a height-only resize on desktop is flagged and re-shows the banner"):
+            s1.set_viewport_size({"width": 1280, "height": 700})
+            expect(s1.locator("#monitor-banner")).to_be_visible(timeout=4000)
+            shown = time.monotonic()
+            expect(s1.locator("#monitor-banner")).to_have_text(BANNER)
+            wait_for_events(
+                teacher, base_url, on_id, "Ayu Lestari",
+                ["Left the exam page", "Tried to paste", "Right-clicked", "Resized the window"],
+            )
+            expect(s1.locator("#monitor-banner")).to_be_hidden(timeout=8000)
+            took = time.monotonic() - shown
+            if not 4 <= took <= 7:
+                raise AssertionError(f"banner hid after {took:.1f}s, want about 5s")
+            s1.set_viewport_size({"width": 1280, "height": 800})
+            expect(s1.locator("#monitor-banner")).to_be_visible(timeout=4000)
+
+        with step("6c while shown, the banner covers neither a jumped-to question heading nor the navigator"):
+            s1.locator("#question-nav a.bubble[href='#q5']").click()
+            expect(question(s1, 5)).to_be_in_viewport()
+            s1.wait_for_timeout(300)
+            expect(s1.locator("#monitor-banner")).to_be_visible()
+            banner = s1.locator("#monitor-banner").bounding_box()
+            head = question(s1, 5).locator(".question-head").bounding_box()
+            nav = s1.locator("#question-nav").bounding_box()
+            bottom = banner["y"] + banner["height"]
+            if head["y"] < bottom or nav["y"] < bottom:
+                raise AssertionError(f"banner bottom {bottom} overlaps heading y={head['y']} or nav y={nav['y']}")
+            s1.screenshot(path=out / "monitor-banner-jump.png", animations="disabled")
+
+        with step("6d a failing event endpoint gets one backed-off request chain, not one per event"):
+            event_posts = []
+
+            def fail(route):
+                event_posts.append(route.request.url)
+                route.fulfill(status=503, body="unavailable")
+
+            s1.route("**/exam/event", fail)
+            for _ in range(5):
+                s1.locator("section.question#q4 .question-body").click(button="right")
+            s1.wait_for_timeout(4000)
+            if not 1 <= len(event_posts) <= 4:
+                raise AssertionError(f"{len(event_posts)} event requests in 4 s while failing, want 1 to 4")
+            s1.unroute("**/exam/event")
+            wait_for_count(teacher, base_url, on_id, "Ayu Lestari", 10, 15)
+
         with step("7 answers still save, survive a reload and submit"):
             pick_and_save(s1, 2, 1)
             before = checked(s1)
@@ -220,7 +280,7 @@ def run(base_url: str, password: str, out: Path) -> None:
             expect(s1.locator("main#result")).to_have_attribute("data-status", "submitted")
             row = attempt_row(teacher, base_url, on_id, "Ayu Lestari")
             expect(row).to_contain_text("Submitted")
-            expect(row.locator("td.flags")).to_have_text("3")
+            expect(row.locator("td.flags")).to_have_text("10")
 
         with step("8 teacher imports and opens a monitor: off exam"):
             (Path(tmp) / "off").mkdir()
@@ -265,7 +325,12 @@ def run(base_url: str, password: str, out: Path) -> None:
         with step("11 no console errors, page errors or foreign requests"):
             problems = []
             for log in logs:
-                problems += [f"console error: {e}" for e in log["console_errors"]]
+                # Step 6d answers event requests with 503 on purpose.
+                problems += [
+                    f"console error: {e}"
+                    for e in log["console_errors"]
+                    if not e.endswith("the server responded with a status of 503 (Service Unavailable)")
+                ]
                 problems += [f"page error: {e}" for e in log["page_errors"]]
                 problems += [f"foreign request: {u}" for u in log["requests"] if not u.startswith(base_url)]
             if problems:

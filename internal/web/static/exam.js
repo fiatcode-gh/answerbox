@@ -398,40 +398,66 @@
   // ---- Monitor -------------------------------------------------------------
   // With the exam's monitor on: report leaving the page for more than 3 s,
   // block and report copy, cut, paste and the context menu, report window
-  // width changes, warn the student after each event and keep the screen on.
+  // resizes, warn the student after each event and keep the screen on.
   // Events have their own queue, apart from the answer queue, so a slow or
   // failing event request never delays saving an answer. A lost event is
   // acceptable.
 
   var AWAY_MS = 3000;
   var RESIZE_SETTLE_MS = 1000;
+  var BANNER_MS = 5000;
   var EVENT_QUEUE_MAX = 50;
-  var BAR_HEIGHT_PX = 56;
+  // Touch devices change the viewport height when the address bar slides
+  // away on scroll, so there only width changes count as a resize.
+  var TOUCH = window.matchMedia("(pointer: coarse)");
+  var bar = document.querySelector(".exam-bar");
   var sections = document.querySelectorAll("section.question");
   var monitorBanner = document.getElementById("monitor-banner");
+  var bannerText = monitorBanner.textContent; // the template holds the wording
+  var bannerTimer = null;
   var eventQueue = [];
   var eventSending = false;
   var eventsStopped = false;
   var eventRetryDelay = RETRY_FIRST_MS;
+  var eventRetryTimer = null;
 
   // currentQuestion is the id of the first question still visible below the
   // sticky bar, or "" when none is.
   function currentQuestion() {
+    var top = bar.getBoundingClientRect().bottom;
     for (var i = 0; i < sections.length; i++) {
-      if (sections[i].getBoundingClientRect().bottom > BAR_HEIGHT_PX) {
+      if (sections[i].getBoundingClientRect().bottom > top) {
         return sections[i].dataset.questionId;
       }
     }
     return "";
   }
 
+  // setBanner shows or hides the warning. While it is shown, --ge-monitor-offset
+  // (its height plus margin) moves question jump targets and the sticky
+  // navigator below it, so it never covers a question heading.
+  function setBanner(shown) {
+    var root = document.documentElement.style;
+    monitorBanner.hidden = !shown;
+    if (!shown) {
+      root.removeProperty("--ge-monitor-offset");
+      return;
+    }
+    // Setting the text again makes screen readers announce the alert again.
+    monitorBanner.textContent = bannerText;
+    var margin = parseFloat(getComputedStyle(monitorBanner).marginBottom) || 0;
+    root.setProperty("--ge-monitor-offset", monitorBanner.offsetHeight + margin + "px");
+  }
+
   function flag(kind) {
     if (stopped) {
       return;
     }
-    monitorBanner.hidden = false;
-    // Setting the text again makes screen readers announce the alert again.
-    monitorBanner.textContent = "Your teacher has been notified.";
+    setBanner(true);
+    clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(function () {
+      setBanner(false);
+    }, BANNER_MS);
     if (eventsStopped || eventQueue.length >= EVENT_QUEUE_MAX) {
       return;
     }
@@ -439,14 +465,19 @@
     sendEvents();
   }
 
+  // retryEvents schedules the one pending retry; while it waits, new events
+  // only join the queue.
   function retryEvents() {
     var delay = eventRetryDelay;
     eventRetryDelay = Math.min(eventRetryDelay * 2, RETRY_MAX_MS);
-    setTimeout(sendEvents, delay);
+    eventRetryTimer = setTimeout(function () {
+      eventRetryTimer = null;
+      sendEvents();
+    }, delay);
   }
 
   function sendEvents() {
-    if (eventSending || eventsStopped || eventQueue.length === 0) {
+    if (eventSending || eventRetryTimer !== null || eventsStopped || eventQueue.length === 0) {
       return;
     }
     var ev = eventQueue[0];
@@ -578,20 +609,26 @@
     });
 
     var lastWidth = window.innerWidth;
+    var lastHeight = window.innerHeight;
     var resizeTimer = null;
     window.addEventListener("resize", function () {
       clearTimeout(resizeTimer);
-      // Only width counts: mobile browsers change the height when their
-      // address bar slides away on scroll.
       resizeTimer = setTimeout(function () {
-        if (window.innerWidth !== lastWidth) {
-          lastWidth = window.innerWidth;
+        var widthChanged = window.innerWidth !== lastWidth;
+        var heightChanged = window.innerHeight !== lastHeight;
+        lastWidth = window.innerWidth;
+        lastHeight = window.innerHeight;
+        if (widthChanged || (heightChanged && !TOUCH.matches)) {
           flag("resize");
         }
       }, RESIZE_SETTLE_MS);
     });
 
-    window.addEventListener("online", sendEvents);
+    window.addEventListener("online", function () {
+      clearTimeout(eventRetryTimer);
+      eventRetryTimer = null;
+      sendEvents();
+    });
     updateAway();
     requestWakeLock();
   }
@@ -660,11 +697,17 @@
     }
   });
   render();
-  if (monitorOn) {
-    startMonitor();
-  }
   tick();
   if (!stopped) {
     countdown = setInterval(tick, 250);
+  }
+  // The monitor starts last and on its own, so a failure in it can never stop
+  // the countdown, auto-submit or answer saving.
+  if (monitorOn) {
+    try {
+      startMonitor();
+    } catch (e) {
+      // The exam works without the monitor.
+    }
   }
 })();

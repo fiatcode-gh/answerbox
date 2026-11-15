@@ -16,14 +16,8 @@ type eventResponse struct {
 // (an attempt.EventKind) and an optional question ID. With the exam's monitor
 // off, or past the per-attempt cap, it answers recorded false.
 func (s *server) event(w http.ResponseWriter, r *http.Request) {
-	token, ok, _ := attemptToken(r)
+	token, ok := s.studentJSONForm(w, r)
 	if !ok {
-		s.writeJSON(w, r, http.StatusUnauthorized, errorResponse{"no_attempt"})
-		return
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, studentBodyLimit)
-	if err := r.ParseForm(); err != nil {
-		s.writeJSON(w, r, http.StatusUnprocessableEntity, errorResponse{"invalid"})
 		return
 	}
 	var questionID int64

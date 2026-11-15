@@ -48,6 +48,17 @@ func TestEvent_Endpoint(t *testing.T) {
 	requireJSON(t, env.event(other, "copy", 0), http.StatusConflict, `{"error":"finished"}`)
 }
 
+func TestEvent_OversizedBodyStoresNothing(t *testing.T) {
+	env := newTestEnv(t)
+	id := env.openExam(t, simpleExam("score"))
+	cookie := env.start(t, "Ada")
+	form := url.Values{"kind": {"paste"}, "pad": {strings.Repeat("x", studentBodyLimit)}}
+	requireJSON(t, postForm(env.h, "/exam/event", form, cookie), http.StatusUnprocessableEntity, `{"error":"invalid"}`)
+	if f := env.list(t, id)[0].Flags; f != 0 {
+		t.Fatalf("flags = %d after an oversized body", f)
+	}
+}
+
 func TestEvent_MonitorOff(t *testing.T) {
 	env := newTestEnv(t)
 	id := env.openExam(t, "# Quiet\nmonitor: off\n\n1. One\n- a *\n- b\n")
