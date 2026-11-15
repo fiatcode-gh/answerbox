@@ -19,6 +19,26 @@
   </dl>
   <p class="zone-note">Times are shown in {{.Zone}}. Questions and options are in the order of the exam file.</p>
 
+  <section id="flags" class="attempt-flags">
+    <h2>Flags</h2>
+    {{if .Events}}
+    <div class="overflow-auto">
+      <table id="events">
+        <thead>
+          <tr><th scope="col">Time</th><th scope="col">Event</th><th scope="col">Question</th></tr>
+        </thead>
+        <tbody>
+          {{range .Events}}
+          <tr class="event"><td class="numeric">{{.Time}}</td><td>{{.Text}}</td><td>{{if .Question}}<a href="#q{{.Question}}">Question {{.Question}}</a>{{else}}—{{end}}</td></tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{else}}
+    <p class="empty">No flags.</p>
+    {{end}}
+  </section>
+
   {{range .Attempt.Questions}}
   <section class="detail-question" id="q{{.Position}}">
     <p class="eyebrow">Question {{.Position}}{{if not .Answered}} · <span class="no-answer">No answer</span>{{end}}</p>

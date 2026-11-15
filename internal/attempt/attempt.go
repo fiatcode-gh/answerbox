@@ -44,6 +44,7 @@ var (
 type View struct {
 	ExamTitle, StudentName string
 	Status                 Status
+	Monitor                bool           // the exam's anti-cheat monitor is on
 	Remaining              time.Duration  // 0 once finished
 	Questions              []ViewQuestion // attempt order; nil once finished
 	Result                 *Result        // nil while in progress
@@ -97,6 +98,7 @@ type Summary struct {
 	Score, Total          int
 	Remaining             time.Duration // in progress only
 	ResumeCode            string        // in progress only, "ABCD-EFGH"
+	Flags                 int           // recorded monitor events
 }
 
 // Detail is one attempt as the teacher sees it: the summary and every
@@ -104,6 +106,7 @@ type Summary struct {
 type Detail struct {
 	Summary
 	Questions []DetailQuestion
+	Events    []Event // monitor events in time order
 }
 
 // DetailQuestion is a question in original file order.

@@ -14,7 +14,8 @@ const summarySQL = `SELECT a.id, a.student_name, a.status, a.started_at, a.deadl
 		a.finished_at, a.resume_code,
 		(SELECT COUNT(*) FROM answer an JOIN question_option o ON o.id = an.option_id
 			WHERE an.attempt_id = a.id AND o.is_correct = 1),
-		(SELECT COUNT(*) FROM question WHERE exam_id = a.exam_id)
+		(SELECT COUNT(*) FROM question WHERE exam_id = a.exam_id),
+		(SELECT COUNT(*) FROM attempt_event WHERE attempt_id = a.id)
 	FROM attempt a `
 
 // scanSummary reads one summarySQL row; now (unix ms) gives the time left.
@@ -24,7 +25,7 @@ func scanSummary(row interface{ Scan(...any) error }, now int64) (Summary, error
 	var finished sql.NullInt64
 	var code sql.NullString
 	err := row.Scan(&sum.ID, &sum.StudentName, &sum.Status, &started, &deadline,
-		&finished, &code, &sum.Score, &sum.Total)
+		&finished, &code, &sum.Score, &sum.Total, &sum.Flags)
 	if err != nil {
 		return Summary{}, err
 	}
@@ -94,8 +95,12 @@ func (s *Service) Detail(ctx context.Context, examID, attemptID int64) (Detail, 
 	if err != nil {
 		return Detail{}, err
 	}
+	events, err := loadEvents(ctx, tx, attemptID)
+	if err != nil {
+		return Detail{}, err
+	}
 
-	d := Detail{Summary: sum, Questions: make([]DetailQuestion, len(questions))}
+	d := Detail{Summary: sum, Questions: make([]DetailQuestion, len(questions)), Events: events}
 	for i, q := range questions {
 		pick, answered := picked[q.ID]
 		dq := DetailQuestion{Position: q.Position, BodyHTML: q.BodyHTML, Answered: answered}

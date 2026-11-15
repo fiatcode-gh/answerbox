@@ -152,15 +152,15 @@ func TestAttempts_ListRows(t *testing.T) {
 	if !strings.Contains(body, `<table id="attempts"`) {
 		t.Fatalf("table#attempts missing:\n%s", body)
 	}
-	for _, header := range []string{"Name", "Started", "Finished", "Status", "Score", "Time left", "Resume code"} {
+	for _, header := range []string{"Name", "Started", "Finished", "Status", "Score", "Time left", "Resume code", "Flags"} {
 		if !regexp.MustCompile(`(?s)<th[^>]*>\s*(<a[^>]*>)?` + header + `\b`).MatchString(body) {
 			t.Errorf("column %q missing", header)
 		}
 	}
 	want := [][]string{
-		{fmt.Sprint(ayu), "Ayu", "2026-11-14 16:30:00", "2026-11-14 17:30:00", "Timed out", "0 / 3", "—", "—", "View Delete"},
-		{fmt.Sprint(budi), "Budi", "2026-11-14 16:31:00", "2026-11-14 16:35:00", "Submitted", "2 / 3", "—", "—", "View Delete"},
-		{fmt.Sprint(citra), "Citra", "2026-11-14 16:50:00", "—", "In progress", "1 / 3", "18:59", code, "View Delete"},
+		{fmt.Sprint(ayu), "Ayu", "2026-11-14 16:30:00", "2026-11-14 17:30:00", "Timed out", "0 / 3", "—", "—", "0", "View Delete"},
+		{fmt.Sprint(budi), "Budi", "2026-11-14 16:31:00", "2026-11-14 16:35:00", "Submitted", "2 / 3", "—", "—", "0", "View Delete"},
+		{fmt.Sprint(citra), "Citra", "2026-11-14 16:50:00", "—", "In progress", "1 / 3", "18:59", code, "0", "View Delete"},
 	}
 	got := tableRows(body)
 	if fmt.Sprint(got) != fmt.Sprint(want) {
@@ -283,7 +283,7 @@ func TestAttempts_CSV(t *testing.T) {
 		t.Errorf("Content-Disposition = %q, want %q", cd, want)
 	}
 	body := rec.Body.String()
-	if first, _, _ := strings.Cut(body, "\n"); first != "name,status,score,total,started,finished" {
+	if first, _, _ := strings.Cut(body, "\n"); first != "name,status,score,total,started,finished,flags" {
 		t.Errorf("header row = %q", first)
 	}
 	records, err := csv.NewReader(strings.NewReader(body)).ReadAll()
@@ -291,10 +291,10 @@ func TestAttempts_CSV(t *testing.T) {
 		t.Fatalf("parse CSV: %v\n%s", err, body)
 	}
 	want := [][]string{
-		{"name", "status", "score", "total", "started", "finished"},
-		{"Late", "timed out", "0", "3", "2026-11-14T16:30:00+07:00", "2026-11-14T17:30:00+07:00"},
-		{"'=SUM(A1)", "submitted", "2", "3", "2026-11-14T16:40:00+07:00", "2026-11-14T16:45:00+07:00"},
-		{`Doe, "JJ"`, "in progress", "0", "3", "2026-11-14T17:00:00+07:00", ""},
+		{"name", "status", "score", "total", "started", "finished", "flags"},
+		{"Late", "timed out", "0", "3", "2026-11-14T16:30:00+07:00", "2026-11-14T17:30:00+07:00", "0"},
+		{"'=SUM(A1)", "submitted", "2", "3", "2026-11-14T16:40:00+07:00", "2026-11-14T16:45:00+07:00", "0"},
+		{`Doe, "JJ"`, "in progress", "0", "3", "2026-11-14T17:00:00+07:00", "", "0"},
 	}
 	if fmt.Sprintf("%q", records) != fmt.Sprintf("%q", want) {
 		t.Errorf("records =\n%q\nwant\n%q", records, want)

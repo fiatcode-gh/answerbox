@@ -1,0 +1,293 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["playwright==1.63.0"]
+# ///
+"""Browser check for the anti-cheat monitor in real Chromium.
+
+uv run e2e/monitor.py --base-url URL --admin-password PW --out DIR
+"""
+
+import argparse
+import re
+import sys
+import tempfile
+import time
+from contextlib import contextmanager
+from pathlib import Path
+
+from playwright.sync_api import Page, expect, sync_playwright
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+from common import build_fixture_zip, import_and_open, teacher_login, watch
+
+DESKTOP = {"viewport": {"width": 1280, "height": 800}}
+BANNER = "Your teacher has been notified."
+
+
+class StepFailed(Exception):
+    pass
+
+
+@contextmanager
+def step(name: str):
+    print(f"step: {name}", flush=True)
+    try:
+        yield
+    except Exception as err:  # every failure names its step
+        raise StepFailed(f"FAIL [{name}]: {err}") from err
+
+
+def start(page: Page, base_url: str, name: str) -> None:
+    page.goto(base_url + "/")
+    form = page.locator("#start-form")
+    form.locator("input[name=name]").fill(name)
+    form.locator("button[type=submit]").click()
+    expect(page.locator("main#exam")).to_be_visible()
+
+
+def question(page: Page, n: int):
+    return page.locator(f"section.question#q{n}")
+
+
+def pick_and_save(page: Page, n: int, index: int) -> None:
+    question(page, n).locator("label.option").nth(index).click()
+    expect(page.locator("#save-state")).to_have_attribute("data-state", "saved")
+    expect(question(page, n).locator(".q-state")).to_have_attribute("data-state", "saved")
+
+
+def checked(page: Page) -> list:
+    return page.eval_on_selector_all(
+        "section.question",
+        "ss => ss.map(s => (s.querySelector('input[type=radio]:checked') || {}).value || null)",
+    )
+
+
+def hide_banner(page: Page) -> None:
+    """Hide the banner again so the next event must show it anew."""
+    page.evaluate("document.getElementById('monitor-banner').hidden = true")
+
+
+# Hidden-page simulation: headless Chromium keeps every page visible, so the
+# page's visibilityState is overridden and visibilitychange dispatched, which
+# is exactly what a tab or app switch delivers to the page.
+HIDE_JS = """() => {
+  Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+  Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+  document.dispatchEvent(new Event("visibilitychange"));
+}"""
+SHOW_JS = """() => {
+  delete document.visibilityState;
+  delete document.hidden;
+  document.dispatchEvent(new Event("visibilitychange"));
+}"""
+
+
+def leave_page(page: Page, ms: int) -> None:
+    page.evaluate(HIDE_JS)
+    page.wait_for_timeout(ms)
+    page.evaluate(SHOW_JS)
+
+
+# Probes run after the page's own handlers (window is the last bubbling
+# target) and record whether the page blocked the action.
+PROBE_JS = """() => {
+  window.__blocked = {};
+  for (const type of ["paste", "contextmenu"]) {
+    window.addEventListener(type, e => { window.__blocked[type] = e.defaultPrevented; });
+  }
+}"""
+
+
+def paste(page: Page) -> bool:
+    """Press Ctrl+V; returns whether the paste was blocked."""
+    page.locator("section.question#q3 .question-body").click()
+    page.keyboard.press("Control+V")
+    try:
+        page.wait_for_function("'paste' in window.__blocked", timeout=2000)
+    except PlaywrightTimeout:
+        # Some Chromium builds fire no paste event without clipboard content;
+        # deliver the event the browser would.
+        print("  note: Ctrl+V fired no paste event; dispatching one", flush=True)
+        page.evaluate(
+            "document.querySelector('section.question#q3 .question-body')"
+            ".dispatchEvent(new ClipboardEvent('paste', {bubbles: true, cancelable: true}))"
+        )
+    return page.evaluate("window.__blocked.paste")
+
+
+def wait_for_events(teacher: Page, base_url: str, exam_id: int, name: str, want: list[str]) -> None:
+    """Reload the teacher's attempt detail until its events equal want (5 s)."""
+    deadline = time.monotonic() + 5
+    while True:
+        got = event_texts(teacher, base_url, exam_id, name)
+        if got == want:
+            return
+        if time.monotonic() > deadline:
+            raise AssertionError(f"teacher sees events {got}, want {want}")
+        teacher.wait_for_timeout(250)
+
+
+def right_click(page: Page) -> bool:
+    page.locator("section.question#q4 .question-body").click(button="right")
+    page.wait_for_function("'contextmenu' in window.__blocked")
+    return page.evaluate("window.__blocked.contextmenu")
+
+
+def attempt_row(teacher: Page, base_url: str, exam_id: int, name: str):
+    teacher.goto(f"{base_url}/admin/exams/{exam_id}/attempts")
+    return teacher.locator("#attempts tbody tr", has_text=name)
+
+
+def event_texts(teacher: Page, base_url: str, exam_id: int, name: str) -> list[str]:
+    row = attempt_row(teacher, base_url, exam_id, name)
+    row.get_by_role("link", name="View").click()
+    expect(teacher.locator("#flags")).to_be_visible()
+    return [t.strip() for t in teacher.locator("#events tr.event td:nth-child(2)").all_inner_texts()]
+
+
+def run(base_url: str, password: str, out: Path) -> None:
+    out.mkdir(parents=True, exist_ok=True)
+    logs = []
+    with sync_playwright() as p, tempfile.TemporaryDirectory() as tmp:
+        browser = p.chromium.launch(headless=True)
+
+        def new_context(**kwargs):
+            context = browser.new_context(**kwargs)
+            logs.append(watch(context, base_url))
+            return context
+
+        teacher = new_context(**DESKTOP).new_page()
+        with step("1 teacher imports and opens a default (monitor on) exam"):
+            (Path(tmp) / "on").mkdir()
+            zip_on, _ = build_fixture_zip(Path(tmp) / "on", title="Monitor on")
+            teacher_login(teacher, base_url, password)
+            on_id = import_and_open(teacher, zip_on)
+            teacher.goto(f"{base_url}/admin/exams/{on_id}")
+            expect(teacher.locator("dl.settings")).to_contain_text(re.compile(r"Monitor\s*On"))
+
+        s1 = new_context(**DESKTOP).new_page()
+        with step("2 student starts; no banner; an answer saves"):
+            start(s1, base_url, "Ayu Lestari")
+            expect(s1.locator("main#exam")).to_have_attribute("data-monitor", "on")
+            expect(s1.locator("#monitor-banner")).to_be_hidden()
+            s1.evaluate(PROBE_JS)
+            pick_and_save(s1, 1, 0)
+
+        with step("3 leaving for 1 s is not flagged"):
+            leave_page(s1, 1000)
+            s1.wait_for_timeout(500)
+            expect(s1.locator("#monitor-banner")).to_be_hidden()
+
+        with step("4 leaving for more than 3 s shows the banner and the teacher sees it"):
+            leave_page(s1, 3600)
+            expect(s1.locator("#monitor-banner")).to_be_visible()
+            expect(s1.locator("#monitor-banner")).to_have_text(BANNER)
+            s1.screenshot(path=out / "monitor-banner.png", animations="disabled")
+            wait_for_events(teacher, base_url, on_id, "Ayu Lestari", ["Left the exam page"])
+
+        with step("5 a paste is blocked, shows the banner and is recorded"):
+            hide_banner(s1)
+            if not paste(s1):
+                raise AssertionError("paste was not blocked")
+            expect(s1.locator("#monitor-banner")).to_be_visible()
+            wait_for_events(teacher, base_url, on_id, "Ayu Lestari", ["Left the exam page", "Tried to paste"])
+
+        with step("6 a right-click is blocked, shows the banner and is recorded"):
+            hide_banner(s1)
+            if not right_click(s1):
+                raise AssertionError("context menu was not blocked")
+            expect(s1.locator("#monitor-banner")).to_be_visible()
+            texts = event_texts(teacher, base_url, on_id, "Ayu Lestari")
+            if texts != ["Left the exam page", "Tried to paste", "Right-clicked"]:
+                raise AssertionError(f"events = {texts}")
+            questions = teacher.locator("#events tr.event td:nth-child(3)").all_inner_texts()
+            if not all(q.startswith("Question ") for q in questions):
+                raise AssertionError(f"event questions = {questions}")
+            teacher.screenshot(path=out / "teacher-flags.png", full_page=True, animations="disabled")
+            row = attempt_row(teacher, base_url, on_id, "Ayu Lestari")
+            expect(row.locator("td.flags")).to_have_text("3")
+
+        with step("7 answers still save, survive a reload and submit"):
+            pick_and_save(s1, 2, 1)
+            before = checked(s1)
+            s1.reload()
+            expect(s1.locator("main#exam")).to_be_visible()
+            if checked(s1) != before:
+                raise AssertionError(f"picks changed on reload: {before} → {checked(s1)}")
+            s1.locator("#submit-open").click()
+            s1.locator("#submit-confirm").click()
+            expect(s1.locator("main#result")).to_be_visible()
+            expect(s1.locator("main#result")).to_have_attribute("data-status", "submitted")
+            row = attempt_row(teacher, base_url, on_id, "Ayu Lestari")
+            expect(row).to_contain_text("Submitted")
+            expect(row.locator("td.flags")).to_have_text("3")
+
+        with step("8 teacher imports and opens a monitor: off exam"):
+            (Path(tmp) / "off").mkdir()
+            zip_off, _ = build_fixture_zip(Path(tmp) / "off", title="Monitor off", monitor="off")
+            teacher.goto(f"{base_url}/admin/exams")
+            off_id = import_and_open(teacher, zip_off)
+            teacher.goto(f"{base_url}/admin/exams/{off_id}")
+            expect(teacher.locator("dl.settings")).to_contain_text(re.compile(r"Monitor\s*Off"))
+
+        s2_context = new_context(**DESKTOP)
+        event_posts = []
+        s2_context.on("request", lambda r: r.url.endswith("/exam/event") and event_posts.append(r.url))
+        s2 = s2_context.new_page()
+        with step("9 monitor off: leaving, paste and right-click are neither blocked nor flagged"):
+            start(s2, base_url, "Budi Santoso")
+            expect(s2.locator("main#exam")).to_have_attribute("data-monitor", "off")
+            s2.evaluate(PROBE_JS)
+            pick_and_save(s2, 1, 0)
+            leave_page(s2, 3600)
+            if paste(s2):
+                raise AssertionError("paste was blocked with the monitor off")
+            if right_click(s2):
+                raise AssertionError("context menu was blocked with the monitor off")
+            s2.wait_for_timeout(1000)
+            expect(s2.locator("#monitor-banner")).to_be_hidden()
+            if event_posts:
+                raise AssertionError(f"event requests sent: {event_posts}")
+            row = attempt_row(teacher, base_url, off_id, "Budi Santoso")
+            expect(row.locator("td.flags")).to_have_text("0")
+
+        with step("10 monitor off: answers save, survive a reload and submit"):
+            pick_and_save(s2, 2, 1)
+            before = checked(s2)
+            s2.reload()
+            expect(s2.locator("main#exam")).to_be_visible()
+            if checked(s2) != before:
+                raise AssertionError(f"picks changed on reload: {before} → {checked(s2)}")
+            s2.locator("#submit-open").click()
+            s2.locator("#submit-confirm").click()
+            expect(s2.locator("main#result")).to_have_attribute("data-status", "submitted")
+
+        with step("11 no console errors, page errors or foreign requests"):
+            problems = []
+            for log in logs:
+                problems += [f"console error: {e}" for e in log["console_errors"]]
+                problems += [f"page error: {e}" for e in log["page_errors"]]
+                problems += [f"foreign request: {u}" for u in log["requests"] if not u.startswith(base_url)]
+            if problems:
+                raise AssertionError("\n  ".join(["problems found:"] + problems))
+
+        browser.close()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--base-url", required=True)
+    parser.add_argument("--admin-password", required=True)
+    parser.add_argument("--out", type=Path, default=Path(__file__).parent / "out" / "monitor")
+    args = parser.parse_args()
+    try:
+        run(args.base_url.rstrip("/"), args.admin_password, args.out)
+    except StepFailed as err:
+        print(err, file=sys.stderr)
+        return 1
+    print(f"OK: monitor check passed; screenshots in {args.out}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

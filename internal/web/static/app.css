@@ -783,6 +783,13 @@ main.landing {
   color: var(--ge-warn);
 }
 
+/* The monitor warning stays in view under the exam bar while scrolling. */
+#monitor-banner {
+  position: sticky;
+  top: calc(56px + var(--ge-space-2));
+  z-index: 9;
+}
+
 /* Pico lays out nav as a flex row; the navigator is a block with a grid. */
 #question-nav {
   display: block;

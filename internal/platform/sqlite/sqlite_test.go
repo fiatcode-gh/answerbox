@@ -3,6 +3,7 @@ package sqlite_test
 import (
 	"context"
 	"database/sql"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -86,19 +87,73 @@ func TestOpen_MigratesOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	if got := pragma(t, db, "user_version"); got != "1" {
-		t.Errorf("user_version = %s, want 1", got)
+	if got := pragma(t, db, "user_version"); got != "2" {
+		t.Errorf("user_version = %s, want 2", got)
 	}
 	mustExec(t, db, `INSERT INTO exam (title, shuffle, show_result, media_key, created_at) VALUES ('t','none','score','k1',0)`)
 	db.Close()
 
 	db = openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "1" {
-		t.Errorf("user_version after reopen = %s, want 1", got)
+	if got := pragma(t, db, "user_version"); got != "2" {
+		t.Errorf("user_version after reopen = %s, want 2", got)
 	}
 	var title string
 	if err := db.QueryRow(`SELECT title FROM exam`).Scan(&title); err != nil || title != "t" {
 		t.Fatalf("after reopen: title=%q err=%v", title, err)
+	}
+}
+
+// TestMigrate_0002KeepsVersion1Data opens a database as the first release
+// left it (schema 0001 with an exam, an attempt and an answer) and checks that
+// the monitor migration keeps every row, turns the monitor on for the
+// existing exam and leaves the freeze triggers working.
+func TestMigrate_0002KeepsVersion1Data(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "go-exam.db")
+	schema, err := os.ReadFile("migrations/0001_init.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, err := sql.Open("sqlite", path+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustExec(t, old, string(schema))
+	mustExec(t, old, `PRAGMA user_version = 1`)
+	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at) VALUES (1,'Old','none','score',1,'k1',5)`)
+	mustExec(t, old, `INSERT INTO question (id, exam_id, position, body_html) VALUES (1,1,1,'q1')`)
+	mustExec(t, old, `INSERT INTO question_option (id, question_id, position, body_html, is_correct) VALUES (1,1,1,'o1',1),(2,1,2,'o2',0)`)
+	mustExec(t, old, `INSERT INTO attempt (id, exam_id, student_name, token_hash, resume_code, shuffle_seed, started_at, deadline_at) VALUES (1,1,'Ayu',x'01','ABCDEFGH',7,10,20)`)
+	mustExec(t, old, `INSERT INTO answer (attempt_id, question_id, option_id) VALUES (1,1,2)`)
+	old.Close()
+
+	db := openFile(t, path)
+	if got := pragma(t, db, "user_version"); got != "2" {
+		t.Fatalf("user_version = %s, want 2", got)
+	}
+	var (
+		title, name, code string
+		monitor, option   int
+	)
+	err = db.QueryRow(`SELECT e.title, e.monitor, a.student_name, a.resume_code, an.option_id
+		FROM exam e JOIN attempt a ON a.exam_id = e.id JOIN answer an ON an.attempt_id = a.id`).
+		Scan(&title, &monitor, &name, &code, &option)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if title != "Old" || monitor != 1 || name != "Ayu" || code != "ABCDEFGH" || option != 2 {
+		t.Fatalf("after migration: %q monitor=%d %q %q option=%d", title, monitor, name, code, option)
+	}
+	if _, err := db.Exec(`UPDATE question_option SET is_correct = 0 WHERE id = 1`); err == nil || !strings.Contains(err.Error(), "exam is frozen") {
+		t.Fatalf("freeze trigger after migration: err = %v", err)
+	}
+	mustExec(t, db, `INSERT INTO attempt_event (attempt_id, kind, question, at) VALUES (1,'left_page',1,15)`)
+	if _, err := db.Exec(`UPDATE exam SET monitor = 2 WHERE id = 1`); err == nil {
+		t.Fatal("monitor = 2 accepted")
+	}
+	mustExec(t, db, `DELETE FROM attempt WHERE id = 1`)
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM attempt_event`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("events after attempt delete = %d, %v; want 0", n, err)
 	}
 }
 

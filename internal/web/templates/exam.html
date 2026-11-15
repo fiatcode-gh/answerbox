@@ -10,7 +10,7 @@
 {{end}}
 
 {{define "main"}}
-<main id="exam" data-remaining-ms="{{.RemainingMS}}" data-answer-url="/exam/answer" data-status-url="/exam/status">
+<main id="exam" data-remaining-ms="{{.RemainingMS}}" data-answer-url="/exam/answer" data-status-url="/exam/status" data-event-url="/exam/event" data-monitor="{{if .Monitor}}on{{else}}off{{end}}">
   <div class="exam-bar">
     <p class="timer-box"><span class="visually-hidden">Time remaining</span><span id="timer" role="timer" data-level="{{.Level}}">{{.Timer}}</span></p>
     <span id="save-state" role="status" data-state="saved">✓ All answers saved</span>
@@ -21,6 +21,7 @@
   <noscript><p class="banner banner-danger">This exam needs JavaScript to save your answers.</p></noscript>
   <div id="time-up" class="banner banner-danger" role="alert" hidden>Time is up. Finishing your exam…</div>
   <div id="moved" class="banner banner-warn" role="alert" hidden>This attempt is no longer active on this device. <a href="/">Go to the start page</a></div>
+  <div id="monitor-banner" class="banner banner-warn" role="alert" hidden>Your teacher has been notified.</div>
 
   <div class="exam-layout">
     <nav id="question-nav" data-open="false" aria-label="Questions">

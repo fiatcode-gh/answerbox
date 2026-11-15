@@ -122,6 +122,7 @@ type attemptRow struct {
 	TimeLeft          string // in progress only
 	ResumeCode        string // in progress only
 	InProgress        bool
+	Flags             int
 }
 
 type attemptsData struct {
@@ -173,6 +174,7 @@ func (s *server) attemptList(w http.ResponseWriter, r *http.Request) {
 			Status:  attemptStatus[sum.Status],
 			Score:   sum.Score,
 			Total:   sum.Total,
+			Flags:   sum.Flags,
 		}
 		if sum.Status == attempt.InProgress {
 			row.InProgress = true
@@ -229,7 +231,7 @@ func (s *server) attemptsCSV(w http.ResponseWriter, r *http.Request) {
 	}
 	var buf bytes.Buffer
 	cw := csv.NewWriter(&buf)
-	cw.Write([]string{"name", "status", "score", "total", "started", "finished"})
+	cw.Write([]string{"name", "status", "score", "total", "started", "finished", "flags"})
 	for _, sum := range rows {
 		finished := ""
 		if sum.Status != attempt.InProgress {
@@ -238,7 +240,7 @@ func (s *server) attemptsCSV(w http.ResponseWriter, r *http.Request) {
 		cw.Write([]string{
 			csvName(sum.StudentName), csvStatus[sum.Status],
 			strconv.Itoa(sum.Score), strconv.Itoa(sum.Total),
-			s.csvTime(sum.StartedAt), finished,
+			s.csvTime(sum.StartedAt), finished, strconv.Itoa(sum.Flags),
 		})
 	}
 	cw.Flush()
@@ -294,6 +296,7 @@ type attemptDetailData struct {
 	Status            statusLabel
 	Started, Finished string
 	Zone              string
+	Events            []eventRow
 }
 
 func (s *server) attemptDetail(w http.ResponseWriter, r *http.Request) {
@@ -312,6 +315,9 @@ func (s *server) attemptDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	if d.Status != attempt.InProgress {
 		data.Finished = s.listTime(d.FinishedAt)
+	}
+	for _, ev := range d.Events {
+		data.Events = append(data.Events, eventRow{Time: s.listTime(ev.At), Text: eventText[ev.Kind], Question: ev.Question})
 	}
 	s.page(w, r, http.StatusOK, "admin_attempt.html", data)
 }

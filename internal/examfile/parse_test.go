@@ -83,6 +83,28 @@ func TestParse_HeaderOptions(t *testing.T) {
 	}
 }
 
+func TestParse_MonitorHeader(t *testing.T) {
+	const body = "1. Q\n- a *\n- b\n"
+	cases := []struct {
+		headers string
+		want    bool
+	}{
+		{"", true},
+		{"monitor: on", true},
+		{"monitor: off", false},
+		{"monitor:OFF  ", false},
+		{"shuffle: none\nmonitor \t: On\nshow_result: review", true},
+	}
+	for _, c := range cases {
+		t.Run(c.headers, func(t *testing.T) {
+			ex := mustParse(t, textUpload("# T\n"+c.headers+"\n"+body))
+			if ex.Monitor != c.want {
+				t.Errorf("Monitor = %v, want %v", ex.Monitor, c.want)
+			}
+		})
+	}
+}
+
 func TestParse_Markdown(t *testing.T) {
 	src := lines(
 		"# Markdown",
@@ -235,10 +257,12 @@ func TestParse_Rejections(t *testing.T) {
 		{"no title", "\n\nHello\n" + q, nil, `line 3: expected "# Title" as the first line`},
 		{"heading level 2", "## T\n" + q, nil, `line 1: expected "# Title" as the first line`},
 		{"long title", "# " + strings.Repeat("é", 201) + "\n" + q, nil, `line 1: title is longer than 200 characters`},
-		{"header zone junk", "# T\n\nintro\n" + q, nil, `line 3: expected "shuffle:", "show_result:" or question 1`},
+		{"header zone junk", "# T\n\nintro\n" + q, nil, `line 3: expected "shuffle:", "show_result:", "monitor:" or question 1`},
 		{"duplicate header", "# T\nshuffle: none\nshow_result: none\nshuffle: none\n" + q, nil, `line 4: duplicate "shuffle" header`},
 		{"bad shuffle", "# T\nshuffle: random\n" + q, nil, `line 2: shuffle must be "none", "questions" or "questions, options"`},
 		{"bad show_result", "# T\nshow_result: all\n" + q, nil, `line 2: show_result must be "none", "score" or "review"`},
+		{"bad monitor", "# T\nmonitor: yes\n" + q, nil, `line 2: monitor must be "on" or "off"`},
+		{"duplicate monitor", "# T\nmonitor: on\nmonitor: off\n" + q, nil, `line 3: duplicate "monitor" header`},
 		{"first question not 1", "# T\n2. Q\n- a *\n- b", nil, `line 2: expected question 1, found question 2`},
 		{"question skipped", "# T\n" + q + "\n3. Q\n- a *\n- b", nil, `line 5: expected question 2, found question 3`},
 		{"501 questions", many(501), nil, `exam has more than 500 questions`},

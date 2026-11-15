@@ -49,7 +49,7 @@ func requireRow(res sql.Result) error {
 	return nil
 }
 
-const examColumns = `SELECT id, title, shuffle, show_result, is_open, created_at,
+const examColumns = `SELECT id, title, shuffle, show_result, monitor, is_open, created_at,
 	(SELECT COUNT(*) FROM question WHERE exam_id = exam.id),
 	(SELECT COUNT(*) FROM attempt WHERE exam_id = exam.id)
 	FROM exam`
@@ -57,7 +57,7 @@ const examColumns = `SELECT id, title, shuffle, show_result, is_open, created_at
 func scanExam(row interface{ Scan(...any) error }) (Exam, error) {
 	var e Exam
 	var created int64
-	err := row.Scan(&e.ID, &e.Title, &e.Shuffle, &e.ShowResult, &e.Open, &created, &e.QuestionCount, &e.AttemptCount)
+	err := row.Scan(&e.ID, &e.Title, &e.Shuffle, &e.ShowResult, &e.Monitor, &e.Open, &created, &e.QuestionCount, &e.AttemptCount)
 	e.CreatedAt = time.UnixMilli(created).UTC()
 	return e, err
 }

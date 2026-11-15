@@ -24,6 +24,7 @@
           <th scope="col"{{with .Score.AriaSort}} aria-sort="{{.}}"{{end}}><a href="{{.ScoreHref}}" class="sort-link">Score{{with .Score.Arrow}} <span aria-hidden="true">{{.}}</span>{{end}}</a></th>
           <th scope="col">Time left</th>
           <th scope="col">Resume code</th>
+          <th scope="col">Flags</th>
           <th scope="col">Actions</th>
         </tr>
       </thead>
@@ -37,6 +38,7 @@
           <td class="numeric">{{.Score}} / {{.Total}}</td>
           <td class="numeric">{{if .InProgress}}{{.TimeLeft}}{{else}}—{{end}}</td>
           <td>{{if .InProgress}}<code class="resume-code">{{.ResumeCode}}</code>{{else}}—{{end}}</td>
+          <td class="numeric flags" data-flags="{{.Flags}}">{{.Flags}}</td>
           <td class="row-actions"><a href="/admin/exams/{{$.Exam.ID}}/attempts/{{.ID}}">View</a> <a class="danger-link" href="/admin/exams/{{$.Exam.ID}}/attempts/{{.ID}}/delete">Delete</a></td>
         </tr>
         {{end}}

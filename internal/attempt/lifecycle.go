@@ -87,9 +87,9 @@ func (s *Service) View(ctx context.Context, token string) (View, error) {
 		show           examfile.ShowResult
 	)
 	err = tx.QueryRowContext(ctx, `SELECT a.id, a.exam_id, a.student_name, a.status, a.shuffle_seed, a.deadline_at,
-			e.title, e.shuffle, e.show_result
+			e.title, e.shuffle, e.show_result, e.monitor
 		FROM attempt a JOIN exam e ON e.id = a.exam_id WHERE a.token_hash = ?`, hashToken(token)).
-		Scan(&id, &examID, &v.StudentName, &v.Status, &seed, &deadline, &v.ExamTitle, &shuffle, &show)
+		Scan(&id, &examID, &v.StudentName, &v.Status, &seed, &deadline, &v.ExamTitle, &shuffle, &show, &v.Monitor)
 	if errors.Is(err, sql.ErrNoRows) {
 		return View{}, ErrNotFound
 	}

@@ -38,6 +38,7 @@ func (s *server) mountStudent(mux *http.ServeMux) {
 	mux.HandleFunc("GET /exam", s.examPage)
 	mux.HandleFunc("POST /exam/answer", s.answer)
 	mux.HandleFunc("GET /exam/status", s.status)
+	mux.HandleFunc("POST /exam/event", s.event)
 }
 
 // attemptToken returns the request's attempt token. A cookie that is not 43
@@ -256,6 +257,7 @@ type examPageData struct {
 	Level                  string // normal | warn | danger
 	Questions              []examQuestion
 	Answered, Total        int
+	Monitor                bool
 }
 
 // Timer levels: the countdown shows "warn" from 5 minutes left and "danger"
@@ -270,6 +272,7 @@ func newExamPageData(v attempt.View) examPageData {
 	d := examPageData{
 		ExamTitle:   v.ExamTitle,
 		StudentName: v.StudentName,
+		Monitor:     v.Monitor,
 		RemainingMS: v.Remaining.Milliseconds(),
 		Timer:       fmt.Sprintf("%02d:%02d", secs/60, secs%60),
 		Level:       "normal",

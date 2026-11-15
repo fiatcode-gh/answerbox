@@ -5,7 +5,7 @@ A self-hosted web app for classroom multiple-choice exams. Students type only th
 ## Scope
 
 - In: a single admin password; one open exam at a time; Markdown-like exam files (or a zip with images); a cookie-bound attempt plus a teacher-issued resume code; a 60-minute wall-clock limit enforced by the server; shuffle and `show_result` set per exam; attempts list, detail, CSV export, delete; a container image for the existing Traefik/Podman VPS.
-- Out: teacher accounts (Authelia in front of `/admin` stays a later Traefik-only option), a web question editor, per-question statistics, math rendering, several open exams, other durations, anti-cheating beyond shuffle, editing answers, deleting whole exams, a live dashboard. Deployment wiring (quadlet, Traefik route, backup and drill scripts, Gatus, Diun, DNS) belongs to a separate `fiatcode-infra` unit.
+- Out: teacher accounts (Authelia in front of `/admin` stays a later Traefik-only option), a web question editor, per-question statistics, math rendering, several open exams, other durations, anti-cheating beyond shuffle and the monitor below (no fullscreen, no force-submit, no live push), editing answers, deleting whole exams, a live dashboard. Deployment wiring (quadlet, Traefik route, backup and drill scripts, Gatus, Diun, DNS) belongs to a separate `fiatcode-infra` unit.
 
 ## Decisions and why
 
@@ -20,6 +20,7 @@ A self-hosted web app for classroom multiple-choice exams. Students type only th
 - **Admin sessions are cleared at startup**, so changing the password and restarting signs everyone out.
 - **The login throttle** counts each attempt before checking the password, under one lock, so concurrent guesses cannot exceed the free failures.
 - **Countdown on a monotonic clock** (`performance.now()`), re-anchored on every server response, so moving the device clock cannot trigger an early submit.
+- **Anti-cheat monitor** (added 2026-11-16, amends "anti-cheating beyond shuffle"): a per-exam `monitor: on | off` header, default on; migration 0002 adds `exam.monitor` (existing exams on) and an `attempt_event` table. The exam page blocks copy, cut, paste and the context menu and reports them, plus leaving the page for more than 3 s (counted once per absence) and width resizes; the student sees "Your teacher has been notified." Events have their own retrying queue in the page, separate from answer saves, and carry the server's time and the question's file position. The server stores them only for the cookie's in-progress attempt with the monitor on, at most 500 per attempt, and never reads them for score or timing. A screen wake lock, when the browser grants one, avoids false flags from a sleeping screen. It detects and discourages; it cannot see other apps, devices, screenshots or extensions, and a student can still disable JavaScript-side reporting.
 
 ## Rejected alternatives
 
@@ -40,4 +41,5 @@ A self-hosted web app for classroom multiple-choice exams. Students type only th
 - `/start` and `/resume` are not throttled. Guessing a code at 100 active attempts has odds of about 1.5e-10 per try.
 - On some devices the countdown may stall while asleep and offline. The server still rejects late answers.
 - The interface text is English.
+- Monitor flags are evidence for a conversation, not proof: a notification shade, an incoming call or a rotated phone also counts. Width-only resizes avoid flags from mobile address bars.
 - CI is unproven until the first push. Browser proof covers Chromium only.

@@ -34,6 +34,8 @@
   var cancelButton = document.getElementById("submit-cancel");
   var answerURL = main.dataset.answerUrl;
   var statusURL = main.dataset.statusUrl;
+  var eventURL = main.dataset.eventUrl;
+  var monitorOn = main.dataset.monitor === "on";
 
   // Deadline arithmetic uses the monotonic performance.now(), not the wall
   // clock, so a change of the device clock cannot end the exam early or late.
@@ -393,6 +395,207 @@
       });
   });
 
+  // ---- Monitor -------------------------------------------------------------
+  // With the exam's monitor on: report leaving the page for more than 3 s,
+  // block and report copy, cut, paste and the context menu, report window
+  // width changes, warn the student after each event and keep the screen on.
+  // Events have their own queue, apart from the answer queue, so a slow or
+  // failing event request never delays saving an answer. A lost event is
+  // acceptable.
+
+  var AWAY_MS = 3000;
+  var RESIZE_SETTLE_MS = 1000;
+  var EVENT_QUEUE_MAX = 50;
+  var BAR_HEIGHT_PX = 56;
+  var sections = document.querySelectorAll("section.question");
+  var monitorBanner = document.getElementById("monitor-banner");
+  var eventQueue = [];
+  var eventSending = false;
+  var eventsStopped = false;
+  var eventRetryDelay = RETRY_FIRST_MS;
+
+  // currentQuestion is the id of the first question still visible below the
+  // sticky bar, or "" when none is.
+  function currentQuestion() {
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].getBoundingClientRect().bottom > BAR_HEIGHT_PX) {
+        return sections[i].dataset.questionId;
+      }
+    }
+    return "";
+  }
+
+  function flag(kind) {
+    if (stopped) {
+      return;
+    }
+    monitorBanner.hidden = false;
+    // Setting the text again makes screen readers announce the alert again.
+    monitorBanner.textContent = "Your teacher has been notified.";
+    if (eventsStopped || eventQueue.length >= EVENT_QUEUE_MAX) {
+      return;
+    }
+    eventQueue.push({ kind: kind, question: currentQuestion() });
+    sendEvents();
+  }
+
+  function retryEvents() {
+    var delay = eventRetryDelay;
+    eventRetryDelay = Math.min(eventRetryDelay * 2, RETRY_MAX_MS);
+    setTimeout(sendEvents, delay);
+  }
+
+  function sendEvents() {
+    if (eventSending || eventsStopped || eventQueue.length === 0) {
+      return;
+    }
+    var ev = eventQueue[0];
+    var body = new URLSearchParams({ kind: ev.kind });
+    if (ev.question) {
+      body.set("question", ev.question);
+    }
+    var controller = new AbortController();
+    var timeout = setTimeout(function () {
+      controller.abort();
+    }, REQUEST_TIMEOUT_MS);
+    eventSending = true;
+    fetch(eventURL, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
+      },
+      body: body.toString(),
+      signal: controller.signal,
+      keepalive: true,
+    }).then(
+      function (res) {
+        clearTimeout(timeout);
+        eventSending = false;
+        if (res.status === 401 || res.status === 409) {
+          // The attempt moved or finished; the answer and status paths
+          // handle that. Later events have nowhere to go.
+          eventsStopped = true;
+          eventQueue = [];
+          return;
+        }
+        if (res.status === 200 || res.status === 422) {
+          eventQueue.shift();
+          eventRetryDelay = RETRY_FIRST_MS;
+          sendEvents();
+          return;
+        }
+        retryEvents();
+      },
+      function () {
+        clearTimeout(timeout);
+        eventSending = false;
+        retryEvents();
+      }
+    );
+  }
+
+  // An absence starts when the page is hidden or loses focus and ends when it
+  // is visible and focused again. It is reported once, after AWAY_MS: by a
+  // timer while away, or on return if the timer could not run (a sleeping
+  // phone).
+  var pageHidden = document.visibilityState === "hidden";
+  var pageBlurred = false;
+  var awaySince = null;
+  var awayCounted = false;
+  var awayTimer = null;
+
+  function countAway() {
+    if (awaySince === null || awayCounted) {
+      return;
+    }
+    awayCounted = true;
+    flag("left_page");
+  }
+
+  function updateAway() {
+    var away = pageHidden || pageBlurred;
+    if (away && awaySince === null) {
+      awaySince = performance.now();
+      awayCounted = false;
+      awayTimer = setTimeout(countAway, AWAY_MS + 1);
+    } else if (!away && awaySince !== null) {
+      clearTimeout(awayTimer);
+      awayTimer = null;
+      if (performance.now() - awaySince > AWAY_MS) {
+        countAway();
+      }
+      awaySince = null;
+    }
+  }
+
+  // The screen wake lock avoids false left_page events from a screen that
+  // turns off. Browsers release it when the page is hidden, so it is asked
+  // for again on return. Failure is silent.
+  var wakeLock = null;
+
+  function requestWakeLock() {
+    if (stopped || !navigator.wakeLock || document.visibilityState !== "visible") {
+      return;
+    }
+    if (wakeLock !== null && !wakeLock.released) {
+      return;
+    }
+    try {
+      navigator.wakeLock.request("screen").then(
+        function (lock) {
+          wakeLock = lock;
+        },
+        function () {}
+      );
+    } catch (e) {
+      // Unsupported or not allowed: the exam works without it.
+    }
+  }
+
+  function startMonitor() {
+    var blocked = { copy: "copy", cut: "copy", paste: "paste", contextmenu: "right_click" };
+    Object.keys(blocked).forEach(function (type) {
+      document.addEventListener(type, function (event) {
+        event.preventDefault();
+        flag(blocked[type]);
+      });
+    });
+
+    document.addEventListener("visibilitychange", function () {
+      pageHidden = document.visibilityState === "hidden";
+      updateAway();
+      requestWakeLock();
+    });
+    window.addEventListener("blur", function () {
+      pageBlurred = true;
+      updateAway();
+    });
+    window.addEventListener("focus", function () {
+      pageBlurred = false;
+      updateAway();
+    });
+
+    var lastWidth = window.innerWidth;
+    var resizeTimer = null;
+    window.addEventListener("resize", function () {
+      clearTimeout(resizeTimer);
+      // Only width counts: mobile browsers change the height when their
+      // address bar slides away on scroll.
+      resizeTimer = setTimeout(function () {
+        if (window.innerWidth !== lastWidth) {
+          lastWidth = window.innerWidth;
+          flag("resize");
+        }
+      }, RESIZE_SETTLE_MS);
+    });
+
+    window.addEventListener("online", sendEvents);
+    updateAway();
+    requestWakeLock();
+  }
+
   // ---- Navigator ---------------------------------------------------------
 
   function setNavOpen(open) {
@@ -457,6 +660,9 @@
     }
   });
   render();
+  if (monitorOn) {
+    startMonitor();
+  }
   tick();
   if (!stopped) {
     countdown = setInterval(tick, 250);

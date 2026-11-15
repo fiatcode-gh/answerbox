@@ -227,7 +227,7 @@ func TestImport_StoresExamAndImages(t *testing.T) {
 	ex := h.mustGet(t, id)
 	want := exam.Exam{
 		ID: id, Title: "Geometry", Shuffle: examfile.ShuffleNone, ShowResult: examfile.ShowReview,
-		Open: false, CreatedAt: fixedNow, QuestionCount: 2, AttemptCount: 0,
+		Monitor: true, Open: false, CreatedAt: fixedNow, QuestionCount: 2, AttemptCount: 0,
 	}
 	if !ex.CreatedAt.Equal(fixedNow) {
 		t.Errorf("CreatedAt = %v, want %v", ex.CreatedAt, fixedNow)
@@ -357,7 +357,7 @@ func TestReplace_BeforeAttempts(t *testing.T) {
 
 	newImg := pngBytes(t, color.White)
 	newZip := buildZip(t,
-		zipEntry{"exam.md", []byte("# New\nshuffle: questions, options\nshow_result: review\n\n1. Fresh ![x](i.png)\n- x\n- y *\n- z\n\n2. Second\n- p *\n- q\n")},
+		zipEntry{"exam.md", []byte("# New\nshuffle: questions, options\nshow_result: review\nmonitor: off\n\n1. Fresh ![x](i.png)\n- x\n- y *\n- z\n\n2. Second\n- p *\n- q\n")},
 		zipEntry{"i.png", newImg},
 	)
 	if err := h.svc.Replace(ctx, id, newZip); err != nil {
@@ -366,7 +366,7 @@ func TestReplace_BeforeAttempts(t *testing.T) {
 
 	ex := h.mustGet(t, id)
 	if ex.ID != id || ex.Title != "New" || ex.Shuffle != examfile.ShuffleQuestionsOptions ||
-		ex.ShowResult != examfile.ShowReview || !ex.Open || !ex.CreatedAt.Equal(fixedNow) || ex.QuestionCount != 2 {
+		ex.ShowResult != examfile.ShowReview || ex.Monitor || !ex.Open || !ex.CreatedAt.Equal(fixedNow) || ex.QuestionCount != 2 {
 		t.Errorf("after Replace: %+v", ex)
 	}
 	newKey := h.mediaKey(t, id)

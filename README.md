@@ -85,7 +85,8 @@ fmt.Println(2 + 3)
 Rules:
 
 - The first line is the title: `# Title`.
-- Optional settings follow the title: `shuffle: none | questions | questions, options` (default `questions`) and `show_result: none | score | review` (default `score`).
+- Optional settings follow the title: `shuffle: none | questions | questions, options` (default `questions`), `show_result: none | score | review` (default `score`) and `monitor: on | off` (default `on`).
+- With `monitor: on`, the exam page blocks copy, cut, paste and the right-click menu, and reports to the teacher when the student leaves the page for more than 3 seconds, tries one of those blocked actions or resizes the window. The student sees "Your teacher has been notified." after each event, and the page asks the browser to keep the screen on. The teacher sees the count in the results list (Flags) and CSV (`flags`), and each event on the attempt page. The monitor cannot see other apps, other devices, screenshots or browser extensions; it discourages cheating, it does not prevent it. Events never change answers, time or score.
 - Questions are numbered `1.`, `2.`, … at the start of a line.
 - Options start with `- `. Each question needs at least two.
 - Mark exactly one option per question as correct with a trailing `*`.
@@ -108,4 +109,5 @@ GOEXAM_ADMIN_PASSWORD=dev-password-123 GOEXAM_DATA_DIR=./data go run ./cmd/go-ex
 go run ./cmd/loadtest -base-url http://localhost:8080 -admin-password dev-password-123
 uv run e2e/student_ui.py --base-url http://localhost:8080 --admin-password dev-password-123 --out e2e/out/student-ui
 uv run e2e/exam_flow.py --base-url http://localhost:8080 --admin-password dev-password-123 --out e2e/out/exam-flow
+uv run e2e/monitor.py --base-url http://localhost:8080 --admin-password dev-password-123 --out e2e/out/monitor
 ```

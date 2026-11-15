@@ -30,6 +30,8 @@
     <dd>{{.ShuffleText}}</dd>
     <dt>Result shown to students</dt>
     <dd>{{.ShowResultText}}</dd>
+    <dt>Monitor</dt>
+    <dd>{{if .Exam.Monitor}}On{{else}}Off{{end}}</dd>
     <dt>Questions</dt>
     <dd>{{.Exam.QuestionCount}}</dd>
   </dl>

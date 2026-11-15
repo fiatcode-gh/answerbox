@@ -49,6 +49,7 @@ type Exam struct {
 	Title      string
 	Shuffle    Shuffle
 	ShowResult ShowResult
+	Monitor    bool // anti-cheat monitor; "monitor: on" by default
 	Questions  []Question
 	Images     []Image // referenced images only, unique by Name
 }

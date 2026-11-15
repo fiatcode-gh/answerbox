@@ -25,6 +25,7 @@ type Exam struct {
 	Title         string
 	Shuffle       examfile.Shuffle
 	ShowResult    examfile.ShowResult
+	Monitor       bool
 	Open          bool
 	CreatedAt     time.Time
 	QuestionCount int

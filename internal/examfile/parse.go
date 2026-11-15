@@ -10,7 +10,7 @@ import (
 
 var (
 	titleRe      = regexp.MustCompile(`^#[ \t]+(\S.*)$`)
-	headerRe     = regexp.MustCompile(`^(shuffle|show_result)[ \t]*:[ \t]*(.*)$`)
+	headerRe     = regexp.MustCompile(`^(shuffle|show_result|monitor)[ \t]*:[ \t]*(.*)$`)
 	questionRe   = regexp.MustCompile(`^(\d{1,4})[.)](?:[ \t]+(.*))?$`)
 	optionRe     = regexp.MustCompile(`^[ \t]*-(?:[ \t]+(.*))?$`)
 	commaRe      = regexp.MustCompile(`\s*,\s*`)
@@ -58,7 +58,7 @@ func Parse(u Upload, mediaBase string) (Exam, error) {
 }
 
 func scan(lines []string) (Exam, []*rawQuestion, error) {
-	ex := Exam{Shuffle: ShuffleQuestions, ShowResult: ShowScore}
+	ex := Exam{Shuffle: ShuffleQuestions, ShowResult: ShowScore, Monitor: true}
 
 	i := 0
 	for i < len(lines) && isBlank(lines[i]) {
@@ -94,7 +94,7 @@ func scan(lines []string) (Exam, []*rawQuestion, error) {
 				continue
 			}
 			if !questionRe.MatchString(line) {
-				return ex, nil, errorf(`line %d: expected "shuffle:", "show_result:" or question 1`, n)
+				return ex, nil, errorf(`line %d: expected "shuffle:", "show_result:", "monitor:" or question 1`, n)
 			}
 		}
 
@@ -169,6 +169,15 @@ func setHeader(ex *Exam, seen map[string]bool, key, raw string, n int) error {
 			ex.ShowResult = ShowReview
 		default:
 			return errorf(`line %d: show_result must be "none", "score" or "review"`, n)
+		}
+	case "monitor":
+		switch value {
+		case "on":
+			ex.Monitor = true
+		case "off":
+			ex.Monitor = false
+		default:
+			return errorf(`line %d: monitor must be "on" or "off"`, n)
 		}
 	}
 	return nil

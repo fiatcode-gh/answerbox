@@ -33,8 +33,8 @@ func (s *Service) insertExam(ctx context.Context, ex examfile.Exam, key string) 
 	}
 	defer tx.Rollback()
 	res, err := tx.ExecContext(ctx,
-		`INSERT INTO exam (title, shuffle, show_result, is_open, media_key, created_at) VALUES (?, ?, ?, 0, ?, ?)`,
-		ex.Title, string(ex.Shuffle), string(ex.ShowResult), key, s.now().UnixMilli())
+		`INSERT INTO exam (title, shuffle, show_result, monitor, is_open, media_key, created_at) VALUES (?, ?, ?, ?, 0, ?, ?)`,
+		ex.Title, string(ex.Shuffle), string(ex.ShowResult), ex.Monitor, key, s.now().UnixMilli())
 	if err != nil {
 		return 0, fmt.Errorf("exam: insert: %w", err)
 	}
@@ -92,8 +92,8 @@ func (s *Service) replaceExam(ctx context.Context, examID int64, ex examfile.Exa
 		return "", fmt.Errorf("exam: delete questions: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx,
-		`UPDATE exam SET title = ?, shuffle = ?, show_result = ?, media_key = ? WHERE id = ?`,
-		ex.Title, string(ex.Shuffle), string(ex.ShowResult), key, examID); err != nil {
+		`UPDATE exam SET title = ?, shuffle = ?, show_result = ?, monitor = ?, media_key = ? WHERE id = ?`,
+		ex.Title, string(ex.Shuffle), string(ex.ShowResult), ex.Monitor, key, examID); err != nil {
 		return "", fmt.Errorf("exam: update: %w", err)
 	}
 	if err := insertQuestions(ctx, tx, examID, ex.Questions); err != nil {

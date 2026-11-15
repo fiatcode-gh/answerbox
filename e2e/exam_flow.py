@@ -331,7 +331,7 @@ def flow(run: Run, password: str) -> None:
         with step("17 teacher exports the CSV"):
             teacher.goto(attempts_url)
             table = download_csv(teacher)
-            if table[0] != ["name", "status", "score", "total", "started", "finished"]:
+            if table[0] != ["name", "status", "score", "total", "started", "finished", "flags"]:
                 raise AssertionError(f"CSV header: {table[0]}")
             if len(table) != 3:
                 raise AssertionError(f"CSV rows: want 2, got {table[1:]}")
