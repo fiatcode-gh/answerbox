@@ -13,6 +13,7 @@ import sys
 import tempfile
 import time
 from contextlib import contextmanager
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from playwright.sync_api import Page, expect, sync_playwright
@@ -184,15 +185,62 @@ def run(base_url: str, password: str, out: Path) -> None:
                 raise AssertionError(f"navigator is not left of the questions: nav={nav} q1={first}")
             s3.screenshot(path=out / "desktop-exam.png", animations="disabled")
 
-        with step("10 no console errors, page errors or foreign requests"):
+        with step("10 S4's countdown ignores a jump of the device clock"):
+            s4 = new_context(**phone).new_page()
+            s4.clock.install()
+            start(s4, base_url, "Dewi Kusuma")
+            timer = s4.locator("#timer")
+            before = seconds(timer.inner_text())
+            s4.clock.set_system_time(datetime.now() + timedelta(hours=2))
+            s4.clock.run_for(2000)
+            after = seconds(timer.inner_text())
+            if not before - 3 <= after <= before:
+                raise AssertionError(f"timer jumped with the device clock: {before}s then {after}s")
+            expect(s4.locator("main#exam")).to_be_visible()
+            expect(s4.locator("#time-up")).to_be_hidden()
+
+        refused = (
+            f"{base_url}/exam: Failed to load resource: "
+            "the server responded with a status of 422 (Unprocessable Entity)"
+        )
+        with step("11 S5 sees a refused pick as not saved, without retries or a blocked Submit"):
+            s5 = new_context(**DESKTOP).new_page()
+            start(s5, base_url, "Eka Putri")
+            answer_posts = []
+
+            def refuse(route):
+                answer_posts.append(route.request.url)
+                route.fulfill(status=422, content_type="application/json", body='{"error":"invalid"}')
+
+            s5.route("**/exam/answer", refuse)
+            pick(s5, 1, 0)
+            expect(s5.locator("#save-state")).to_have_text("✗ Not saved — choose again")
+            expect(s5.locator("#save-state")).to_have_attribute("data-state", "error")
+            expect(question(s5, 1).locator(".q-state")).to_have_text("Not saved")
+            expect(question(s5, 1).locator("input[type=radio]:checked")).to_have_count(0)
+            expect(s5.locator("#question-nav a.bubble[href='#q1']")).to_have_attribute("data-answered", "false")
+            expect(s5.locator("#answered-count")).to_have_text("Answered 0 of 6")
+            s5.wait_for_timeout(2500)  # past the first retry delay of a failed save
+            if len(answer_posts) != 1:
+                raise AssertionError(f"refused pick was sent {len(answer_posts)} times, want 1")
+            s5.locator("#submit-open").click()
+            expect(s5.locator("#submit-confirm")).to_be_enabled()
+            expect(s5.locator("#submit-confirm")).to_have_text("Submit")
+            s5.locator("#submit-cancel").click()
+            s5.unroute("**/exam/answer")
+            pick(s5, 1, 1)
+            expect(s5.locator("#save-state")).to_have_attribute("data-state", "saved")
+            expect(question(s5, 1).locator(".q-state")).to_have_text("Saved")
+
+        with step("12 no console errors, page errors or foreign requests"):
             problems = []
             for log in logs:
-                # Chromium itself logs the requests step 4 makes while offline on
-                # purpose; that is the only state in which this message can occur.
+                # Chromium logs the requests step 4 makes while offline and the
+                # answer step 11 refuses on purpose; nothing else may appear.
                 problems += [
                     f"console error: {e}"
                     for e in log["console_errors"]
-                    if not e.endswith("Failed to load resource: net::ERR_INTERNET_DISCONNECTED")
+                    if not e.endswith("Failed to load resource: net::ERR_INTERNET_DISCONNECTED") and e != refused
                 ]
                 problems += [f"page error: {e}" for e in log["page_errors"]]
                 problems += [f"foreign request: {u}" for u in log["requests"] if not u.startswith(base_url)]

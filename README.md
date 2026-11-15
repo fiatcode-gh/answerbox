@@ -16,7 +16,7 @@ All configuration comes from environment variables.
 | `GOEXAM_TRUSTED_PROXIES` | empty (trust nobody) | Comma-separated CIDRs or IPs whose `X-Forwarded-For` is trusted. |
 | `GOEXAM_TIME_ZONE` | `UTC` | IANA time zone used to display times (time zone data is built in). |
 
-The app refuses to start when `GOEXAM_ADMIN_PASSWORD` is missing or shorter than 12 characters.
+The app refuses to start when `GOEXAM_ADMIN_PASSWORD` is missing or shorter than 12 characters. Every start signs all teachers out, so to rotate the password, change it and restart.
 
 ## Run with a container
 
@@ -91,7 +91,7 @@ Rules:
 - Mark exactly one option per question as correct with a trailing `*`.
 - Text supports bold (`**bold**`), italics (`*italics*`), inline `` `code` ``, line breaks, fenced code blocks (```` ``` ````) and images (`![description](file.png)`).
 - To use images, upload a `.zip` containing the text file and the image files (PNG, JPEG, GIF or WebP).
-- Uploads are limited to 10 MB.
+- Uploads are limited to 10 MB and must finish within 60 seconds, which needs an upload speed of about 1.4 Mbit/s for a 10 MB file.
 
 ## Development
 
@@ -103,6 +103,9 @@ go test ./...
 go test -race ./...
 podman build -t localhost/go-exam:dev -f Containerfile .
 GOEXAM_ADMIN_PASSWORD=dev-password-123 GOEXAM_DATA_DIR=./data go run ./cmd/go-exam   # serves on :8080
-go run ./cmd/loadtest                                   # load test against a running instance
-uv run e2e/exam_flow.py                                 # browser end-to-end exam flow
+
+# Against the running instance above (the browser runs expect a fresh data directory):
+go run ./cmd/loadtest -base-url http://localhost:8080 -admin-password dev-password-123
+uv run e2e/student_ui.py --base-url http://localhost:8080 --admin-password dev-password-123 --out e2e/out/student-ui
+uv run e2e/exam_flow.py --base-url http://localhost:8080 --admin-password dev-password-123 --out e2e/out/exam-flow
 ```

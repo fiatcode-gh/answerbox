@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math/rand/v2"
 	"net/netip"
+	"sync"
 	"testing"
 	"time"
 
@@ -150,6 +151,42 @@ func TestLogin_ThrottleSchedule(t *testing.T) {
 	h.advance(time.Hour)
 	h.fail(t, ipA) // the 4 earlier failures are idle and forgotten
 	h.mustLogin(t, ipA)
+}
+
+// The four free failures plus the one that locks are the only wrong
+// passwords checked, however many requests race for the same address.
+func TestLogin_ThrottleConcurrent(t *testing.T) {
+	h := newHarness(t)
+	const n = 200
+	errs := make(chan error, n)
+	ready := make(chan struct{})
+	var wg sync.WaitGroup
+	for range n {
+		wg.Go(func() {
+			<-ready
+			_, err := h.login("wrong", ipA)
+			errs <- err
+		})
+	}
+	close(ready)
+	wg.Wait()
+	close(errs)
+
+	var wrong, throttled int
+	for err := range errs {
+		var te *adminauth.ThrottledError
+		switch {
+		case errors.Is(err, adminauth.ErrWrongPassword):
+			wrong++
+		case errors.As(err, &te):
+			throttled++
+		default:
+			t.Fatalf("Login = %v, want ErrWrongPassword or *ThrottledError", err)
+		}
+	}
+	if wrong != 5 || throttled != n-5 {
+		t.Fatalf("%d wrong-password and %d throttled results, want 5 and %d", wrong, throttled, n-5)
+	}
 }
 
 func TestLogin_ThrottleIdleLockedEntryForgotten(t *testing.T) {

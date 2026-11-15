@@ -9,7 +9,8 @@ import (
 )
 
 // requestTimeout bounds every request so a misuse of the single database
-// connection fails instead of hanging (D2).
+// connection (a query outside an open transaction waits for it forever)
+// fails instead of hanging.
 const requestTimeout = 15 * time.Second
 
 const contentSecurityPolicy = "default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; " +
@@ -81,7 +82,8 @@ func (s *server) logRequests(next http.Handler) http.Handler {
 	})
 }
 
-// securityHeaders sets the D20 headers; Cache-Control defaults to no-store
+// securityHeaders sets the security headers every response carries (CSP,
+// nosniff, referrer and framing policy); Cache-Control defaults to no-store
 // and a handler overrides it by setting its own.
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -95,6 +97,8 @@ func securityHeaders(next http.Handler) http.Handler {
 	})
 }
 
+// withDeadline gives the request requestTimeout; requireAdmin replaces it
+// with a fresh one once an admin request body has been read.
 func withDeadline(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), requestTimeout)

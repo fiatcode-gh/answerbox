@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -54,15 +55,18 @@ func run() error {
 	}
 	defer media.Close()
 
+	admin, err := newAdmin(context.Background(), db, cfg.AdminPassword)
+	if err != nil {
+		return err
+	}
 	attempts := attempt.NewService(db, time.Now, rand.Reader)
 	handler, err := web.NewHandler(web.Deps{
 		DB:       db,
 		Exams:    exam.NewService(db, media, time.Now, rand.Reader),
 		Attempts: attempts,
-		Admin:    adminauth.NewService(db, cfg.AdminPassword, time.Now, rand.Reader),
+		Admin:    admin,
 		ClientIP: clientip.New(cfg.TrustedProxies),
 		Location: cfg.Location,
-		Now:      time.Now,
 		Logger:   logger,
 	})
 	if err != nil {
@@ -113,6 +117,17 @@ func run() error {
 		return err
 	}
 	return nil
+}
+
+// newAdmin returns the teacher sign-in service. Admin sessions are not
+// carried across a restart, so restarting with a changed password ends every
+// session signed in with the old one.
+func newAdmin(ctx context.Context, db *sql.DB, password string) (*adminauth.Service, error) {
+	admin := adminauth.NewService(db, password, time.Now, rand.Reader)
+	if err := admin.ClearSessions(ctx); err != nil {
+		return nil, fmt.Errorf("clear admin sessions: %w", err)
+	}
+	return admin, nil
 }
 
 const (

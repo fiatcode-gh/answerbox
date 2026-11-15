@@ -9,6 +9,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"io"
 	"math/rand/v2"
 	"mime/multipart"
 	"net/http"
@@ -272,6 +273,45 @@ func TestImport_TextAndZip(t *testing.T) {
 	}
 	if !regexp.MustCompile(`<img src="/media/[0-9a-f]{32}/[0-9a-f]{32}\.png"`).MatchString(body) {
 		t.Errorf("zip detail has no <img src=\"/media/…\">:\n%s", body)
+	}
+}
+
+// cancelOnRead cancels the request's parent context on its first Read, as a
+// deadline would if it covered a slow upload.
+type cancelOnRead struct {
+	r      io.Reader
+	cancel context.CancelFunc
+}
+
+func (c *cancelOnRead) Read(p []byte) (int, error) {
+	c.cancel()
+	return c.r.Read(p)
+}
+
+func TestImport_SlowBodyStillImports(t *testing.T) {
+	env := newTestEnv(t)
+	cookie, csrf := loginThroughHandler(t, env)
+
+	req := uploadRequest(t, "/admin/exams", csrf, "shapes.zip", zipOf(t, map[string][]byte{
+		"shapes/exam.md":     []byte(zipExam),
+		"shapes/img/tri.png": testPNG(t),
+	}), cookie)
+	ctx, cancel := context.WithCancel(req.Context())
+	defer cancel()
+	req = req.WithContext(ctx)
+	req.Body = io.NopCloser(&cancelOnRead{r: req.Body, cancel: cancel})
+
+	rec := serve(env.h, req)
+	if loc := rec.Header().Get("Location"); rec.Code != http.StatusSeeOther || !examIDPath.MatchString(loc) {
+		t.Fatalf("import with the parent context ended during upload = %d Location %q, want 303 /admin/exams/{id}:\n%s",
+			rec.Code, loc, rec.Body.String())
+	}
+	exams, err := env.exams.List(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(exams) != 1 {
+		t.Fatalf("stored %d exams, want 1", len(exams))
 	}
 }
 

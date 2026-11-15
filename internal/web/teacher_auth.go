@@ -17,7 +17,7 @@ const (
 	adminCookiePath = "/admin"
 
 	// loginBodyLimit caps POST /admin/login; adminBodyLimit caps other admin
-	// POSTs so a 10 MiB upload plus form overhead fits (D10).
+	// POSTs so a 10 MiB upload plus form overhead fits.
 	loginBodyLimit = 4 << 10
 	adminBodyLimit = 11 << 20
 
@@ -42,7 +42,7 @@ func adminPageFor(r *http.Request) adminPage {
 }
 
 // mountAdmin registers the login routes and mounts every other /admin/ route
-// behind requireAdmin (D14).
+// behind requireAdmin, so no admin route can be registered unprotected.
 func (s *server) mountAdmin(mux *http.ServeMux) {
 	mux.HandleFunc("GET /admin/login", s.loginPage)
 	mux.HandleFunc("POST /admin/login", s.login)
@@ -86,7 +86,9 @@ func (s *server) adminSession(r *http.Request) (sess adminauth.Session, ok, sent
 
 // requireAdmin admits only requests with a valid admin session; state-changing
 // requests must also carry the session's CSRF token in a body of at most
-// adminBodyLimit bytes.
+// adminBodyLimit bytes. Once that body is read, the request gets a fresh
+// requestTimeout budget: a slow upload is bounded by the server's read
+// timeout instead, and must not use up the time left for the database work.
 func (s *server) requireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sess, ok, sent, err := s.adminSession(r)
@@ -102,12 +104,16 @@ func (s *server) requireAdmin(next http.Handler) http.Handler {
 			return
 		}
 
+		ctx := r.Context()
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			r.Body = http.MaxBytesReader(w, r.Body, adminBodyLimit)
 			if status := parseAdminForm(r); status != 0 {
 				s.errorPage(w, r, status)
 				return
 			}
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), requestTimeout)
+			defer cancel()
 			defer func() {
 				if r.MultipartForm != nil {
 					r.MultipartForm.RemoveAll()
@@ -120,7 +126,7 @@ func (s *server) requireAdmin(next http.Handler) http.Handler {
 			}
 		}
 
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), adminSessionKey{}, sess)))
+		next.ServeHTTP(w, r.WithContext(context.WithValue(ctx, adminSessionKey{}, sess)))
 	})
 }
 

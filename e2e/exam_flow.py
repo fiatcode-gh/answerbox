@@ -137,8 +137,8 @@ class Run:
 
     def expected_status_errors(self) -> set[str]:
         # Chromium logs every non-2xx document load as a console error. Steps 1
-        # and 13 provoke exactly these two on purpose (PLAN 7.1: wrong password
-        # → 401, invalid resume code → 422); nothing else may appear.
+        # and 13 provoke exactly these two on purpose (a wrong password answers
+        # 401, an invalid resume code 422); nothing else may appear.
         return {
             f"{self.base_url}/admin/login: Failed to load resource: "
             "the server responded with a status of 401 (Unauthorized)",

@@ -446,6 +446,38 @@ func TestReplace_InvalidKeepsOldContent(t *testing.T) {
 	}
 }
 
+func TestImport_DBFailureLeavesNoMedia(t *testing.T) {
+	h := newHarness(t)
+	zipData, _ := imageExam(t, "Cancelled", color.Black)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if _, err := h.svc.Import(ctx, zipData); err == nil {
+		t.Fatal("Import with a cancelled context succeeded")
+	}
+	if entries := h.mediaEntries(t); len(entries) != 0 {
+		t.Errorf("media entries = %v, want none", entries)
+	}
+}
+
+func TestReplace_DBFailureLeavesNoMedia(t *testing.T) {
+	h := newHarness(t)
+	oldZip, _ := imageExam(t, "Old", color.Black)
+	id := h.mustImport(t, oldZip)
+	entriesBefore := h.mediaEntries(t)
+	if err := h.db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	newZip, _ := imageExam(t, "New", color.White)
+	if err := h.svc.Replace(context.Background(), id, newZip); err == nil {
+		t.Fatal("Replace on a closed database succeeded")
+	}
+	if entries := h.mediaEntries(t); !slices.Equal(entries, entriesBefore) {
+		t.Errorf("media entries = %v, want %v", entries, entriesBefore)
+	}
+}
+
 func TestOpen_ClosesOtherExam(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()

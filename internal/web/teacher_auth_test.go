@@ -92,7 +92,6 @@ func newTestEnvWith(t *testing.T, db *sql.DB, cfg envConfig) *testEnv {
 		Admin:    env.admin,
 		ClientIP: clientip.New(cfg.trusted),
 		Location: cfg.location,
-		Now:      now,
 		Logger:   slog.New(slog.NewTextHandler(cfg.logOut, nil)),
 	})
 	if err != nil {

@@ -20,7 +20,8 @@ var mediaTypes = map[string]string{
 }
 
 // serveMedia serves an exam image. Both path values are validated before
-// the filesystem is touched (D9); only regular files are served.
+// the filesystem is touched, so a request can only name a file the importer
+// wrote; only regular files are served.
 func (s *server) serveMedia(w http.ResponseWriter, r *http.Request) {
 	key, name := r.PathValue("key"), r.PathValue("name")
 	if !mediaKeyRe.MatchString(key) || !mediaNameRe.MatchString(name) {

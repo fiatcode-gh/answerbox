@@ -15,7 +15,8 @@ import (
 const (
 	attemptCookieName = "goexam_attempt"
 
-	// attemptCookieMaxAge is D12's 7 days.
+	// attemptCookieMaxAge is 7 days, long enough to resume an exam on the
+	// same device after any interruption.
 	attemptCookieMaxAge = 7 * 24 * 60 * 60
 
 	// tokenLength is the base64url length of a 32-byte token without padding.
@@ -217,7 +218,8 @@ func (s *server) resume(w http.ResponseWriter, r *http.Request) {
 }
 
 // submit finishes the cookie's attempt. The request body is ignored: answers
-// are written only by POST /exam/answer (D18).
+// are written only by POST /exam/answer, so a submit cannot carry stale
+// answers.
 func (s *server) submit(w http.ResponseWriter, r *http.Request) {
 	token, ok, sent := attemptToken(r)
 	if !ok {
@@ -245,7 +247,8 @@ type examQuestion struct {
 	Answered bool
 }
 
-// examPageData is derived only from attempt.View (D17).
+// examPageData is derived only from attempt.View, whose types carry no
+// answer key, so the page cannot leak which option is correct.
 type examPageData struct {
 	ExamTitle, StudentName string
 	RemainingMS            int64
@@ -255,7 +258,8 @@ type examPageData struct {
 	Answered, Total        int
 }
 
-// Timer levels (PLAN section 8).
+// Timer levels: the countdown shows "warn" from 5 minutes left and "danger"
+// from 1 minute left.
 const (
 	warnAt   = 5 * time.Minute
 	dangerAt = time.Minute
@@ -290,7 +294,8 @@ func newExamPageData(v attempt.View) examPageData {
 	return d
 }
 
-// resultPageData is derived only from attempt.View and its Result (D17).
+// resultPageData is derived only from attempt.View and its Result, which hold
+// the answer key only when the exam shows a review.
 type resultPageData struct {
 	ExamTitle, StudentName string
 	Status                 attempt.Status
@@ -414,6 +419,3 @@ func (s *server) status(w http.ResponseWriter, r *http.Request) {
 		s.writeJSON(w, r, http.StatusOK, statusResponse{Status: "finished"})
 	}
 }
-
-// Unanswered is the number of questions without a saved answer.
-func (d examPageData) Unanswered() int { return d.Total - d.Answered }

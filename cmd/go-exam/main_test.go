@@ -5,10 +5,13 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/netip"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/fiatcode-gh/go-exam/internal/platform/sqlite/sqlitetest"
 )
 
 // syncBuffer is a log sink safe for the sweeper goroutine and the test.
@@ -70,5 +73,26 @@ func TestSweeper_SweepsLogsAndStops(t *testing.T) {
 	}
 	if sweepInterval != 5*time.Second || sweepTimeout != 5*time.Second {
 		t.Errorf("sweep interval/timeout = %v/%v, want 5s/5s", sweepInterval, sweepTimeout)
+	}
+}
+
+func TestNewAdmin_ClearsSessions(t *testing.T) {
+	ctx := context.Background()
+	db := sqlitetest.Open(t)
+	before, err := newAdmin(ctx, db, "old-password-123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, err := before.Login(ctx, "old-password-123", netip.MustParseAddr("192.0.2.1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	after, err := newAdmin(ctx, db, "new-password-456")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := after.Session(ctx, token); err != nil || ok {
+		t.Fatalf("session from before the restart: valid=%v err=%v, want invalid", ok, err)
 	}
 }

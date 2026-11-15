@@ -35,7 +35,10 @@
   var answerURL = main.dataset.answerUrl;
   var statusURL = main.dataset.statusUrl;
 
-  var deadline = Date.now() + Number(main.dataset.remainingMs);
+  // Deadline arithmetic uses the monotonic performance.now(), not the wall
+  // clock, so a change of the device clock cannot end the exam early or late.
+  // It is anchored to the server's remaining time at load and on every response.
+  var deadline = performance.now() + Number(main.dataset.remainingMs);
   var countdown = null;
   var announced = {};
   var leaving = false; // submitting or reloading on purpose: no unload prompt
@@ -57,6 +60,7 @@
         sent: value,
         inFlight: false,
         failed: false,
+        rejected: false, // the server refused the last pick: wait for a new one
         retryDelay: RETRY_FIRST_MS,
         retryTimer: null,
       };
@@ -90,7 +94,7 @@
   }
 
   function tick() {
-    var left = Math.max(0, deadline - Date.now());
+    var left = Math.max(0, deadline - performance.now());
     var secs = Math.ceil(left / 1000);
     timer.textContent = pad(Math.floor(secs / 60)) + ":" + pad(secs % 60);
     timer.dataset.level = secs <= 60 ? "danger" : secs <= 300 ? "warn" : "normal";
@@ -125,7 +129,10 @@
     questions.forEach(function (q) {
       var state;
       var text;
-      if (!unsaved(q)) {
+      if (q.rejected) {
+        state = "error";
+        text = "Not saved";
+      } else if (!unsaved(q)) {
         state = q.want === null ? "idle" : "saved";
         text = q.want === null ? "" : "Saved";
       } else if (q.failed) {
@@ -141,15 +148,21 @@
       }
     });
 
-    var error = questions.some(function (q) {
+    var retrying = questions.some(function (q) {
       return unsaved(q) && q.failed;
     });
-    if (error) {
+    var rejected = questions.some(function (q) {
+      return q.rejected;
+    });
+    if (retrying) {
       saveState.dataset.state = "error";
       saveState.textContent = "✗ Not saved — retrying";
     } else if (anyUnsaved()) {
       saveState.dataset.state = "saving";
       saveState.textContent = "Saving…";
+    } else if (rejected) {
+      saveState.dataset.state = "error";
+      saveState.textContent = "✗ Not saved — choose again";
     } else {
       saveState.dataset.state = "saved";
       saveState.textContent = "✓ All answers saved";
@@ -223,7 +236,7 @@
               q.sent = value;
               q.failed = false;
               q.retryDelay = RETRY_FIRST_MS;
-              deadline = Date.now() + Number(result.data.remaining_ms);
+              deadline = performance.now() + Number(result.data.remaining_ms);
               render();
               pump(q);
               return;
@@ -234,8 +247,11 @@
               becomeMoved();
               return;
             case 422:
-              q.failed = true;
-              render();
+              if (q.want === value) {
+                rejectPick(q);
+              } else {
+                pump(q); // a newer pick is waiting; send that one
+              }
               return;
             default:
               q.failed = true;
@@ -253,6 +269,21 @@
       );
   }
 
+  // rejectPick handles a pick the server refused. Retrying cannot help, so
+  // the question goes back to its last saved answer (Submit is not blocked by
+  // it) and shows an error until the student picks again.
+  function rejectPick(q) {
+    q.want = q.sent;
+    q.failed = false;
+    q.rejected = true;
+    Array.prototype.forEach.call(q.radios, function (radio) {
+      radio.checked = radio.value === q.sent;
+    });
+    q.bubble.dataset.answered = q.want === null ? "false" : "true";
+    renderAnswered();
+    render();
+  }
+
   questions.forEach(function (q) {
     Array.prototype.forEach.call(q.radios, function (radio) {
       radio.addEventListener("change", function () {
@@ -260,6 +291,7 @@
           return;
         }
         q.want = radio.value;
+        q.rejected = false;
         q.bubble.dataset.answered = "true";
         renderAnswered();
         render();
@@ -296,9 +328,9 @@
     stopCountdown();
     disableInputs();
     document.getElementById("time-up").hidden = false;
-    var since = Date.now();
+    var since = performance.now();
     (function waitForSaves() {
-      if (!anyInFlight() || Date.now() - since >= TIME_UP_WAIT_MS) {
+      if (!anyInFlight() || performance.now() - since >= TIME_UP_WAIT_MS) {
         submit();
         return;
       }
@@ -351,7 +383,7 @@
           if (data.status === "finished") {
             reload();
           } else if (data.status === "in_progress") {
-            deadline = Date.now() + Number(data.remaining_ms);
+            deadline = performance.now() + Number(data.remaining_ms);
             tick();
           }
         });
@@ -418,7 +450,7 @@
   document.documentElement.classList.add("js");
   navToggle.hidden = false;
   // Thresholds already passed when the page loads are not announced again.
-  var bootSeconds = Math.ceil(Math.max(0, deadline - Date.now()) / 1000);
+  var bootSeconds = Math.ceil(Math.max(0, deadline - performance.now()) / 1000);
   ANNOUNCEMENTS.forEach(function (a) {
     if (bootSeconds <= a.seconds) {
       announced[a.seconds] = true;

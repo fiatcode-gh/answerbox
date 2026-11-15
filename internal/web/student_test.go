@@ -329,7 +329,7 @@ func TestStudent_FlowStartAnswerReloadSubmit(t *testing.T) {
 		`<label class="option"`, `<span class="bubble">A</span>`,
 		`<form id="submit-form" method="post" action="/exam/submit">`,
 		`<button type="button" id="submit-open"`,
-		`<dialog id="submit-dialog"`, `id="submit-summary"`, `id="submit-cancel"`, `id="submit-confirm"`,
+		`<dialog id="submit-dialog"`, `<p id="submit-summary"></p>`, `id="submit-cancel"`, `id="submit-confirm"`,
 		`id="time-up"`, `id="moved"`,
 		`<noscript>`, "This exam needs JavaScript to save your answers.",
 		"Exam questions, options score", "Ada &lt;Lovelace&gt;",

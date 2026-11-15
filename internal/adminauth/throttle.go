@@ -6,7 +6,9 @@ import (
 	"time"
 )
 
-// Login throttle schedule (D15).
+// Login throttle schedule: four failures are free, then each further failure
+// locks the address for 30 s doubling up to 15 min; an address idle for an
+// hour is forgotten, and at most maxKeys addresses are remembered.
 const (
 	freeFailures = 4
 	baseLock     = 30 * time.Second
@@ -57,21 +59,17 @@ func (t *throttle) entry(key string, now time.Time) *throttleEntry {
 	return e
 }
 
-// locked returns the remaining lock time for key, or 0.
-func (t *throttle) locked(key string, now time.Time) time.Duration {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if e := t.entry(key, now); e != nil && now.Before(e.lockedUntil) {
-		return e.lockedUntil.Sub(now)
-	}
-	return 0
-}
-
-// fail counts one failure for key and locks it from the fifth on.
-func (t *throttle) fail(key string, now time.Time) {
+// admit returns the remaining lock time for key, or 0 after counting one
+// failure in advance. Checking and counting under one lock means concurrent
+// attempts cannot all pass the check before any of them is counted; a
+// successful login then calls clear, which undoes the count.
+func (t *throttle) admit(key string, now time.Time) time.Duration {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	e := t.entry(key, now)
+	if e != nil && now.Before(e.lockedUntil) {
+		return e.lockedUntil.Sub(now)
+	}
 	if e == nil {
 		if t.entries == nil {
 			t.entries = make(map[string]*throttleEntry)
@@ -89,6 +87,7 @@ func (t *throttle) fail(key string, now time.Time) {
 		e.lockedUntil = now.Add(lock)
 	}
 	t.prune(key, now)
+	return 0
 }
 
 // clear forgets key after a successful login.

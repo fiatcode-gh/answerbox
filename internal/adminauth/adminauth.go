@@ -53,12 +53,11 @@ func NewService(db *sql.DB, password string, now func() time.Time, random io.Rea
 func (s *Service) Login(ctx context.Context, password string, ip netip.Addr) (string, error) {
 	key := throttleKey(ip)
 	now := s.now()
-	if wait := s.throttle.locked(key, now); wait > 0 {
+	if wait := s.throttle.admit(key, now); wait > 0 {
 		return "", &ThrottledError{RetryAfter: wait}
 	}
 	given, want := sha256.Sum256([]byte(password)), sha256.Sum256([]byte(s.password))
 	if subtle.ConstantTimeCompare(given[:], want[:]) != 1 {
-		s.throttle.fail(key, now)
 		return "", ErrWrongPassword
 	}
 	s.throttle.clear(key)
@@ -107,7 +106,14 @@ func (s *Service) Logout(ctx context.Context, token string) error {
 	return err
 }
 
-// randomToken returns 32 random bytes, base64url without padding (D4).
+// ClearSessions deletes every admin session, signing every teacher out.
+func (s *Service) ClearSessions(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM admin_session`)
+	return err
+}
+
+// randomToken returns 32 random bytes, base64url without padding, so tokens
+// are unguessable and safe in a cookie.
 func (s *Service) randomToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := io.ReadFull(s.random, b); err != nil {
