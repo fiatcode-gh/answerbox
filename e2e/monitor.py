@@ -14,6 +14,7 @@ import tempfile
 import time
 from contextlib import contextmanager
 from pathlib import Path
+from urllib.parse import parse_qs
 
 from playwright.sync_api import Page, expect, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -22,6 +23,7 @@ from common import build_fixture_zip, import_and_open, teacher_login, watch
 
 DESKTOP = {"viewport": {"width": 1280, "height": 800}}
 BANNER = "Your teacher has been notified."
+BANNER_HTML = '<div id="monitor-banner" class="banner banner-warn" role="alert" hidden>' + BANNER + "</div>"
 
 
 class StepFailed(Exception):
@@ -145,6 +147,38 @@ def right_click(page: Page) -> bool:
     return page.evaluate("window.__blocked.contextmenu")
 
 
+def show_tail_of_question_3(page: Page) -> None:
+    """Scroll so question 3's last 100 px stay visible below the bar, with question 4's text on screen."""
+    page.evaluate(
+        """() => {
+            const bar = document.querySelector(".exam-bar").getBoundingClientRect().bottom;
+            const q3 = document.querySelector("section.question#q3").getBoundingClientRect().bottom;
+            window.scrollBy(0, q3 - bar - 100);
+        }"""
+    )
+
+
+def scroll_rule_question(page: Page) -> str:
+    """The element id of the question the scroll-position rule names."""
+    return page.evaluate(
+        """() => {
+            const bar = document.querySelector(".exam-bar").getBoundingClientRect().bottom;
+            return [...document.querySelectorAll("section.question")]
+                .find(s => s.getBoundingClientRect().bottom > bar).id;
+        }"""
+    )
+
+
+def page_position(page: Page) -> dict:
+    return page.evaluate(
+        "() => ({scrollY: window.scrollY, q4: document.querySelector('section.question#q4').getBoundingClientRect().y})"
+    )
+
+
+def moved(a: dict, b: dict) -> bool:
+    return any(abs(a[k] - b[k]) > 0.5 for k in a)
+
+
 def attempt_row(teacher: Page, base_url: str, exam_id: int, name: str):
     teacher.goto(f"{base_url}/admin/exams/{exam_id}/attempts")
     return teacher.locator("#attempts tbody tr", has_text=name)
@@ -171,7 +205,7 @@ def run(base_url: str, password: str, out: Path) -> None:
         teacher = new_context(**DESKTOP).new_page()
         with step("1 teacher imports and opens a default (monitor on) exam"):
             (Path(tmp) / "on").mkdir()
-            zip_on, _ = build_fixture_zip(Path(tmp) / "on", title="Monitor on")
+            zip_on, key = build_fixture_zip(Path(tmp) / "on", title="Monitor on")
             teacher_login(teacher, base_url, password)
             on_id = import_and_open(teacher, zip_on)
             teacher.goto(f"{base_url}/admin/exams/{on_id}")
@@ -204,14 +238,30 @@ def run(base_url: str, password: str, out: Path) -> None:
             expect(s1.locator("#monitor-banner")).to_be_visible()
             wait_for_events(teacher, base_url, on_id, "Ayu Lestari", ["Left the exam page", "Tried to paste"])
 
-        with step("6 a right-click is blocked, shows the banner and is recorded"):
-            hide_banner(s1)
-            if not right_click(s1):
-                raise AssertionError("context menu was not blocked")
+        with step("6 a right-click on question 4's text is blocked, flags question 4 and shows the banner without moving the page"):
+            expect(s1.locator("#monitor-banner")).to_be_hidden(timeout=8000)  # resting layout
+            show_tail_of_question_3(s1)
+            if scroll_rule_question(s1) != "q3":
+                raise AssertionError(f"setup: the scroll rule names {scroll_rule_question(s1)}, want q3")
+            q4_id = question(s1, 4).get_attribute("data-question-id")
+            before = page_position(s1)
+            with s1.expect_request("**/exam/event") as sent:
+                if not right_click(s1):
+                    raise AssertionError("context menu was not blocked")
+            named = parse_qs(sent.value.post_data).get("question")
+            if named != [q4_id]:
+                raise AssertionError(f"the event names question id {named}, want [{q4_id}] (question 4)")
             expect(s1.locator("#monitor-banner")).to_be_visible()
+            if moved(before, page_position(s1)):
+                raise AssertionError(f"showing the banner moved the page: {before} → {page_position(s1)}")
             texts = event_texts(teacher, base_url, on_id, "Ayu Lestari")
             if texts != ["Left the exam page", "Tried to paste", "Right-clicked"]:
                 raise AssertionError(f"events = {texts}")
+            body = question(s1, 4).locator(".question-body").inner_text()
+            file_position = next(i for i, text in enumerate(key, start=1) if text in body)
+            cell = teacher.locator("#events tr.event").nth(2).locator("td:nth-child(3)")
+            expect(cell).to_have_text(f"Question 4 on screen (file question {file_position})")
+            expect(cell.locator("a")).to_have_attribute("href", f"#q{file_position}")
             questions = teacher.locator("#events tr.event td:nth-child(3)").all_inner_texts()
             if not all(q.startswith("Question ") for q in questions):
                 raise AssertionError(f"event questions = {questions}")
@@ -219,8 +269,10 @@ def run(base_url: str, password: str, out: Path) -> None:
             row = attempt_row(teacher, base_url, on_id, "Ayu Lestari")
             expect(row.locator("td.flags")).to_have_text("3")
 
-        with step("6a the banner hides by itself"):
+        with step("6a the banner hides by itself, again without moving the page"):
             expect(s1.locator("#monitor-banner")).to_be_hidden(timeout=8000)
+            if moved(before, page_position(s1)):
+                raise AssertionError(f"hiding the banner moved the page: {before} → {page_position(s1)}")
 
         with step("6b a height-only resize on desktop is flagged and re-shows the banner"):
             s1.set_viewport_size({"width": 1280, "height": 700})
@@ -281,6 +333,27 @@ def run(base_url: str, password: str, out: Path) -> None:
             row = attempt_row(teacher, base_url, on_id, "Ayu Lestari")
             expect(row).to_contain_text("Submitted")
             expect(row.locator("td.flags")).to_have_text("10")
+
+        with step("7a without the banner element the monitor stays off and the exam page still works"):
+            s3 = new_context(**DESKTOP).new_page()
+            start(s3, base_url, "Citra Dewi")
+
+            def without_banner(route):
+                response = route.fetch()
+                route.fulfill(response=response, body=response.text().replace(BANNER_HTML, ""))
+
+            s3.route(re.compile(r"/exam$"), without_banner)
+            s3.goto(base_url + "/exam")  # the redirect after /start is not routed; a direct load is
+            expect(s3.locator("main#exam")).to_be_visible()
+            expect(s3.locator("#monitor-banner")).to_have_count(0)
+            first = s3.locator("#timer").inner_text()
+            s3.wait_for_timeout(2300)
+            if s3.locator("#timer").inner_text() == first:
+                raise AssertionError("the countdown is not running")
+            pick_and_save(s3, 1, 0)
+            s3.locator("#submit-open").click()
+            expect(s3.locator("#submit-dialog")).to_be_visible()
+            s3.locator("#submit-cancel").click()
 
         with step("8 teacher imports and opens a monitor: off exam"):
             (Path(tmp) / "off").mkdir()

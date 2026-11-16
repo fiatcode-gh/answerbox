@@ -5,6 +5,7 @@
 {{define "main"}}
 <main class="container admin attempt-detail" data-exam-id="{{.Exam.ID}}" data-attempt-id="{{.Attempt.ID}}">
   <p class="back"><a href="/admin/exams/{{.Exam.ID}}/attempts">← Results: {{.Exam.Title}}</a></p>
+  {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
   <div class="exam-head">
     <h1>{{.Attempt.StudentName}}</h1>
     <span class="badge {{.Status.Badge}}">{{.Status.Text}}</span>
@@ -19,6 +20,13 @@
   </dl>
   <p class="zone-note">Times are shown in {{.Zone}}. Questions and options are in the order of the exam file.</p>
 
+  <form id="rename-form" class="rename-form" method="post" action="/admin/exams/{{.Exam.ID}}/attempts/{{.Attempt.ID}}/rename">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <label for="rename-name">Student name</label>
+    <input type="text" id="rename-name" name="name" value="{{.RenameName}}" maxlength="100" autocomplete="off" required>
+    <button type="submit" class="secondary">Rename</button>
+  </form>
+
   <section id="flags" class="attempt-flags">
     <h2>Flags</h2>
     {{if .Events}}
@@ -29,7 +37,7 @@
         </thead>
         <tbody>
           {{range .Events}}
-          <tr class="event"><td class="numeric">{{.Time}}</td><td>{{.Text}}</td><td>{{if .Question}}<a href="#q{{.Question}}">Question {{.Question}}</a>{{else}}—{{end}}</td></tr>
+          <tr class="event"><td class="numeric">{{.Time}}</td><td>{{.Text}}</td><td>{{if .Screen}}<a href="#q{{.Question}}">Question {{.Screen}} on screen (file question {{.Question}})</a>{{else if .Question}}<a href="#q{{.Question}}">Question {{.Question}}</a>{{else}}—{{end}}</td></tr>
           {{end}}
         </tbody>
       </table>

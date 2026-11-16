@@ -65,6 +65,23 @@ func TestLayout_Golden(t *testing.T) {
 	t.Logf("golden seed 42: questions %v options %v", questionPositions(got), opts)
 }
 
+func TestScreenNumbers(t *testing.T) {
+	qs := gridQuestions(5, 4)
+	shuffled := map[int]int{2: 1, 3: 2, 5: 3, 1: 4, 4: 5}
+	for _, tc := range []struct {
+		mode examfile.Shuffle
+		want map[int]int
+	}{
+		{examfile.ShuffleQuestionsOptions, shuffled},
+		{examfile.ShuffleQuestions, shuffled},
+		{examfile.ShuffleNone, map[int]int{1: 1, 2: 2, 3: 3, 4: 4, 5: 5}},
+	} {
+		if got := screenNumbers(qs, tc.mode, 42); !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("screenNumbers(%s) = %v, want %v", tc.mode, got, tc.want)
+		}
+	}
+}
+
 func TestLayout_Modes(t *testing.T) {
 	const seed = 7
 	identity := func(n int) []int {

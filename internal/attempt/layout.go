@@ -42,3 +42,13 @@ func layout(questions []exam.Question, mode examfile.Shuffle, seed int64) []exam
 	}
 	return out
 }
+
+// screenNumbers maps each question's file position to its 1-based number on
+// the student's screen for the attempt with this shuffle mode and seed.
+func screenNumbers(questions []exam.Question, mode examfile.Shuffle, seed int64) map[int]int {
+	out := make(map[int]int, len(questions))
+	for i, q := range layout(questions, mode, seed) {
+		out[q.Position] = i + 1
+	}
+	return out
+}

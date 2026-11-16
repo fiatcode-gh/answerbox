@@ -15,13 +15,13 @@
     <p class="timer-box"><span class="visually-hidden">Time remaining</span><span id="timer" role="timer" data-level="{{.Level}}">{{.Timer}}</span></p>
     <span id="save-state" role="status" data-state="saved">✓ All answers saved</span>
     <button type="button" id="nav-toggle" aria-expanded="false" aria-controls="question-nav" hidden>Questions</button>
+    <div id="monitor-banner" class="banner banner-warn" role="alert" hidden>Your teacher has been notified.</div>
   </div>
   <p id="timer-announce" class="visually-hidden" aria-live="polite"></p>
 
   <noscript><p class="banner banner-danger">This exam needs JavaScript to save your answers.</p></noscript>
   <div id="time-up" class="banner banner-danger" role="alert" hidden>Time is up. Finishing your exam…</div>
   <div id="moved" class="banner banner-warn" role="alert" hidden>This attempt is no longer active on this device. <a href="/">Go to the start page</a></div>
-  <div id="monitor-banner" class="banner banner-warn" role="alert" hidden>Your teacher has been notified.</div>
 
   <div class="exam-layout">
     <nav id="question-nav" data-open="false" aria-label="Questions">

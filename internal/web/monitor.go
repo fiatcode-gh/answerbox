@@ -55,5 +55,6 @@ var eventText = map[attempt.EventKind]string{
 // eventRow is one line of the attempt detail's flags table.
 type eventRow struct {
 	Time, Text string
-	Question   int // 0 when unknown
+	Question   int // file position, 0 when unknown
+	Screen     int // number on the student's screen, 0 when the exam does not shuffle or the question is unknown
 }

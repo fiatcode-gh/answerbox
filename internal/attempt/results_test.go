@@ -2,7 +2,9 @@ package attempt_test
 
 import (
 	"context"
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -151,5 +153,119 @@ func TestDelete_LastAttemptUnfreezesExam(t *testing.T) {
 	}
 	if err := h.exams.Replace(context.Background(), id, []byte(examText("none", examfile.ShowScore, 3, 2))); err != nil {
 		t.Fatalf("Replace after deleting the only attempt: %v", err)
+	}
+}
+
+// renameSnapshot is everything Rename must leave alone, plus the name.
+type renameSnapshot struct {
+	Summary attempt.Summary
+	Row     []any
+	Answers map[int64]int64
+	Events  []attempt.Event
+}
+
+func (h *harness) renameSnapshot(t *testing.T, examID, attemptID int64) renameSnapshot {
+	t.Helper()
+	snap := renameSnapshot{Row: make([]any, 7), Answers: h.storedAnswers(t, attemptID)}
+	for _, sum := range h.list(t, examID) {
+		if sum.ID == attemptID {
+			snap.Summary = sum
+		}
+	}
+	ptrs := make([]any, len(snap.Row))
+	for i := range snap.Row {
+		ptrs[i] = &snap.Row[i]
+	}
+	err := h.db.QueryRow(`SELECT token_hash, resume_code, shuffle_seed, status, started_at, deadline_at, finished_at
+		FROM attempt WHERE id = ?`, attemptID).Scan(ptrs...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap.Events = h.detail(t, examID, attemptID).Events
+	return snap
+}
+
+func TestRename_OverwritesOnlyTheName(t *testing.T) {
+	h := newHarness(t)
+	id := h.openExam(t, examText("questions, options", examfile.ShowScore, 3, 2))
+	qs := h.questions(t, id)
+
+	ayu := h.start(t, "Ayu")
+	h.save(t, ayu, qs[0].ID, correctOption(qs[0]))
+	h.record(t, ayu, attempt.LeftPage, qs[1].ID)
+	h.clock = t0.Add(30 * time.Minute)
+	budi := h.start(t, "Budi")
+	h.save(t, budi, qs[1].ID, wrongOption(qs[1]))
+	h.submit(t, budi)
+	h.clock = t0.Add(61 * time.Minute)
+	citra := h.start(t, "Citra")
+	h.save(t, citra, qs[2].ID, correctOption(qs[2]))
+	citraOrder := order(h.view(t, citra))
+
+	rows := h.list(t, id)
+	names := []string{"Ayu", "Budi", "Citra"}
+	statuses := []attempt.Status{attempt.TimedOut, attempt.Submitted, attempt.InProgress}
+	for i, sum := range rows {
+		if sum.StudentName != names[i] || sum.Status != statuses[i] {
+			t.Fatalf("attempt %d = %s %s, want %s %s", i, sum.StudentName, sum.Status, names[i], statuses[i])
+		}
+		before := h.renameSnapshot(t, id, sum.ID)
+		if err := h.svc.Rename(context.Background(), id, sum.ID, "  New "+names[i]+"  "); err != nil {
+			t.Fatalf("Rename %s: %v", names[i], err)
+		}
+		after := h.renameSnapshot(t, id, sum.ID)
+		if after.Summary.StudentName != "New "+names[i] {
+			t.Fatalf("name after Rename = %q, want %q", after.Summary.StudentName, "New "+names[i])
+		}
+		after.Summary.StudentName = before.Summary.StudentName
+		if !reflect.DeepEqual(after, before) {
+			t.Fatalf("Rename %s changed more than the name:\nbefore %+v\nafter  %+v", names[i], before, after)
+		}
+	}
+
+	v := h.view(t, citra)
+	if v.StudentName != "New Citra" {
+		t.Fatalf("Citra's view name = %q, want %q", v.StudentName, "New Citra")
+	}
+	if !reflect.DeepEqual(order(v), citraOrder) {
+		t.Fatal("Rename changed Citra's question order")
+	}
+}
+
+func TestRename_InvalidNameChangesNothing(t *testing.T) {
+	h := newHarness(t)
+	id := h.openExam(t, examText("none", examfile.ShowScore, 2, 2))
+	h.start(t, "Ayu")
+	aid := h.only(t, id).ID
+
+	for _, name := range []string{"", " \t\n ", strings.Repeat("a", 101), "Ay\x07u", "Ay\xffu"} {
+		err := h.svc.Rename(context.Background(), id, aid, name)
+		wantErr(t, fmt.Sprintf("Rename(%q)", name), err, attempt.ErrInvalidName)
+		if got := h.only(t, id).StudentName; got != "Ayu" {
+			t.Fatalf("name after Rename(%q) = %q, want Ayu", name, got)
+		}
+	}
+	long := strings.Repeat("日", 100)
+	if err := h.svc.Rename(context.Background(), id, aid, long); err != nil {
+		t.Fatalf("Rename of 100 runes: %v", err)
+	}
+	if got := h.only(t, id).StudentName; got != long {
+		t.Fatalf("name = %q, want 100 × 日", got)
+	}
+}
+
+func TestRename_WrongExamOrUnknown(t *testing.T) {
+	h := newHarness(t)
+	other := h.importExam(t, examText("none", examfile.ShowScore, 2, 2))
+	id := h.openExam(t, examText("none", examfile.ShowScore, 2, 2))
+	h.start(t, "Ayu")
+	aid := h.only(t, id).ID
+
+	err := h.svc.Rename(context.Background(), other, aid, "Budi")
+	wantErr(t, "Rename under the wrong exam", err, attempt.ErrNotFound)
+	err = h.svc.Rename(context.Background(), id, aid+100, "Budi")
+	wantErr(t, "Rename of an unknown attempt", err, attempt.ErrNotFound)
+	if got := h.only(t, id).StudentName; got != "Ayu" {
+		t.Fatalf("name = %q, want Ayu", got)
 	}
 }

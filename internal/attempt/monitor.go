@@ -26,11 +26,14 @@ const (
 var ErrInvalidEvent = errors.New("attempt: unknown event kind")
 
 // Event is one recorded monitor event. Question is the 1-based file position
-// of the question the student was on, 0 when unknown.
+// of the question the event names, 0 when unknown. Screen is the number
+// that question had on the student's screen, 0 when unknown; only Detail
+// fills it.
 type Event struct {
 	At       time.Time
 	Kind     EventKind
 	Question int
+	Screen   int
 }
 
 func (k EventKind) valid() bool {
@@ -42,7 +45,7 @@ func (k EventKind) valid() bool {
 }
 
 // RecordEvent stores a monitor event for the attempt the token resolves to,
-// at the server's time. questionID names the question the student was on; 0,
+// at the server's time. questionID is the question the event names; 0,
 // or a question outside the exam, is stored as unknown. It reports false
 // without error when the exam's monitor is off or the attempt already has
 // MaxEvents events. Answers, timing and score are never touched.

@@ -94,6 +94,16 @@ func TestTeacher_FlagsInListDetailCSVAndExam(t *testing.T) {
 	id, qs := env.resultsExam(t, 3)
 	token, aid := env.startAttempt(t, id, "Ayu")
 	env.startAttempt(t, id, "Budi")
+	n := 0
+	for i, q := range pageQuestions(t, env.examPage(t, studentCookie(token))) {
+		if q.ID == qs[2].ID {
+			n = i + 1
+		}
+	}
+	if n == 0 {
+		t.Fatal("file question 3 is not on the student's page")
+	}
+	onScreen := fmt.Sprintf("Question %d on screen (file question 3)", n)
 
 	env.clock = testStart.Add(2 * time.Minute)
 	if _, err := env.attempts.RecordEvent(t.Context(), token, "right_click", 0); err != nil {
@@ -120,11 +130,14 @@ func TestTeacher_FlagsInListDetailCSVAndExam(t *testing.T) {
 		got = append(got, strings.Join(strings.Fields(tagRe.ReplaceAllString(e[1], " ")), " "))
 	}
 	want := []string{
-		"2026-11-14 16:31:00 Left the exam page Question 3",
-		"2026-11-14 16:32:00 Right-clicked —",
+		"2026-11-14 16:31 Left the exam page " + onScreen,
+		"2026-11-14 16:32 Right-clicked —",
 	}
 	if fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Errorf("events = %q, want %q", got, want)
+	}
+	if link := `<a href="#q3">` + onScreen + `</a>`; !strings.Contains(detail, link) {
+		t.Errorf("detail lacks %s:\n%s", link, detail)
 	}
 
 	records, err := csv.NewReader(strings.NewReader(getOK(t, env, attemptsPath(id)+".csv", cookie))).ReadAll()
@@ -149,5 +162,26 @@ func TestTeacher_NoEventsDetail(t *testing.T) {
 	detail := getOK(t, env, fmt.Sprintf("%s/%d", attemptsPath(id), aid), cookie)
 	if !strings.Contains(detail, "No flags.") {
 		t.Errorf("detail lacks the empty flags state:\n%s", detail)
+	}
+}
+
+func TestAttempt_FlagQuestionUnshuffled(t *testing.T) {
+	env := newTestEnv(t)
+	cookie, _, _ := env.signIn(t)
+	id := env.openExam(t, examText("none", "score", 3, 2))
+	qs, err := env.exams.Questions(t.Context(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, aid := env.startAttempt(t, id, "Ayu")
+	if _, err := env.attempts.RecordEvent(t.Context(), token, "copy", qs[1].ID); err != nil {
+		t.Fatal(err)
+	}
+	detail := getOK(t, env, fmt.Sprintf("%s/%d", attemptsPath(id), aid), cookie)
+	if !strings.Contains(detail, `<a href="#q2">Question 2</a>`) {
+		t.Errorf("detail lacks the one-number question link:\n%s", detail)
+	}
+	if strings.Contains(detail, "on screen") {
+		t.Errorf("unshuffled exam shows a screen number:\n%s", detail)
 	}
 }

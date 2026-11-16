@@ -25,6 +25,8 @@ from common import build_fixture_zip, import_and_open, import_exam, open_exam, t
 DESKTOP = {"viewport": {"width": 1280, "height": 800}}
 TIMER = re.compile(r"^\d\d:\d\d$")
 RESUME_CODE = re.compile(r"^[A-Z2-9]{4}-[A-Z2-9]{4}$")
+AYU = "Ayu Lestari Kusumawardhani Putri Maharani"
+BUDI = "Budi Santoso Wijayakusuma Adiningrat Pratama"
 
 
 class StepFailed(Exception):
@@ -103,6 +105,28 @@ def no_page_overflow(page: Page) -> None:
     )
     if widths[0] > widths[1]:
         raise AssertionError(f"page overflows horizontally on {page.url}: scrollWidth {widths[0]} > clientWidth {widths[1]}")
+
+
+def attempts_table_fits(page: Page) -> None:
+    m = page.evaluate(
+        """() => {
+            const box = document.querySelector("main.attempts-page .overflow-auto");
+            return {
+                column: document.querySelector("main.attempts-page").getBoundingClientRect().width,
+                scroll: box.scrollWidth,
+                client: box.clientWidth,
+                right: box.getBoundingClientRect().right,
+                deletes: [...document.querySelectorAll("#attempts .row-actions .danger-link")]
+                    .map(a => a.getBoundingClientRect().right),
+            };
+        }"""
+    )
+    if m["column"] != 1100:
+        raise AssertionError(f"page column is {m['column']} px wide, want 1100")
+    if m["scroll"] > m["client"]:
+        raise AssertionError(f"attempts table scrolls sideways: needs {m['scroll']} px, has {m['client']}")
+    if not m["deletes"] or any(r > m["right"] + 0.5 for r in m["deletes"]):
+        raise AssertionError(f"a Delete link is clipped: right edges {m['deletes']}, box ends at {m['right']}")
 
 
 def download_csv(page: Page) -> list[list[str]]:
@@ -208,7 +232,7 @@ def flow(run: Run, password: str) -> None:
             a.goto(base_url + "/")
             expect(a.locator("h1")).to_have_text("Geometry check")
             run.shot(a, "phone-landing.png")
-            start(a, base_url, "Ayu Lestari")
+            start(a, base_url, AYU)
 
         with step("5 student A answers all 6 (4 correct, 2 wrong)"):
             expect(a.locator("#timer")).to_have_text(TIMER)
@@ -252,7 +276,7 @@ def flow(run: Run, password: str) -> None:
         b1_context = new_context(**phone)
         b1 = b1_context.new_page()
         with step("9 student B starts on phone context B1 and answers 2 (1 correct, 1 wrong)"):
-            start(b1, base_url, "Budi Santoso")
+            start(b1, base_url, BUDI)
             answer(b1, key, [True, False])
             b_state = page_state(b1)
             if [v is not None for _, v in b_state] != [True, True, False, False, False, False]:
@@ -261,14 +285,21 @@ def flow(run: Run, password: str) -> None:
         attempts_url = f"{base_url}/admin/exams/{exam_id}/attempts"
         with step("10 teacher attempts list shows A submitted and B in progress with a resume code"):
             teacher.goto(attempts_url)
-            expect(attempt_row(teacher, "Ayu Lestari")).to_contain_text("Submitted")
-            expect(attempt_row(teacher, "Ayu Lestari")).to_contain_text("4 / 6")
-            b_row = attempt_row(teacher, "Budi Santoso")
+            expect(attempt_row(teacher, AYU)).to_contain_text("Submitted")
+            expect(attempt_row(teacher, AYU)).to_contain_text("4 / 6")
+            b_row = attempt_row(teacher, BUDI)
             expect(b_row).to_contain_text("In progress")
             expect(b_row.locator("td").nth(5)).to_have_text(TIMER)
             expect(b_row.locator("code.resume-code")).to_have_text(RESUME_CODE)
             code = b_row.locator("code.resume-code").inner_text()
             run.shot(teacher, "desktop-admin-attempts.png")
+
+        with step("10a the attempts table fits the 1100 px column at 1280 and 1100 px: Delete is not clipped"):
+            for w in (1280, 1100):
+                teacher.set_viewport_size({"width": w, "height": 800})
+                teacher.reload()
+                attempts_table_fits(teacher)
+            teacher.set_viewport_size({"width": 1280, "height": 800})
 
         b2 = new_context(**DESKTOP).new_page()
         with step("11 student B resumes on a new desktop device with the code"):
@@ -294,7 +325,7 @@ def flow(run: Run, password: str) -> None:
             resume(fresh, base_url, code)
             expect(fresh.locator("[role=alert]")).to_have_text("That code is not valid.")
             teacher.reload()
-            new_code = attempt_row(teacher, "Budi Santoso").locator("code.resume-code")
+            new_code = attempt_row(teacher, BUDI).locator("code.resume-code")
             expect(new_code).to_have_text(RESUME_CODE)
             expect(new_code).not_to_have_text(code)
 
@@ -310,16 +341,31 @@ def flow(run: Run, password: str) -> None:
             teacher.locator("#attempts thead a.sort-link", has_text="Score").click()
             expect(teacher).to_have_url(re.compile(r"sort=score"))
             rows = teacher.locator("#attempts tbody tr[data-attempt-id]")
-            expect(rows.first).to_contain_text("Ayu Lestari")
+            expect(rows.first).to_contain_text(AYU)
             expect(teacher.locator("#attempts thead th[aria-sort]")).to_contain_text("Score")
             teacher.locator("#attempts thead a.sort-link", has_text="Name").click()
             expect(teacher).to_have_url(re.compile(r"sort=name"))
-            expect(rows.nth(0)).to_contain_text("Ayu Lestari")
-            expect(rows.nth(1)).to_contain_text("Budi Santoso")
+            expect(rows.nth(0)).to_contain_text(AYU)
+            expect(rows.nth(1)).to_contain_text(BUDI)
             expect(teacher.locator("#attempts thead th[aria-sort]")).to_contain_text("Name")
 
+        with step("15a teacher filters by name; the filter survives sorting and clears"):
+            teacher.goto(attempts_url)
+            teacher.locator("#name-filter input[name=name]").fill("budi")
+            teacher.locator("#name-filter button[type=submit]").click()
+            expect(teacher).to_have_url(re.compile(r"[?&]name=budi"))
+            rows = teacher.locator("#attempts tbody tr[data-attempt-id]")
+            expect(rows).to_have_count(1)
+            expect(rows.first).to_contain_text(BUDI)
+            expect(teacher.locator(".counts")).to_contain_text("1 of 2 attempts")
+            teacher.locator("#attempts thead a.sort-link", has_text="Score").click()
+            expect(teacher).to_have_url(re.compile(r"sort=score.*name=budi"))
+            expect(rows).to_have_count(1)
+            teacher.locator("#filter-clear").click()
+            expect(rows).to_have_count(2)
+
         with step("16 teacher views A's attempt in file order"):
-            attempt_row(teacher, "Ayu Lestari").get_by_role("link", name="View").click()
+            attempt_row(teacher, AYU).get_by_role("link", name="View").click()
             expect(teacher.locator("main.attempt-detail")).to_be_visible()
             bodies = teacher.locator("section.detail-question .question-body").all_inner_texts()
             if len(bodies) != 6 or not all(q in b for q, b in zip(key, bodies)):
@@ -328,6 +374,16 @@ def flow(run: Run, password: str) -> None:
             expect(teacher.locator(".pick-mark").filter(has_text="Student's pick")).to_have_count(6)
             run.shot(teacher, "desktop-admin-attempt.png")
 
+        with step("16a teacher renames A on the attempt page and back"):
+            form = teacher.locator("#rename-form")
+            expect(form.locator("input[name=name]")).to_have_value(AYU)
+            form.locator("input[name=name]").fill("Ayu L. (5B)")
+            form.locator("button[type=submit]").click()
+            expect(teacher.locator("main.attempt-detail h1")).to_have_text("Ayu L. (5B)")
+            form.locator("input[name=name]").fill(AYU)
+            form.locator("button[type=submit]").click()
+            expect(teacher.locator("main.attempt-detail h1")).to_have_text(AYU)
+
         with step("17 teacher exports the CSV"):
             teacher.goto(attempts_url)
             table = download_csv(teacher)
@@ -335,19 +391,19 @@ def flow(run: Run, password: str) -> None:
                 raise AssertionError(f"CSV header: {table[0]}")
             if len(table) != 3:
                 raise AssertionError(f"CSV rows: want 2, got {table[1:]}")
-            a_rows = [r for r in table[1:] if r[0] == "Ayu Lestari"]
+            a_rows = [r for r in table[1:] if r[0] == AYU]
             if len(a_rows) != 1 or a_rows[0][1:4] != ["submitted", "4", "6"]:
                 raise AssertionError(f"CSV row for A: {a_rows}")
 
         with step("18 teacher deletes B's attempt"):
-            attempt_row(teacher, "Budi Santoso").get_by_role("link", name="Delete").click()
-            expect(teacher.locator(".delete-question")).to_contain_text("Budi Santoso")
+            attempt_row(teacher, BUDI).get_by_role("link", name="Delete").click()
+            expect(teacher.locator(".delete-question")).to_contain_text(BUDI)
             run.shot(teacher, "desktop-admin-delete.png")
             teacher.get_by_role("button", name="Delete attempt").click()
             expect(teacher).to_have_url(re.compile(rf"/admin/exams/{exam_id}/attempts$"))
             expect(teacher.locator("#attempts tbody tr[data-attempt-id]")).to_have_count(1)
             table = download_csv(teacher)
-            if len(table) != 2 or table[1][0] != "Ayu Lestari":
+            if len(table) != 2 or table[1][0] != AYU:
                 raise AssertionError(f"CSV after delete: {table}")
 
         with step("19 teacher pages fit a phone without horizontal page overflow"):
@@ -360,6 +416,10 @@ def flow(run: Run, password: str) -> None:
             expect(teacher_phone.locator("#attempts")).to_be_visible()
             no_page_overflow(teacher_phone)
             run.shot(teacher_phone, "phone-admin-attempts.png")
+            attempt_row(teacher_phone, AYU).get_by_role("link", name="View").click()
+            expect(teacher_phone.locator("main.attempt-detail")).to_be_visible()
+            no_page_overflow(teacher_phone)
+            run.shot(teacher_phone, "phone-admin-attempt.png")
 
         algebra_dir = Path(tmp) / "algebra"
         algebra_dir.mkdir()

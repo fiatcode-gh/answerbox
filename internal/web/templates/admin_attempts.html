@@ -7,12 +7,21 @@
   <p class="back"><a href="/admin/exams/{{.Exam.ID}}">← {{.Exam.Title}}</a></p>
   <p class="eyebrow">Results</p>
   <h1>{{.Exam.Title}}</h1>
-  {{if .Rows}}
+  {{if .Total}}
   <div class="results-bar">
     <p class="counts">{{.Counts}}</p>
     <a id="export-csv" role="button" class="secondary" href="/admin/exams/{{.Exam.ID}}/attempts.csv">Export CSV</a>
   </div>
-  <p class="zone-note">Times are shown in {{.Zone}}.</p>
+  <form id="name-filter" class="name-filter" method="get" action="/admin/exams/{{.Exam.ID}}/attempts" role="search">
+    <label for="filter-name" class="visually-hidden">Filter by name</label>
+    <input type="search" id="filter-name" name="name" value="{{.Filter}}" placeholder="Filter by name" maxlength="100" autocomplete="off">
+    <input type="hidden" name="sort" value="{{.SortKey}}">
+    <input type="hidden" name="dir" value="{{.SortDir}}">
+    <button type="submit" class="secondary">Filter</button>
+    {{if .Filter}}<a id="filter-clear" href="{{.ClearHref}}">Show all</a>{{end}}
+  </form>
+  {{if .Rows}}
+  <p class="zone-note">{{with .Date}}Date: <span id="attempts-date">{{.}}</span>. {{end}}Times are shown in {{.Zone}}.</p>
   <div class="overflow-auto">
     <table id="attempts">
       <thead>
@@ -22,8 +31,8 @@
           <th scope="col">Finished</th>
           <th scope="col">Status</th>
           <th scope="col"{{with .Score.AriaSort}} aria-sort="{{.}}"{{end}}><a href="{{.ScoreHref}}" class="sort-link">Score{{with .Score.Arrow}} <span aria-hidden="true">{{.}}</span>{{end}}</a></th>
-          <th scope="col">Time left</th>
-          <th scope="col">Resume code</th>
+          <th scope="col" class="wrap">Time left</th>
+          <th scope="col" class="wrap">Resume code</th>
           <th scope="col">Flags</th>
           <th scope="col">Actions</th>
         </tr>
@@ -32,8 +41,8 @@
         {{range .Rows}}
         <tr data-attempt-id="{{.ID}}">
           <td>{{.Name}}</td>
-          <td class="numeric">{{.Started}}</td>
-          <td class="numeric">{{if .InProgress}}—{{else}}{{.Finished}}{{end}}</td>
+          <td class="numeric" title="{{.Started.Full}}">{{.Started.Text}}</td>
+          <td class="numeric"{{with .Finished.Full}} title="{{.}}"{{end}}>{{if .InProgress}}—{{else}}{{.Finished.Text}}{{end}}</td>
           <td><span class="badge {{.Status.Badge}}">{{.Status.Text}}</span></td>
           <td class="numeric">{{.Score}} / {{.Total}}</td>
           <td class="numeric">{{if .InProgress}}{{.TimeLeft}}{{else}}—{{end}}</td>
@@ -45,6 +54,9 @@
       </tbody>
     </table>
   </div>
+  {{else}}
+  <p class="empty" id="no-match">No attempts match ‘{{.Filter}}’.</p>
+  {{end}}
   {{else}}
   <p class="empty">No attempts yet.</p>
   {{end}}

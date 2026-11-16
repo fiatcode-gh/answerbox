@@ -412,8 +412,8 @@
   var TOUCH = window.matchMedia("(pointer: coarse)");
   var bar = document.querySelector(".exam-bar");
   var sections = document.querySelectorAll("section.question");
-  var monitorBanner = document.getElementById("monitor-banner");
-  var bannerText = monitorBanner.textContent; // the template holds the wording
+  var monitorBanner = null;
+  var bannerText = "";
   var bannerTimer = null;
   var eventQueue = [];
   var eventSending = false;
@@ -422,7 +422,8 @@
   var eventRetryTimer = null;
 
   // currentQuestion is the id of the first question still visible below the
-  // sticky bar, or "" when none is.
+  // sticky bar, or "" when none is. Leaving the page and resizing use it, as
+  // do blocked actions outside every question.
   function currentQuestion() {
     var top = bar.getBoundingClientRect().bottom;
     for (var i = 0; i < sections.length; i++) {
@@ -433,9 +434,19 @@
     return "";
   }
 
-  // setBanner shows or hides the warning. While it is shown, --ge-monitor-offset
-  // (its height plus margin) moves question jump targets and the sticky
-  // navigator below it, so it never covers a question heading.
+  // questionOf is the id of the question containing target, or "" when the
+  // target is outside every question (or there is none).
+  function questionOf(target) {
+    var el = target instanceof Element ? target : target && target.parentElement;
+    var section = el ? el.closest("section.question") : null;
+    return section ? section.dataset.questionId : "";
+  }
+
+  // setBanner shows or hides the warning. It overlays the page under the
+  // sticky bar, so showing it moves no question. While it is shown,
+  // --ge-monitor-offset (how far it reaches below the bar) moves question
+  // jump targets and the sticky navigator below it once the bar is stuck; at
+  // the very top of the page it briefly covers the first question's heading.
   function setBanner(shown) {
     var root = document.documentElement.style;
     monitorBanner.hidden = !shown;
@@ -445,11 +456,14 @@
     }
     // Setting the text again makes screen readers announce the alert again.
     monitorBanner.textContent = bannerText;
-    var margin = parseFloat(getComputedStyle(monitorBanner).marginBottom) || 0;
-    root.setProperty("--ge-monitor-offset", monitorBanner.offsetHeight + margin + "px");
+    var reach = monitorBanner.getBoundingClientRect().bottom - bar.getBoundingClientRect().bottom;
+    root.setProperty("--ge-monitor-offset", reach + "px");
   }
 
-  function flag(kind) {
+  // flag reports one event and shows the warning. Copy, cut, paste and the
+  // context menu pass their event target and name the question containing
+  // it; leaving the page and resizing pass none and name currentQuestion().
+  function flag(kind, target) {
     if (stopped) {
       return;
     }
@@ -461,7 +475,7 @@
     if (eventsStopped || eventQueue.length >= EVENT_QUEUE_MAX) {
       return;
     }
-    eventQueue.push({ kind: kind, question: currentQuestion() });
+    eventQueue.push({ kind: kind, question: questionOf(target) || currentQuestion() });
     sendEvents();
   }
 
@@ -586,11 +600,15 @@
   }
 
   function startMonitor() {
+    // Without the banner element these throw before any listener is added:
+    // the monitor stays off and the rest of the page keeps working.
+    monitorBanner = document.getElementById("monitor-banner");
+    bannerText = monitorBanner.textContent; // the template holds the wording
     var blocked = { copy: "copy", cut: "copy", paste: "paste", contextmenu: "right_click" };
     Object.keys(blocked).forEach(function (type) {
       document.addEventListener(type, function (event) {
         event.preventDefault();
-        flag(blocked[type]);
+        flag(blocked[type], event.target);
       });
     });
 

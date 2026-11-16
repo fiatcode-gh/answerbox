@@ -35,11 +35,25 @@ func monitorOff(text string) string {
 	return title + "\nmonitor: off\n" + rest
 }
 
+// screenOf returns the number the question with questionID has on the
+// student's screen in v.
+func screenOf(t *testing.T, v attempt.View, questionID int64) int {
+	t.Helper()
+	for _, q := range v.Questions {
+		if q.ID == questionID {
+			return q.Number
+		}
+	}
+	t.Fatalf("question %d not in the view", questionID)
+	return 0
+}
+
 func TestRecordEvent_DetailAndFlags(t *testing.T) {
 	h := newHarness(t)
 	id := h.openExam(t, examText("questions", examfile.ShowScore, 3, 2))
 	qs := h.questions(t, id)
 	token := h.start(t, "Ayu")
+	v := h.view(t, token)
 	h.start(t, "Budi")
 
 	h.clock = t0.Add(2 * time.Minute)
@@ -60,9 +74,9 @@ func TestRecordEvent_DetailAndFlags(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []attempt.Event{
-		{At: t0.Add(time.Minute), Kind: attempt.Paste, Question: 0},
-		{At: t0.Add(2 * time.Minute), Kind: attempt.LeftPage, Question: 3},
-		{At: t0.Add(3 * time.Minute), Kind: attempt.RightClick, Question: 1},
+		{At: t0.Add(time.Minute), Kind: attempt.Paste, Question: 0, Screen: 0},
+		{At: t0.Add(2 * time.Minute), Kind: attempt.LeftPage, Question: 3, Screen: screenOf(t, v, qs[2].ID)},
+		{At: t0.Add(3 * time.Minute), Kind: attempt.RightClick, Question: 1, Screen: screenOf(t, v, qs[0].ID)},
 	}
 	if !reflect.DeepEqual(d.Events, want) {
 		t.Fatalf("events =\n%+v\nwant\n%+v", d.Events, want)
@@ -74,6 +88,64 @@ func TestRecordEvent_DetailAndFlags(t *testing.T) {
 	if len(d2.Events) != 0 {
 		t.Fatalf("other attempt shows %d events", len(d2.Events))
 	}
+}
+
+func TestDetail_EventScreenNumbers(t *testing.T) {
+	kinds := []attempt.EventKind{attempt.LeftPage, attempt.Copy, attempt.Paste, attempt.RightClick, attempt.Resize}
+	// recordAll records one event per question and one with an unknown
+	// question, one second apart, and returns the attempt's Detail.
+	recordAll := func(t *testing.T, h *harness, id int64, token string) attempt.Detail {
+		t.Helper()
+		for i, q := range h.questions(t, id) {
+			h.clock = h.clock.Add(time.Second)
+			h.record(t, token, kinds[i%len(kinds)], q.ID)
+		}
+		h.clock = h.clock.Add(time.Second)
+		h.record(t, token, attempt.Copy, 0)
+		return h.detail(t, id, h.only(t, id).ID)
+	}
+
+	t.Run("shuffled", func(t *testing.T) {
+		h := newHarness(t)
+		id := h.openExam(t, examText("questions, options", examfile.ShowScore, 6, 3))
+		qs := h.questions(t, id)
+		token := h.start(t, "Ayu")
+		v := h.view(t, token)
+		d := recordAll(t, h, id, token)
+
+		reordered := false
+		for _, ev := range d.Events {
+			if ev.Question == 0 {
+				if ev.Screen != 0 {
+					t.Errorf("unknown question has Screen %d, want 0", ev.Screen)
+				}
+				continue
+			}
+			if want := screenOf(t, v, qs[ev.Question-1].ID); ev.Screen != want {
+				t.Errorf("file question %d: Screen = %d, student saw %d", ev.Question, ev.Screen, want)
+			}
+			reordered = reordered || ev.Screen != ev.Question
+		}
+		if !reordered {
+			t.Fatal("the test needs a shuffled attempt")
+		}
+
+		h.submit(t, token)
+		if after := h.detail(t, id, h.only(t, id).ID); !reflect.DeepEqual(after.Events, d.Events) {
+			t.Fatalf("finished attempt events =\n%+v\nwant\n%+v", after.Events, d.Events)
+		}
+	})
+
+	t.Run("unshuffled", func(t *testing.T) {
+		h := newHarness(t)
+		id := h.openExam(t, examText("none", examfile.ShowScore, 3, 2))
+		token := h.start(t, "Ayu")
+		for _, ev := range recordAll(t, h, id, token).Events {
+			if ev.Screen != ev.Question {
+				t.Errorf("file question %d: Screen = %d, want the same", ev.Question, ev.Screen)
+			}
+		}
+	})
 }
 
 func TestRecordEvent_ForeignQuestionIsUnknown(t *testing.T) {

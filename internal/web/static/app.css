@@ -481,6 +481,40 @@ table th {
   min-height: var(--ge-touch);
 }
 
+.name-filter,
+.rename-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-3);
+  align-items: center;
+}
+
+.name-filter {
+  margin-bottom: var(--ge-space-3);
+}
+
+.rename-form {
+  margin-bottom: var(--ge-space-5);
+}
+
+.rename-form label {
+  margin: 0;
+}
+
+.name-filter input[type="search"],
+.rename-form input[type="text"] {
+  flex: 1 1 14rem;
+  max-width: 24rem;
+  margin: 0;
+}
+
+.name-filter button,
+.rename-form button {
+  width: auto;
+  margin: 0;
+  min-height: var(--ge-touch);
+}
+
 .zone-note {
   margin-bottom: var(--ge-space-3);
   color: var(--ge-muted);
@@ -503,8 +537,10 @@ th[aria-sort] {
   white-space: nowrap;
 }
 
-/* Dense attempts table: dates, times and scores never break mid-value, and
-   tighter cells keep all eight columns inside the 1100 px column at 1280 px. */
+/* Dense attempts table: times and scores never break mid-value and only the
+   name wraps, so the width that times without dates and seconds free goes to
+   it; the two-word headers may break. Tighter cells keep all nine columns
+   inside the 1100 px column. */
 #attempts th,
 #attempts td {
   padding-inline: var(--ge-space-2);
@@ -516,6 +552,10 @@ th[aria-sort] {
 
 #attempts td.numeric {
   white-space: nowrap;
+}
+
+#attempts th.wrap {
+  white-space: normal;
 }
 
 .row-actions a:last-child {
@@ -783,13 +823,18 @@ main.landing {
   color: var(--ge-warn);
 }
 
-/* The monitor warning stays in view under the exam bar while scrolling.
-   While it is shown, exam.js sets --ge-monitor-offset to its height plus
-   margin, and jump targets and the sticky navigator move below it. */
+/* The monitor warning hangs under the sticky exam bar and overlays the page:
+   it takes no layout space, so showing or hiding it never moves a question.
+   While it is shown, exam.js sets --ge-monitor-offset to how far it reaches
+   below the bar, and jump targets and the sticky navigator move below it once
+   the bar is stuck at the top of the window; at the very top of the page it
+   briefly covers the first question's heading and the navigator's top. */
 #monitor-banner {
-  position: sticky;
-  top: calc(56px + var(--ge-space-2));
-  z-index: 9;
+  position: absolute;
+  top: calc(100% + 1px + var(--ge-space-2));
+  right: 0;
+  left: 0;
+  margin: 0 auto;
 }
 
 /* Pico lays out nav as a flex row; the navigator is a block with a grid. */

@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 
 	"github.com/fiatcode-gh/go-exam/internal/exam"
+	"github.com/fiatcode-gh/go-exam/internal/examfile"
 )
 
 // summarySQL selects the columns scanSummary reads, with the derived score;
@@ -99,6 +101,19 @@ func (s *Service) Detail(ctx context.Context, examID, attemptID int64) (Detail, 
 	if err != nil {
 		return Detail{}, err
 	}
+	if len(events) > 0 {
+		var seed int64
+		var mode examfile.Shuffle
+		err := tx.QueryRowContext(ctx, `SELECT a.shuffle_seed, e.shuffle FROM attempt a
+			JOIN exam e ON e.id = a.exam_id WHERE a.id = ?`, attemptID).Scan(&seed, &mode)
+		if err != nil {
+			return Detail{}, err
+		}
+		screen := screenNumbers(questions, mode, seed)
+		for i := range events {
+			events[i].Screen = screen[events[i].Question]
+		}
+	}
 
 	d := Detail{Summary: sum, Questions: make([]DetailQuestion, len(questions)), Events: events}
 	for i, q := range questions {
@@ -123,6 +138,35 @@ func (s *Service) Delete(ctx context.Context, examID, attemptID int64) error {
 	}
 	defer tx.Rollback()
 	res, err := tx.ExecContext(ctx, `DELETE FROM attempt WHERE id = ? AND exam_id = ?`, attemptID, examID)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return tx.Commit()
+}
+
+// Rename overwrites the student name of one attempt of examID, under the
+// rules of Start: the name is trimmed and must be 1 to 100 characters, else
+// ErrInvalidName. Nothing else about the attempt changes and no history is
+// kept. An attempt that does not exist or belongs to another exam is
+// ErrNotFound.
+func (s *Service) Rename(ctx context.Context, examID, attemptID int64, name string) error {
+	name = strings.TrimSpace(name)
+	if !validName(name) {
+		return ErrInvalidName
+	}
+	tx, _, err := s.begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	res, err := tx.ExecContext(ctx, `UPDATE attempt SET student_name = ? WHERE id = ? AND exam_id = ?`, name, attemptID, examID)
 	if err != nil {
 		return err
 	}
