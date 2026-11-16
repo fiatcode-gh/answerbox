@@ -1,8 +1,8 @@
 # go-exam
 
-go-exam is a small, self-hosted web app for classroom multiple-choice exams. Students type only their name and take the currently open exam within a one-hour limit; the teacher imports exams from text files, opens and closes them, and reviews the results.
+go-exam is a small, self-hosted web app for classroom multiple-choice exams. Students type the exam's code and their name, or open a link that carries the code, and take that exam within a one-hour limit; the teacher imports exams from text files, opens and closes them, and reviews the results.
 
-It is not a learning platform. Teachers sign in with their Google account, and only emails on the app's teacher list may sign in. Each teacher sees only their own exams and results; admins (the emails in `GOEXAM_ADMIN_EMAILS`) also see every exam and manage the teacher list. Students still type only their name. For now, one exam is open at a time across all teachers.
+It is not a learning platform. Teachers sign in with their Google account, and only emails on the app's teacher list may sign in. Each teacher sees only their own exams and results; admins (the emails in `GOEXAM_ADMIN_EMAILS`) also see every exam and manage the teacher list. Students have no accounts. Several exams can be open at the same time.
 
 ## Configuration
 
@@ -13,7 +13,7 @@ All configuration comes from environment variables.
 | `GOEXAM_GOOGLE_CLIENT_ID` | none (required) | OAuth client ID of the Google Cloud "Web application" client. |
 | `GOEXAM_GOOGLE_CLIENT_SECRET` | none (required) | Client secret of that OAuth client. |
 | `GOEXAM_ADMIN_EMAILS` | none (required) | Comma-separated Google account emails of the admins. The first one receives the exams that existed before teacher accounts. |
-| `GOEXAM_PUBLIC_URL` | none (required) | Public address of the app, scheme and host without a path, for example `https://exam.example.org`; `https` unless the host is localhost. |
+| `GOEXAM_PUBLIC_URL` | none (required) | Public address of the app, scheme and host without a path, for example `https://exam.example.org`; `https` unless the host is localhost. The student link shown to teachers starts with it. |
 | `GOEXAM_OIDC_ISSUER` | `https://accounts.google.com` | OpenID provider; `https` unless the host is localhost. Set it only for another provider or the local fake used in tests. |
 | `GOEXAM_DATA_DIR` | `./data` (image: `/data`) | Directory holding the database and uploaded images. |
 | `GOEXAM_LISTEN_ADDR` | `:8080` | Address the HTTP server listens on. |
@@ -31,6 +31,16 @@ The app refuses to start without the four required settings. [`.env.example`](.e
 5. The first admin signs in at `/admin` and adds teachers on the Teachers page.
 
 A Google account can sign in only when its email is verified and on the teacher list.
+
+## Exam codes
+
+- Every exam gets a 6-character code when it is imported: capital letters and digits without look-alikes (no I, L, O, U, 0, 1). The code never changes, also when the questions are replaced, and no other exam ever gets it.
+- The exam page shows the code large, for a projector, and the student link `<GOEXAM_PUBLIC_URL>/?code=XXXXXX`. The exams list shows each exam's code.
+- Students open the app and type the code and their name. Any case works, and spaces and a dash are ignored. With the link, the name is all they type.
+- A code works only while its exam is open. Otherwise the student reads "No open exam has that code. Check it with your teacher.", the same sentence for a mistyped code and for a closed exam.
+- Several exams can be open at once; opening one never closes another. Closing an exam stops new starts only; attempts in progress continue.
+- A student with an exam in progress is sent back to it. A resume code needs no exam code.
+- Exams imported before this version get their code the first time the new version starts.
 
 ## Run with a container
 
@@ -139,6 +149,7 @@ uv run e2e/student_ui.py --base-url http://localhost:8080 --admin-email admin@ex
 uv run e2e/exam_flow.py  --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/exam-flow
 uv run e2e/monitor.py    --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/monitor
 uv run e2e/teachers.py   --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/teachers
+uv run e2e/exam_codes.py --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/exam-codes
 ```
 
 The fake provider signs in any identity and is not part of the container image.

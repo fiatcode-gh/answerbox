@@ -1,16 +1,16 @@
 # go-exam: decisions
 
-A self-hosted web app for classroom multiple-choice exams. Students type only their name; teachers sign in with Google, import exams from text files and review the results of their own exams. Built 2026-11-13 to 2026-11-15; teacher accounts added 2026-11-16.
+A self-hosted web app for classroom multiple-choice exams. Students type an exam code and their name; teachers sign in with Google, import exams from text files and review the results of their own exams. Built 2026-11-13 to 2026-11-15; teacher accounts added 2026-11-16; exam codes and several open exams added 2026-11-16.
 
 ## Scope
 
-- In: Google sign-in for teachers; a teacher list managed by admins; exam ownership (each teacher sees only their own exams, admins see all); one open exam at a time; Markdown-like exam files (or a zip with images); a cookie-bound attempt plus a teacher-issued resume code; a 60-minute wall-clock limit enforced by the server; shuffle and `show_result` set per exam; attempts list (sortable, filter by name), detail, teacher rename, CSV export, delete; a container image for the existing Traefik/Podman VPS.
-- Out: student accounts, a Workspace-domain rule, password sign-in, moving an exam to another teacher, promoting admins in the app, an audit history of teacher changes, a web question editor, per-question statistics, math rendering, several open exams, other durations, anti-cheating beyond shuffle and the monitor below (no fullscreen, no force-submit, no live push), editing answers, deleting whole exams, a live dashboard. Deployment wiring (quadlet, Traefik route, backup and drill scripts, Gatus, Diun, DNS) belongs to a separate `fiatcode-infra` unit.
+- In: Google sign-in for teachers; a teacher list managed by admins; exam ownership (each teacher sees only their own exams, admins see all); several open exams, each entered with its own code (typed, or carried by a link); Markdown-like exam files (or a zip with images); a cookie-bound attempt plus a teacher-issued resume code; a 60-minute wall-clock limit enforced by the server; shuffle and `show_result` set per exam; attempts list (sortable, filter by name), detail, teacher rename, CSV export, delete; a container image for the existing Traefik/Podman VPS.
+- Out: student accounts, a Workspace-domain rule, password sign-in, moving an exam to another teacher, promoting admins in the app, an audit history of teacher changes, a web question editor, per-question statistics, math rendering, regenerating or choosing an exam code, QR codes, throttling code guesses, other durations, anti-cheating beyond shuffle and the monitor below (no fullscreen, no force-submit, no live push), editing answers, deleting whole exams, a live dashboard. Deployment wiring (quadlet, Traefik route, backup and drill scripts, Gatus, Diun, DNS) belongs to a separate `fiatcode-infra` unit.
 
 ## Decisions and why
 
-- **Go, server-rendered, one SQLite connection.** The VPS has 3.8 GiB and no swap. One `*sql.DB` with `MaxOpenConns(1)` and `_txlock=immediate` makes every write serial, so races (start vs replace, open vs open, resume swap) are closed by transactions instead of locks. Measured: 100 students, 4000 saves, p95 about 55 ms, about 20 MB of memory.
-- **Invariants live in the schema too.** A partial unique index allows only one open exam, and triggers freeze questions and options once an attempt exists. A future code path that forgets the service check still cannot change an answer key after scoring started.
+- **Go, server-rendered, one SQLite connection.** The VPS has 3.8 GiB and no swap. One `*sql.DB` with `MaxOpenConns(1)` and `_txlock=immediate` makes every write serial, so races (start vs replace, start vs close, resume swap) are closed by transactions instead of locks. Measured: 100 students, 4000 saves, p95 about 55 ms, about 20 MB of memory.
+- **Invariants live in the schema too.** Exam codes are unique, well formed, required and fixed in the schema (a unique index, a check and two triggers), and triggers freeze questions and options once an attempt exists. A future code path that forgets the service check still cannot change an answer key after scoring started.
 - **Nothing derived is stored.** The score is counted from answers, and the shuffle order is recomputed from a per-attempt seed. That leaves no stale copies to keep in sync.
 - **Deadline:** 60 minutes from start plus a 3 s grace for network delay, invisible to the student. One sweep statement finalises overdue attempts; it runs at the start of every attempt transaction and every 5 s in the background, so abandoned attempts become `timed out` with no browser connected. Submit at or after the deadline records `timed out`.
 - **Answer-key isolation by type.** Student view types have no correctness field. Tests compare full responses from two apps with different keys, byte for byte.
@@ -27,7 +27,7 @@ A self-hosted web app for classroom multiple-choice exams. Students type only th
 - **Allow-list and roles** (2026-11-16). A teacher is identified by the normalized email (trimmed, lower case); signing in needs a verified email and a `teacher` row with `allowed = 1`. Removal is a flag, because exams keep pointing at the row. Admins are exactly `GOEXAM_ADMIN_EMAILS`, put on the list at startup; the role is computed on every request and never stored, so the variable alone decides it.
 - **Teacher sessions** (2026-11-16). One `admin_session` row per sign-in, owned by a teacher, for 12 hours. Sessions survive restarts and end by sign-out or by removal (rows deleted, and the session query joins on `allowed`). The old ownerless sessions were cleared at every start anyway, so migration 0003 drops them.
 - **Exam ownership in one place per layer** (2026-11-16). `exam.Service` methods take an `Actor` and apply one condition (admin, or `owner_id` is the actor); anything else is `ErrNotFound`, so another teacher's exam answers 404 on every route. Results handlers resolve the exam through that check before touching attempts, which stay scoped by exam id. Migration 0004 adds a nullable `exam.owner_id` (SQLite refuses a `REFERENCES` column with a non-NULL default) plus triggers that refuse a NULL owner on insert or update; at every start the ownerless exams go to the first `GOEXAM_ADMIN_EMAILS` entry, which touches only NULL owners and so moves nothing later.
-- **One open exam, for now** (2026-11-16). The unique index stays until exam codes (unit B). Opening an exam implicitly closes only the acting teacher's own open exam; when another teacher's exam is open, teachers and admins alike get a 409 with a sentence that names no exam, and an admin closes the other exam explicitly first. No running exam is closed by someone else's click.
+- **Exam codes and several open exams** (2026-11-16, replaces the one-open-exam rule). The code is 6 symbols of the resume-code alphabet from the shared `internal/shortcode`, drawn from the same random source as resume codes (`crypto/rand` in production). It is generated in the import transaction with up to 5 tries, the unique index is the backstop, and Replace keeps it. It is shown without a dash, so it cannot be taken for a resume code (`ABCD-EFGH`). Migration 0005 drops `exam_one_open` and adds `exam.code` with its check, the unique index `exam_code`, and the triggers `exam_code_required_insert` and `exam_code_fixed`; the column is nullable only for older exams, which get a code at the next start, a step that touches only exams without one. `Open` is one statement, the mirror of `Close`, and never closes another exam; `ErrOtherTeacherOpen` and its 409 are gone, and ownership is unchanged. `POST /start` takes `code` and `name`: the name is checked first, then the exam is looked up by code and open state inside the start transaction, so start and close stay serial. Unknown, closed and mistyped codes get one sentence, "No open exam has that code. Check it with your teacher." (422 on the form, 200 on `GET /?code=`). The plain landing page shows no title and does not say whether any exam is open; a title appears only through a link whose code names an open exam. Teachers see the code large on the exam page, the student link built from `GOEXAM_PUBLIC_URL` (`/?code=` plus the code), and a Code column in the exams list.
 - **Fake OpenID provider** (2026-11-16). `internal/oidcfake` and `cmd/oidcfake` give tests, the load test and the browser scripts a real provider (discovery, keys, PKCE and client-secret checks). It is no bypass: the app has no test switch, the only way to reach the fake is `GOEXAM_OIDC_ISSUER`, which must be `https` or loopback, `cmd/go-exam` does not link it (a test checks), the image builds only `./cmd/go-exam`, and `cmd/oidcfake` listens on loopback only.
 
 ## Rejected alternatives
@@ -39,12 +39,16 @@ A self-hosted web app for classroom multiple-choice exams. Students type only th
 - Storing the sign-in state in a table: anyone could write rows without signing in.
 - Provider discovery at startup: an unreachable provider would stop the server, and with it the students.
 - Relaxing the session cookie to `SameSite=Lax` so the callback could redirect: it would weaken CSRF protection for every teacher request to fix one landing page.
+- Telling a student that a code's exam is closed: it would confirm that the code exists.
+- A dash in the exam code: it would look like a resume code.
 
 ## Traps
 
 - With one connection, calling `s.db` or another service method inside an open transaction deadlocks. Scan and close rows before the next statement.
 - Go's cookie jar will not send `Secure` cookies over plain HTTP. Test and load clients set the `Cookie` header by hand. Browsers do send them on `http://localhost`.
-- Chromium logs non-2xx page loads as console errors that page code cannot suppress. The e2e scripts exempt exactly the 422 of a reused resume code.
+- Chromium logs non-2xx page loads as console errors that page code cannot suppress. The e2e scripts exempt exactly the 422 of a reused resume code (`exam_flow.py`) and the 422 of a refused exam code (`exam_codes.py`). `GET /?code=` answers 200 also for a code that names no open exam.
+- An exam row cannot be inserted without a code, and a set code cannot change. Tests that insert exam rows by hand give each a distinct valid code.
+- `shortcode.Random` reads 2n bytes per round; tests with scripted random readers rely on it.
 - The session cookie is `SameSite=Strict`, and a browser withholds it on a redirect chain that started on another site. The sign-in callback therefore answers 200 with a meta refresh and never redirects into `/admin`. The browser scripts run the fake provider on `127.0.0.1` and the app on `localhost`, so the callback crosses sites as it does with Google, and they refuse equal hostnames.
 - The sign-in button is a link to `/admin/auth/start`, not a form: under `form-action 'self'` Chromium blocks a form submission that redirects to the provider.
 - An OpenID request (discovery, keys, token exchange) must never run inside an open database transaction: with one connection, a slow provider would stall every request.
@@ -52,7 +56,7 @@ A self-hosted web app for classroom multiple-choice exams. Students type only th
 ## Open questions and known limits
 
 - Option ids follow file order, so the page source reveals the original option order under `shuffle: questions, options`.
-- `/start` and `/resume` are not throttled. Guessing a code at 100 active attempts has odds of about 1.5e-10 per try.
+- `/start`, `/resume` and `GET /?code=` are not throttled. Guessing a resume code at 100 active attempts has odds of about 1.5e-10 per try. There are 30^6 = 729,000,000 exam codes, so one guess hits with odds of about 1.4e-9 per open exam. A hit gives what a student in the room has (the title, and after a start the questions without the key), and `GET /?code=` shows an open exam's title without starting.
 - On some devices the countdown may stall while asleep and offline. The server still rejects late answers.
 - The interface text is English.
 - Monitor flags are evidence for a conversation, not proof: a notification shade, an incoming call, a rotated phone or a long-press on a phone (logged as "Right-clicked") also counts. On touch devices only width changes count as a resize, so sliding address bars raise no flags. Leaving the page and resizing name the first visible question, which can still be the previous one.
@@ -64,5 +68,7 @@ A self-hosted web app for classroom multiple-choice exams. Students type only th
 - An email taken out of `GOEXAM_ADMIN_EMAILS` stays an ordinary teacher until an admin removes it on the Teachers page.
 - Removed teachers are not shown on the Teachers page; their exams stay on the admin's exams list with their email as owner.
 - The allow-list is keyed by email, not by Google's account id, so a re-issued address would inherit access.
-- One exam is open at a time across all teachers until exam codes (unit B). An admin must close a removed teacher's open exam.
+- A removed teacher's open exam stays open until an admin closes it.
+- An exam code cannot be regenerated or chosen; if one leaks, the teacher closes the exam.
+- "Never reused" holds because exams are never deleted; a delete feature would have to keep retired codes.
 - Sign-in is proven in Chromium only; other browsers are covered by the live check.

@@ -15,9 +15,8 @@ import (
 )
 
 var (
-	ErrNotFound         = errors.New("exam: not found")
-	ErrFrozen           = errors.New("exam: content is frozen because attempts exist")
-	ErrOtherTeacherOpen = errors.New("exam: another teacher's exam is open")
+	ErrNotFound = errors.New("exam: not found")
+	ErrFrozen   = errors.New("exam: content is frozen because attempts exist")
 )
 
 // Actor is the signed-in teacher a catalog call acts for. An admin may act
@@ -40,12 +39,15 @@ func scoped(examID int64, actor Actor) []any {
 
 // Exam is a catalog entry with derived counts.
 type Exam struct {
-	ID            int64
-	Title         string
-	Shuffle       examfile.Shuffle
-	ShowResult    examfile.ShowResult
-	Monitor       bool
-	Open          bool
+	ID         int64
+	Title      string
+	Shuffle    examfile.Shuffle
+	ShowResult examfile.ShowResult
+	Monitor    bool
+	Open       bool
+	// Code is what students type to enter the exam. It is empty only for an
+	// exam from before migration 0005, until startup gives it one.
+	Code          string
 	CreatedAt     time.Time
 	QuestionCount int
 	AttemptCount  int

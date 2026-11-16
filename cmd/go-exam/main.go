@@ -60,6 +60,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	if err := assignExamCodes(context.Background(), exams, logger); err != nil {
+		return err
+	}
 	attempts := attempt.NewService(db, time.Now, rand.Reader)
 	handler, err := web.NewHandler(web.Deps{
 		DB:       db,
@@ -75,9 +78,10 @@ func run() error {
 			Now:          time.Now,
 			Random:       rand.Reader,
 		}),
-		ClientIP: clientip.New(cfg.TrustedProxies),
-		Location: cfg.Location,
-		Logger:   logger,
+		ClientIP:  clientip.New(cfg.TrustedProxies),
+		Location:  cfg.Location,
+		Logger:    logger,
+		PublicURL: cfg.PublicURL,
 	})
 	if err != nil {
 		return err
@@ -152,6 +156,19 @@ func newAdmin(ctx context.Context, db *sql.DB, exams *exam.Service, adminEmails 
 		logger.Info("existing exams assigned to the first admin", "count", n)
 	}
 	return admin, nil
+}
+
+// assignExamCodes gives exams from before exam codes their code. Exams that
+// have one are never touched, so later starts change nothing.
+func assignExamCodes(ctx context.Context, exams *exam.Service, logger *slog.Logger) error {
+	n, err := exams.AssignMissingCodes(ctx)
+	if err != nil {
+		return fmt.Errorf("give existing exams a code: %w", err)
+	}
+	if n > 0 {
+		logger.Info("existing exams given a code", "count", n)
+	}
+	return nil
 }
 
 const (

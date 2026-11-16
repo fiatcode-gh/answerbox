@@ -31,7 +31,7 @@ const (
 )
 
 var (
-	ErrNoOpenExam    = errors.New("attempt: no exam is open")
+	ErrNoOpenExam    = errors.New("attempt: no open exam has that code")
 	ErrInvalidName   = errors.New("attempt: name must be 1 to 100 characters")
 	ErrNotFound      = errors.New("attempt: not found")
 	ErrFinished      = errors.New("attempt: already finished")

@@ -1,22 +1,17 @@
-{{define "title"}}{{if .ExamOpen}}{{.ExamTitle}} · {{end}}go-exam{{end}}
+{{define "title"}}{{with .ExamTitle}}{{.}} · {{end}}go-exam{{end}}
 
 {{define "main"}}
 <main class="container narrow landing" id="landing">
   {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
-  {{if .ExamOpen}}
-  <h1 class="landing-title">{{.ExamTitle}}</h1>
+  <h1 class="landing-title">{{if .ExamTitle}}{{.ExamTitle}}{{else}}go-exam{{end}}</h1>
   <form id="start-form" method="post" action="/start">
+    <label for="start-code">Exam code</label>
+    <input type="text" id="start-code" name="code" value="{{.Code}}" maxlength="16" autocomplete="off" autocapitalize="characters" spellcheck="false" required{{if not .ExamTitle}} autofocus{{end}}>
     <label for="name">Your name</label>
-    <input type="text" id="name" name="name" value="{{.Name}}" maxlength="100" autocomplete="name" autofocus required>
+    <input type="text" id="name" name="name" value="{{.Name}}" maxlength="100" autocomplete="name" required{{if .ExamTitle}} autofocus{{end}}>
     <button type="submit">Start exam</button>
   </form>
   <p class="landing-note">You have 60 minutes. The timer starts when you press Start and does not pause.</p>
-  {{else}}
-  <div id="no-exam" class="no-exam">
-    <h1>go-exam</h1>
-    <p>No exam is open right now. Ask your teacher when it starts, then reload this page.</p>
-  </div>
-  {{end}}
   {{if .LastResult}}<p class="last-result"><a href="/exam">See your last result</a></p>{{end}}
   <details class="resume"{{if .ResumeOpen}} open{{end}}>
     <summary>Have a resume code?</summary>

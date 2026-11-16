@@ -25,6 +25,13 @@
     <a role="button" class="secondary" href="/admin/exams/{{.Exam.ID}}/attempts">Results</a>
   </div>
 
+  <section class="join">
+    <h2>Exam code</h2>
+    <p id="exam-code" class="exam-code">{{.Exam.Code}}</p>
+    <p class="student-link">Student link: <a id="student-link" href="{{.StudentLink}}">{{.StudentLink}}</a></p>
+    {{if not .Exam.Open}}<p class="join-note">Students can start with this code only while the exam is open.</p>{{end}}
+  </section>
+
   <dl class="settings">
     <dt>Shuffle</dt>
     <dd>{{.ShuffleText}}</dd>

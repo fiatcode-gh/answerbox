@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"fmt"
-	"html"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -168,6 +167,7 @@ func TestExamList_ScopedAndOwnerColumn(t *testing.T) {
 	admin := env.adminTeacher(t)
 	aID, _ := env.ownedExam(t, a.actor, "Alpha", false)
 	bID, _ := env.ownedExam(t, b.actor, "Beta", false)
+	aCode, bCode := env.examCode(t, aID), env.examCode(t, bID)
 	const ownerHeader = `<th scope="col">Owner</th>`
 
 	body := do(env.h, "GET", "/admin/exams", b.cookie).Body.String()
@@ -177,6 +177,9 @@ func TestExamList_ScopedAndOwnerColumn(t *testing.T) {
 	if strings.Contains(body, ownerHeader) || strings.Contains(body, "Alpha") {
 		t.Errorf("B's list shows the Owner column or A's exam:\n%s", body)
 	}
+	if !strings.Contains(body, `<td class="code">`+bCode+`</td>`) || strings.Contains(body, aCode) {
+		t.Errorf("B's list lacks B's code %s or shows A's code %s:\n%s", bCode, aCode, body)
+	}
 
 	body = do(env.h, "GET", "/admin/exams", admin.cookie).Body.String()
 	if got := examRowIDs(body); strings.Join(got, ",") != fmt.Sprintf("%d,%d", bID, aID) {
@@ -184,6 +187,11 @@ func TestExamList_ScopedAndOwnerColumn(t *testing.T) {
 	}
 	if !strings.Contains(body, ownerHeader) {
 		t.Errorf("admin's list lacks the Owner column:\n%s", body)
+	}
+	for _, code := range []string{aCode, bCode} {
+		if !strings.Contains(body, `<td class="code">`+code+`</td>`) {
+			t.Errorf("admin's list lacks code %s:\n%s", code, body)
+		}
 	}
 	for id, email := range map[int64]string{aID: "a@example.test", bID: "b@example.test"} {
 		row := regexp.MustCompile(fmt.Sprintf(`(?s)<tr data-exam-id="%d">.*?</tr>`, id)).FindString(body)
@@ -213,19 +221,23 @@ func TestImport_OwnerIsTheImporter(t *testing.T) {
 	}
 }
 
-func TestOpen_OtherTeachersExamOpenAnswers409(t *testing.T) {
+func TestOpen_TeachersExamsOpenAtTheSameTime(t *testing.T) {
 	env := newTestEnv(t)
 	ctx := context.Background()
 	a := env.addTeacher(t, "a@example.test")
 	b := env.addTeacher(t, "b@example.test")
 	admin := env.adminTeacher(t)
-	aID, _ := env.ownedExam(t, a.actor, "Geometry secret", false)
+	aID, _ := env.ownedExam(t, a.actor, "Geometry", false)
 	bID, _ := env.ownedExam(t, b.actor, "Beta", false)
 	if err := env.exams.Open(ctx, a.actor, aID); err != nil {
 		t.Fatal(err)
 	}
 	post := func(who teacher, id int64, action string) *httptest.ResponseRecorder {
-		return postForm(env.h, examPath(id)+"/"+action, url.Values{"csrf_token": {who.csrf}}, who.cookie)
+		rec := postForm(env.h, examPath(id)+"/"+action, url.Values{"csrf_token": {who.csrf}}, who.cookie)
+		if strings.Contains(rec.Body.String(), "Another teacher") {
+			t.Errorf("%s of exam %d mentions another teacher:\n%s", action, id, rec.Body.String())
+		}
+		return rec
 	}
 	wantOpen := func(aOpen, bOpen bool) {
 		t.Helper()
@@ -239,29 +251,22 @@ func TestOpen_OtherTeachersExamOpenAnswers409(t *testing.T) {
 			}
 		}
 	}
-	alert := `<div role="alert" class="alert">` + html.EscapeString(otherOpenMessage) + `</div>`
 
-	rec := post(b, bID, "open")
-	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), alert) {
-		t.Fatalf("B opening B's exam = %d, want 409 with the alert:\n%s", rec.Code, rec.Body.String())
-	}
-	if strings.Contains(rec.Body.String(), "Geometry secret") {
-		t.Error("the refusal names the other teacher's exam")
-	}
-	wantOpen(true, false)
+	requireRedirect(t, post(b, bID, "open"), "/admin/exams")
+	wantOpen(true, true)
 
-	rec = post(admin, bID, "open")
-	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), alert) {
-		t.Fatalf("admin opening B's exam = %d, want 409 with the alert:\n%s", rec.Code, rec.Body.String())
-	}
-	wantOpen(true, false)
+	requireRedirect(t, post(admin, aID, "close"), "/admin/exams")
+	wantOpen(false, true)
+	requireRedirect(t, post(admin, bID, "close"), "/admin/exams")
+	wantOpen(false, false)
+	requireRedirect(t, post(admin, aID, "open"), "/admin/exams")
+	requireRedirect(t, post(admin, bID, "open"), "/admin/exams")
+	wantOpen(true, true)
 
+	requireRedirect(t, post(a, aID, "close"), "/admin/exams")
+	wantOpen(false, true)
 	if rec := post(b, aID, "open"); rec.Code != http.StatusNotFound {
 		t.Errorf("B opening A's exam = %d, want 404", rec.Code)
 	}
-	wantOpen(true, false)
-
-	requireRedirect(t, post(admin, aID, "close"), "/admin/exams")
-	requireRedirect(t, post(admin, bID, "open"), "/admin/exams")
 	wantOpen(false, true)
 }

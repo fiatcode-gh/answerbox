@@ -16,6 +16,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -80,11 +81,15 @@ func TestAdminExams_ListAndEmptyState(t *testing.T) {
 	for _, c := range cells {
 		got = append(got, strings.TrimSpace(regexp.MustCompile(`<[^>]+>`).ReplaceAllString(c[1], "")))
 	}
-	want := []string{"Algebra &amp; Co", testAdminEmail, "Closed", "2", "0", "Open View Results"}
+	e, err := env.exams.Get(context.Background(), env.owner, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"Algebra &amp; Co", e.Code, testAdminEmail, "Closed", "2", "0", "Open View Results"}
 	if strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("row cells = %q, want %q", got, want)
 	}
-	for _, header := range []string{"Title", "Owner", "Status", "Questions", "Attempts"} {
+	for _, header := range []string{"Title", "Code", "Owner", "Status", "Questions", "Attempts"} {
 		if !strings.Contains(body, "<th scope=\"col\">"+header+"</th>") {
 			t.Errorf("column %q missing", header)
 		}
@@ -95,6 +100,61 @@ func TestAdminExams_ListAndEmptyState(t *testing.T) {
 	}
 	if body = do(env.h, "GET", "/admin/exams", cookie).Body.String(); !strings.Contains(body, ">Open</span>") {
 		t.Errorf("open exam not shown as Open:\n%s", body)
+	}
+}
+
+func TestExamPage_ShowsCodeAndStudentLink(t *testing.T) {
+	env := newTestEnv(t)
+	cookie, _, _ := env.signIn(t)
+	ctx := context.Background()
+	id, err := env.exams.Import(ctx, env.owner, []byte("# Geometry Quiz\n\n1. Q one\n- a *\n- b\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := env.exams.Get(ctx, env.owner, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !regexp.MustCompile(`^[ABCDEFGHJKMNPQRSTVWXYZ2-9]{6}$`).MatchString(e.Code) {
+		t.Fatalf("exam code %q is not 6 symbols of the alphabet", e.Code)
+	}
+	page := fmt.Sprintf("/admin/exams/%d", id)
+	codeLine := `<p id="exam-code" class="exam-code">` + e.Code + `</p>`
+	link := `<a id="student-link" href="http://app.test/?code=` + e.Code + `">http://app.test/?code=` + e.Code + `</a>`
+	const note = "Students can start with this code only while the exam is open."
+
+	body := do(env.h, "GET", page, cookie).Body.String()
+	for _, want := range []string{codeLine, link, note} {
+		if !strings.Contains(body, want) {
+			t.Errorf("closed exam page lacks %q:\n%s", want, body)
+		}
+	}
+
+	if err := env.exams.Open(ctx, env.owner, id); err != nil {
+		t.Fatal(err)
+	}
+	body = do(env.h, "GET", page, cookie).Body.String()
+	for _, want := range []string{codeLine, link} {
+		if !strings.Contains(body, want) {
+			t.Errorf("open exam page lacks %q:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, note) {
+		t.Errorf("open exam page still shows the closed note:\n%s", body)
+	}
+
+	rec := do(env.h, "GET", "/?code="+e.Code, nil)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Geometry Quiz") {
+		t.Errorf("GET /?code=%s = %d, want the exam's title:\n%s", e.Code, rec.Code, rec.Body.String())
+	}
+}
+
+func TestNewHandler_RequiresPublicURL(t *testing.T) {
+	env := newTestEnv(t)
+	d := env.deps
+	d.PublicURL = ""
+	if _, err := NewHandler(d); err == nil || !strings.Contains(err.Error(), "PublicURL") {
+		t.Errorf("NewHandler without PublicURL = %v, want an error naming PublicURL", err)
 	}
 }
 
@@ -445,7 +505,7 @@ func TestReplace_Flow(t *testing.T) {
 	if err := env.exams.Open(ctx, env.owner, id); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := attempt.NewService(env.db, func() time.Time { return env.clock }, rand.NewChaCha8([32]byte{3})).Start(ctx, "Ada"); err != nil {
+	if _, err := attempt.NewService(env.db, func() time.Time { return env.clock }, rand.NewChaCha8([32]byte{3})).Start(ctx, env.examCode(t, id), "Ada"); err != nil {
 		t.Fatal(err)
 	}
 	body = do(env.h, "GET", detail, cookie).Body.String()
@@ -497,17 +557,20 @@ func TestOpenClose(t *testing.T) {
 	requireRedirect(t, postForm(env.h, fmt.Sprintf("/admin/exams/%d/open", a), form, cookie), "/admin/exams")
 	requireRedirect(t, postForm(env.h, fmt.Sprintf("/admin/exams/%d/open", b), form, cookie), "/admin/exams")
 	body := do(env.h, "GET", "/admin/exams", cookie).Body.String()
-	if got := openRows(t, body); len(got) != 1 || got[0] != strconv.FormatInt(b, 10) {
-		t.Fatalf("open rows = %v, want only %d:\n%s", got, b, body)
+	want := []string{strconv.FormatInt(b, 10), strconv.FormatInt(a, 10)}
+	if got := openRows(t, body); !slices.Equal(got, want) {
+		t.Fatalf("open rows = %v, want %v:\n%s", got, want, body)
 	}
-	if !strings.Contains(body, fmt.Sprintf(`action="/admin/exams/%d/close"`, b)) ||
-		!strings.Contains(body, fmt.Sprintf(`action="/admin/exams/%d/open"`, a)) {
-		t.Errorf("row actions do not match the state:\n%s", body)
+	for _, id := range []int64{a, b} {
+		if !strings.Contains(body, fmt.Sprintf(`action="/admin/exams/%d/close"`, id)) ||
+			strings.Contains(body, fmt.Sprintf(`action="/admin/exams/%d/open"`, id)) {
+			t.Errorf("row %d does not offer close only:\n%s", id, body)
+		}
 	}
 
 	requireRedirect(t, postForm(env.h, fmt.Sprintf("/admin/exams/%d/close", b), form, cookie), "/admin/exams")
-	if got := openRows(t, do(env.h, "GET", "/admin/exams", cookie).Body.String()); len(got) != 0 {
-		t.Fatalf("open rows after close = %v, want none", got)
+	if got := openRows(t, do(env.h, "GET", "/admin/exams", cookie).Body.String()); !slices.Equal(got, want[1:]) {
+		t.Fatalf("open rows after closing b = %v, want %v", got, want[1:])
 	}
 
 	for _, target := range []string{"/admin/exams/999/open", "/admin/exams/999/close", "/admin/exams/x/open", "/admin/exams/x/close"} {

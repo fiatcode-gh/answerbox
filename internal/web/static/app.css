@@ -111,7 +111,8 @@ th {
 code,
 kbd,
 pre,
-samp {
+samp,
+td.code {
   font-family: var(--ge-font-mono);
 }
 
@@ -404,6 +405,33 @@ table th {
   min-height: var(--ge-touch);
 }
 
+.join {
+  margin-bottom: var(--ge-space-5);
+}
+
+.join h2 {
+  margin-bottom: var(--ge-space-2);
+}
+
+.exam-code {
+  margin: 0 0 var(--ge-space-3);
+  font-family: var(--ge-font-mono);
+  font-size: clamp(3rem, 12vw, 8rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.15em;
+}
+
+.student-link {
+  margin-bottom: var(--ge-space-2);
+  overflow-wrap: anywhere;
+}
+
+.join-note {
+  margin: 0;
+  color: var(--ge-muted);
+}
+
 .settings {
   display: grid;
   grid-template-columns: max-content 1fr;
@@ -671,10 +699,6 @@ main.landing {
   font-size: 0.9375rem;
 }
 
-.no-exam {
-  margin-bottom: var(--ge-space-5);
-}
-
 .last-result {
   margin: var(--ge-space-4) 0;
   font-weight: 600;
@@ -692,7 +716,8 @@ main.landing {
   font-weight: 600;
 }
 
-#code {
+#code,
+#start-code {
   font-family: var(--ge-font-mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;

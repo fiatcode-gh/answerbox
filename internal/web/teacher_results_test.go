@@ -42,7 +42,7 @@ func (env *testEnv) resultsExam(t *testing.T, n int) (int64, []exam.Question) {
 // returns its token and ID.
 func (env *testEnv) startAttempt(t *testing.T, examID int64, name string) (string, int64) {
 	t.Helper()
-	token, err := env.attempts.Start(context.Background(), name)
+	token, err := env.attempts.Start(context.Background(), env.examCode(t, examID), name)
 	if err != nil {
 		t.Fatalf("Start(%q): %v", name, err)
 	}

@@ -78,6 +78,8 @@ type testEnv struct {
 	// seen collects the codes, states and sign-in cookies of the flows run
 	// through env, so log tests can check none of them leaked.
 	seen []string
+	// deps are the collaborators h was built with.
+	deps Deps
 }
 
 func newTestEnv(t *testing.T) *testEnv {
@@ -134,16 +136,18 @@ func newTestEnvWith(t *testing.T, db *sql.DB, cfg envConfig) *testEnv {
 	})
 	env.exams = exam.NewService(db, media, now, rand.NewChaCha8([32]byte{2}))
 	env.attempts = attempt.NewService(db, now, rand.NewChaCha8([32]byte{3}))
-	env.h, err = NewHandler(Deps{
-		DB:       db,
-		Exams:    env.exams,
-		Attempts: env.attempts,
-		Admin:    env.admin,
-		OIDC:     provider,
-		ClientIP: clientip.New(cfg.trusted),
-		Location: cfg.location,
-		Logger:   slog.New(slog.NewTextHandler(cfg.logOut, nil)),
-	})
+	env.deps = Deps{
+		DB:        db,
+		Exams:     env.exams,
+		Attempts:  env.attempts,
+		Admin:     env.admin,
+		OIDC:      provider,
+		ClientIP:  clientip.New(cfg.trusted),
+		Location:  cfg.location,
+		Logger:    slog.New(slog.NewTextHandler(cfg.logOut, nil)),
+		PublicURL: "http://app.test",
+	}
+	env.h, err = NewHandler(env.deps)
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
 	}

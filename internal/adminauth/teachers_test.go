@@ -37,11 +37,11 @@ func (h *harness) teacherID(t *testing.T, email string) int64 {
 }
 
 // addExam stores a raw exam owned by ownerID and returns its id.
-func (h *harness) addExam(t *testing.T, ownerID int64, key string) int64 {
+func (h *harness) addExam(t *testing.T, ownerID int64, key, code string) int64 {
 	t.Helper()
 	res, err := h.db.Exec(
-		`INSERT INTO exam (title, shuffle, show_result, media_key, created_at, owner_id) VALUES ('t', 'none', 'score', ?, 0, ?)`,
-		key, ownerID)
+		`INSERT INTO exam (title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES ('t', 'none', 'score', ?, 0, ?, ?)`,
+		key, ownerID, code)
 	if err != nil {
 		t.Fatalf("insert exam: %v", err)
 	}
@@ -98,8 +98,8 @@ func TestAddTeacher_InvalidEmail(t *testing.T) {
 func TestTeachers_ExamCountAndLastLogin(t *testing.T) {
 	h := newHarness(t)
 	id := sqlitetest.Teacher(t, h.db, teacherEmail)
-	h.addExam(t, id, "k1")
-	h.addExam(t, id, "k2")
+	h.addExam(t, id, "k1", "AAAAAA")
+	h.addExam(t, id, "k2", "BBBBBB")
 	h.advance(time.Hour)
 	mustSignIn(t, h.svc, adminauth.Identity{Email: teacherEmail, EmailVerified: true, Name: "Tess Teacher"})
 
@@ -116,7 +116,7 @@ func TestRemoveTeacher_EndsSessionsAndBlocksSignIn(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()
 	id := sqlitetest.Teacher(t, h.db, teacherEmail)
-	examID := h.addExam(t, id, "k1")
+	examID := h.addExam(t, id, "k1", "AAAAAA")
 	tok1 := mustSignIn(t, h.svc, verified(teacherEmail))
 	tok2 := mustSignIn(t, h.svc, verified(teacherEmail))
 	adminTok := mustSignIn(t, h.svc, verified(adminEmail))
@@ -183,7 +183,7 @@ func TestAddTeacher_RestoresRemoved(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()
 	id := sqlitetest.Teacher(t, h.db, teacherEmail)
-	h.addExam(t, id, "k1")
+	h.addExam(t, id, "k1", "AAAAAA")
 	if err := h.svc.RemoveTeacher(ctx, id); err != nil {
 		t.Fatal(err)
 	}

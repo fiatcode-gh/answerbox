@@ -25,6 +25,7 @@ const (
 	studentBodyLimit = 4 << 10
 
 	invalidNameAlert = "Enter your name (1 to 100 characters)."
+	noOpenExamAlert  = "No open exam has that code. Check it with your teacher."
 	badCodeAlert     = "That code is not valid."
 )
 
@@ -121,25 +122,11 @@ func (s *server) cookieAttempt(w http.ResponseWriter, r *http.Request) (cookieSt
 
 type landingData struct {
 	ExamTitle  string
-	ExamOpen   bool
+	Code       string
 	Name       string
 	Alert      string
 	ResumeOpen bool
 	LastResult bool
-}
-
-// showLanding fills the open exam into d and renders the landing.
-func (s *server) showLanding(w http.ResponseWriter, r *http.Request, status int, d landingData) {
-	e, open, err := s.deps.Exams.Current(r.Context())
-	if err != nil {
-		s.serverError(w, r, err)
-		return
-	}
-	d.ExamOpen = open
-	if open {
-		d.ExamTitle = e.Title
-	}
-	s.page(w, r, status, "landing.html", d)
 }
 
 func (s *server) landing(w http.ResponseWriter, r *http.Request) {
@@ -152,7 +139,20 @@ func (s *server) landing(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/exam", http.StatusSeeOther)
 		return
 	}
-	s.showLanding(w, r, http.StatusOK, landingData{LastResult: state == cookieFinished})
+	d := landingData{LastResult: state == cookieFinished}
+	if raw := r.URL.Query().Get("code"); raw != "" {
+		e, found, err := s.deps.Exams.OpenByCode(r.Context(), raw)
+		switch {
+		case err != nil:
+			s.serverError(w, r, err)
+			return
+		case found:
+			d.ExamTitle, d.Code = e.Title, e.Code
+		default:
+			d.Alert = noOpenExamAlert
+		}
+	}
+	s.page(w, r, http.StatusOK, "landing.html", d)
 }
 
 // parseStudentForm parses a urlencoded body of at most studentBodyLimit
@@ -185,18 +185,21 @@ func (s *server) start(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/exam", http.StatusSeeOther)
 		return
 	}
-	name := r.PostFormValue("name")
-	token, err := s.deps.Attempts.Start(r.Context(), name)
+	code, name := r.PostFormValue("code"), r.PostFormValue("name")
+	token, err := s.deps.Attempts.Start(r.Context(), code, name)
+	refused := func(alert string) {
+		s.page(w, r, http.StatusUnprocessableEntity, "landing.html", landingData{
+			Code: code, Name: name, Alert: alert, LastResult: state == cookieFinished,
+		})
+	}
 	switch {
 	case err == nil:
 		http.SetCookie(w, newAttemptCookie(token))
 		http.Redirect(w, r, "/exam", http.StatusSeeOther)
 	case errors.Is(err, attempt.ErrInvalidName):
-		s.showLanding(w, r, http.StatusUnprocessableEntity, landingData{
-			Name: name, Alert: invalidNameAlert, LastResult: state == cookieFinished,
-		})
+		refused(invalidNameAlert)
 	case errors.Is(err, attempt.ErrNoOpenExam):
-		s.showLanding(w, r, http.StatusConflict, landingData{LastResult: state == cookieFinished})
+		refused(noOpenExamAlert)
 	default:
 		s.serverError(w, r, err)
 	}
@@ -212,7 +215,7 @@ func (s *server) resume(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, newAttemptCookie(token))
 		http.Redirect(w, r, "/exam", http.StatusSeeOther)
 	case errors.Is(err, attempt.ErrBadCode):
-		s.showLanding(w, r, http.StatusUnprocessableEntity, landingData{Alert: badCodeAlert, ResumeOpen: true})
+		s.page(w, r, http.StatusUnprocessableEntity, "landing.html", landingData{Alert: badCodeAlert, ResumeOpen: true})
 	default:
 		s.serverError(w, r, err)
 	}

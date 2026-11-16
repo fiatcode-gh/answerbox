@@ -68,16 +68,95 @@ func requireAttemptCookieCleared(t *testing.T, rec *httptest.ResponseRecorder) {
 	}
 }
 
-// start posts the start form and returns the new attempt's cookie header.
+// examCode returns the exam code of examID.
+func (env *testEnv) examCode(t *testing.T, examID int64) string {
+	t.Helper()
+	e, err := env.exams.Get(context.Background(), env.owner, examID)
+	if err != nil {
+		t.Fatalf("Get(%d): %v", examID, err)
+	}
+	return e.Code
+}
+
+// openCode returns the code of the single open exam; the test fails when
+// the number of open exams is not 1.
+func (env *testEnv) openCode(t *testing.T) string {
+	t.Helper()
+	rows, err := env.db.Query(`SELECT id FROM exam WHERE is_open = 1`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 1 {
+		t.Fatalf("open exams = %v, want exactly one", ids)
+	}
+	return env.examCode(t, ids[0])
+}
+
+// attemptRows counts every attempt row, whatever its exam.
+func (env *testEnv) attemptRows(t *testing.T) int {
+	t.Helper()
+	var n int
+	if err := env.db.QueryRow(`SELECT COUNT(*) FROM attempt`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// start posts the start form with the single open exam's code and returns
+// the new attempt's cookie header.
 func (env *testEnv) start(t *testing.T, name string) http.Header {
 	t.Helper()
-	rec := postForm(env.h, "/start", url.Values{"name": {name}}, nil)
+	return env.startWith(t, env.openCode(t), name)
+}
+
+// startIn posts the start form with examID's code.
+func (env *testEnv) startIn(t *testing.T, examID int64, name string) http.Header {
+	t.Helper()
+	return env.startWith(t, env.examCode(t, examID), name)
+}
+
+func (env *testEnv) startWith(t *testing.T, code, name string) http.Header {
+	t.Helper()
+	rec := postForm(env.h, "/start", url.Values{"code": {code}, "name": {name}}, nil)
 	requireRedirect(t, rec, "/exam")
 	c := attemptSetCookie(t, rec)
 	if c == nil {
 		t.Fatal("POST /start set no goexam_attempt cookie")
 	}
 	return studentCookie(c.Value)
+}
+
+// inputTag returns the <input> tag with the given id, or "" when absent.
+func inputTag(body, id string) string {
+	return regexp.MustCompile(`<input[^>]*\bid="` + regexp.QuoteMeta(id) + `"[^>]*>`).FindString(body)
+}
+
+// otherCode is a well-formed exam code that differs from code.
+func otherCode(code string) string {
+	if code == "ABCDEF" {
+		return "GHJKMN"
+	}
+	return "ABCDEF"
+}
+
+const noOpenExamText = "No open exam has that code. Check it with your teacher."
+
+func requireNoOpenExamAlert(t *testing.T, label, body string) {
+	t.Helper()
+	if !regexp.MustCompile(`role="alert"[^>]*>` + regexp.QuoteMeta(noOpenExamText) + `<`).MatchString(body) {
+		t.Errorf("%s: no-open-exam alert missing:\n%s", label, body)
+	}
 }
 
 // examText builds an exam of n questions with m options each; option 1 of
@@ -104,6 +183,33 @@ func simpleExam(show string) string {
 	return "# Algebra & Co\nshuffle: none\nshow_result: " + show + "\n\n1. One\n- a *\n- b\n\n2. Two\n- c\n- d *\n"
 }
 
+// requirePlainLanding checks the landing page without an exam title.
+func requirePlainLanding(t *testing.T, label, body string) {
+	t.Helper()
+	for _, want := range []string{
+		`<form id="start-form" method="post" action="/start">`,
+		`name="name"`,
+		`<h1 class="landing-title">go-exam</h1>`,
+		`<title>go-exam</title>`,
+		"You have 60 minutes. The timer starts when you press Start and does not pause.",
+		`id="resume-form"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("%s: landing lacks %q", label, want)
+		}
+	}
+	code := inputTag(body, "start-code")
+	if !strings.Contains(code, `name="code"`) || !strings.Contains(code, `value=""`) || !strings.Contains(code, "autofocus") {
+		t.Errorf("%s: want an empty, focused code field, got %q", label, code)
+	}
+	if strings.Contains(inputTag(body, "name"), "autofocus") {
+		t.Errorf("%s: name field has autofocus without a title", label)
+	}
+	if strings.Contains(body, `id="no-exam"`) || strings.Contains(body, "Algebra") {
+		t.Errorf("%s: landing reveals an exam:\n%s", label, body)
+	}
+}
+
 func TestLanding_States(t *testing.T) {
 	env := newTestEnv(t)
 
@@ -111,29 +217,18 @@ func TestLanding_States(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("GET / = %d", rec.Code)
 	}
-	body := rec.Body.String()
-	noExam := regexp.MustCompile(`(?s)id="no-exam"[^>]*>.*?No exam is open right now`).MatchString(body)
-	if !noExam {
-		t.Errorf("no open exam: #no-exam text missing:\n%s", body)
-	}
-	if !strings.Contains(body, `id="resume-form"`) || !strings.Contains(body, `name="code"`) {
-		t.Errorf("resume form missing:\n%s", body)
-	}
-	if strings.Contains(body, `id="start-form"`) {
-		t.Error("start form shown without an open exam")
+	requirePlainLanding(t, "no exam", rec.Body.String())
+	if strings.Contains(rec.Body.String(), `role="alert"`) {
+		t.Error("no exam: alert shown")
 	}
 
 	env.openExam(t, simpleExam("score"))
-	body = do(env.h, "GET", "/", nil).Body.String()
-	for _, want := range []string{"Algebra &amp; Co", `<form id="start-form" method="post" action="/start">`, `name="name"`,
-		"You have 60 minutes. The timer starts when you press Start and does not pause.", `id="resume-form"`} {
-		if !strings.Contains(body, want) {
-			t.Errorf("open exam landing lacks %q", want)
-		}
+	rec = do(env.h, "GET", "/", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("open exam: GET / = %d", rec.Code)
 	}
-	if strings.Contains(body, `id="no-exam"`) {
-		t.Error("#no-exam shown with an open exam")
-	}
+	body := rec.Body.String()
+	requirePlainLanding(t, "open exam", body)
 	if strings.Contains(body, "See your last result") {
 		t.Error("last-result link shown without a cookie")
 	}
@@ -157,40 +252,113 @@ func TestLanding_States(t *testing.T) {
 	}
 }
 
-func TestStart_Validation(t *testing.T) {
+func TestLanding_CodeLink(t *testing.T) {
 	env := newTestEnv(t)
-
-	rec := postForm(env.h, "/start", url.Values{"name": {"Ada"}}, nil)
-	if rec.Code != http.StatusConflict {
-		t.Fatalf("no open exam: POST /start = %d, want 409", rec.Code)
-	}
-	if !strings.Contains(rec.Body.String(), `id="no-exam"`) || attemptSetCookie(t, rec) != nil {
-		t.Errorf("no open exam: want the no-exam landing without a cookie:\n%s", rec.Body.String())
-	}
-
 	examID := env.openExam(t, simpleExam("score"))
-	for _, name := range []string{"", "   ", strings.Repeat("x", 101)} {
-		rec := postForm(env.h, "/start", url.Values{"name": {name}}, nil)
-		if rec.Code != http.StatusUnprocessableEntity {
-			t.Fatalf("name %q: status = %d, want 422", name, rec.Code)
+	code := env.examCode(t, examID)
+	lower := strings.ToLower(code)
+
+	for _, typed := range []string{code, lower, lower[:3] + "-" + lower[3:]} {
+		rec := do(env.h, "GET", "/?code="+url.QueryEscape(typed), nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("?code=%s: status %d", typed, rec.Code)
 		}
 		body := rec.Body.String()
-		if !regexp.MustCompile(`role="alert"[^>]*>Enter your name \(1 to 100 characters\)\.<`).MatchString(body) {
-			t.Errorf("name %q: alert missing:\n%s", name, body)
+		if !strings.Contains(body, `<h1 class="landing-title">Algebra &amp; Co</h1>`) ||
+			!strings.Contains(body, `<title>Algebra &amp; Co`) {
+			t.Errorf("?code=%s: title missing:\n%s", typed, body)
 		}
-		if !strings.Contains(body, `id="start-form"`) || !strings.Contains(body, `value="`+name+`"`) {
-			t.Errorf("name %q: typed value not kept in the start form", name)
+		codeTag := inputTag(body, "start-code")
+		if !strings.Contains(codeTag, `value="`+code+`"`) || strings.Contains(codeTag, "autofocus") {
+			t.Errorf("?code=%s: code field = %q, want value %q without autofocus", typed, codeTag, code)
 		}
-		if attemptSetCookie(t, rec) != nil {
-			t.Errorf("name %q: cookie set", name)
+		if !strings.Contains(inputTag(body, "name"), "autofocus") {
+			t.Errorf("?code=%s: name field lacks autofocus", typed)
 		}
-	}
-	if n := len(env.list(t, examID)); n != 0 {
-		t.Fatalf("invalid names created %d attempts", n)
+		if strings.Contains(body, `role="alert"`) {
+			t.Errorf("?code=%s: alert shown", typed)
+		}
 	}
 
+	rec := do(env.h, "GET", "/?code=", nil)
+	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), `role="alert"`) {
+		t.Errorf("?code=: want the plain page without an alert, got %d", rec.Code)
+	}
+	requirePlainLanding(t, "?code=", rec.Body.String())
+
+	refused := func(label, query string) {
+		t.Helper()
+		rec := do(env.h, "GET", "/?code="+query, nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: status %d, want 200", label, rec.Code)
+		}
+		body := rec.Body.String()
+		requireNoOpenExamAlert(t, label, body)
+		requirePlainLanding(t, label, body)
+	}
+	refused("unknown code", otherCode(code))
+	refused("abc", "abc")
+	refused("space", "%20")
+
 	cookie := env.start(t, "Ada")
-	rec = postForm(env.h, "/start", url.Values{"name": {"Bob"}}, cookie)
+	requireRedirect(t, do(env.h, "GET", "/?code="+code, cookie), "/exam")
+
+	if err := env.exams.Close(context.Background(), env.owner, examID); err != nil {
+		t.Fatal(err)
+	}
+	refused("closed exam's code", code)
+}
+
+func TestStart_Refusals(t *testing.T) {
+	env := newTestEnv(t)
+	refused := func(label string, form url.Values, alert string) {
+		t.Helper()
+		before := env.attemptRows(t)
+		rec := postForm(env.h, "/start", form, nil)
+		if rec.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("%s: status = %d, want 422", label, rec.Code)
+		}
+		body := rec.Body.String()
+		if !regexp.MustCompile(`role="alert"[^>]*>` + regexp.QuoteMeta(alert) + `<`).MatchString(body) {
+			t.Errorf("%s: alert %q missing:\n%s", label, alert, body)
+		}
+		name := inputTag(body, "name")
+		if !strings.Contains(name, `value="`+form.Get("name")+`"`) {
+			t.Errorf("%s: name field = %q, want the typed name", label, name)
+		}
+		code := inputTag(body, "start-code")
+		if !strings.Contains(code, `value="`+form.Get("code")+`"`) || !strings.Contains(code, "autofocus") {
+			t.Errorf("%s: code field = %q, want %q with autofocus", label, code, form.Get("code"))
+		}
+		if !strings.Contains(body, `<h1 class="landing-title">go-exam</h1>`) || strings.Contains(body, "Algebra") ||
+			strings.Contains(body, "Exam none") {
+			t.Errorf("%s: an exam title is shown:\n%s", label, body)
+		}
+		if attemptSetCookie(t, rec) != nil {
+			t.Errorf("%s: cookie set", label)
+		}
+		if got := env.attemptRows(t); got != before {
+			t.Errorf("%s: attempt rows %d → %d", label, before, got)
+		}
+	}
+	refused("no exam", url.Values{"code": {"ABCDEF"}, "name": {"Ada"}}, noOpenExamText)
+
+	closed := env.openExam(t, examText("none", "score", 1, 2))
+	if err := env.exams.Close(context.Background(), env.owner, closed); err != nil {
+		t.Fatal(err)
+	}
+	examID := env.openExam(t, simpleExam("score"))
+	code := env.examCode(t, examID)
+	refused("another well-formed code", url.Values{"code": {otherCode(code)}, "name": {"Ada"}}, noOpenExamText)
+	refused("missing code", url.Values{"name": {"Ada"}}, noOpenExamText)
+	refused("closed exam's code", url.Values{"code": {env.examCode(t, closed)}, "name": {"Ada"}}, noOpenExamText)
+	for _, name := range []string{"", "   ", strings.Repeat("x", 101)} {
+		refused(fmt.Sprintf("name %q", name), url.Values{"code": {code}, "name": {name}}, invalidNameAlert)
+	}
+	refused("malformed code, empty name", url.Values{"code": {"abc"}, "name": {""}}, invalidNameAlert)
+
+	cookie := env.start(t, "Ada")
+	rec := postForm(env.h, "/start", url.Values{"code": {code}, "name": {"Bob"}}, cookie)
 	requireRedirect(t, rec, "/exam")
 	if attemptSetCookie(t, rec) != nil {
 		t.Error("second start replaced the cookie")
@@ -200,10 +368,86 @@ func TestStart_Validation(t *testing.T) {
 	}
 }
 
+func TestStart_CodeAsTyped(t *testing.T) {
+	env := newTestEnv(t)
+	examID := env.openExam(t, simpleExam("score"))
+	code := env.examCode(t, examID)
+	lower := strings.ToLower(code)
+	for i, typed := range []string{lower, lower[:3] + "-" + lower[3:], " " + code[:3] + " " + code[3:] + " "} {
+		env.startWith(t, typed, "Ada")
+		if got := len(env.list(t, examID)); got != i+1 {
+			t.Fatalf("after code %q: %d attempts, want %d", typed, got, i+1)
+		}
+	}
+}
+
+func TestStart_TwoOpenExams(t *testing.T) {
+	env := newTestEnv(t)
+	first := env.openExam(t, strings.Replace(simpleExam("score"), "# Algebra & Co", "# Geometry", 1))
+	second := env.openExam(t, strings.Replace(simpleExam("score"), "# Algebra & Co", "# Biology", 1))
+
+	for _, tc := range []struct {
+		examID       int64
+		title, other string
+	}{{first, "Geometry", "Biology"}, {second, "Biology", "Geometry"}} {
+		body := do(env.h, "GET", "/exam", env.startIn(t, tc.examID, "Ada")).Body.String()
+		if !strings.Contains(body, tc.title) || strings.Contains(body, tc.other) {
+			t.Errorf("exam page after starting with %s's code does not show %s only:\n%s", tc.title, tc.title, body)
+		}
+	}
+
+	inFirst := env.startIn(t, first, "Budi")
+	rec := postForm(env.h, "/start", url.Values{"code": {env.examCode(t, second)}, "name": {"Budi"}}, inFirst)
+	requireRedirect(t, rec, "/exam")
+	if c := attemptSetCookie(t, rec); c != nil {
+		t.Errorf("start with another exam's code while in progress set a cookie: %+v", c)
+	}
+	if got := len(env.list(t, second)); got != 1 {
+		t.Errorf("second exam has %d attempts, want 1", got)
+	}
+	if got := len(env.list(t, first)); got != 2 {
+		t.Errorf("first exam has %d attempts, want 2", got)
+	}
+}
+
+func TestNoLeak_ClosedCodeLooksUnknown(t *testing.T) {
+	tw := twin{newTestEnv(t), newTestEnv(t)}
+	examID := tw.k1.openExam(t, simpleExam("score"))
+	code := tw.k1.examCode(t, examID)
+	tw.k1.startIn(t, examID, "Ada")
+	if err := tw.k1.exams.Close(context.Background(), tw.k1.owner, examID); err != nil {
+		t.Fatal(err)
+	}
+	tw.step(t, "POST /start", func(env *testEnv) *httptest.ResponseRecorder {
+		return postForm(env.h, "/start", url.Values{"code": {code}, "name": {"Ada"}}, nil)
+	})
+	tw.step(t, "GET /?code=", func(env *testEnv) *httptest.ResponseRecorder {
+		return do(env.h, "GET", "/?code="+code, nil)
+	})
+}
+
+func TestResume_NeedsNoExamCode(t *testing.T) {
+	env := newTestEnv(t)
+	examID := env.openExam(t, simpleExam("score"))
+	env.start(t, "Ada")
+	rows := env.list(t, examID)
+	if len(rows) != 1 || rows[0].ResumeCode == "" {
+		t.Fatalf("no resume code: %+v", rows)
+	}
+	if err := env.exams.Close(context.Background(), env.owner, examID); err != nil {
+		t.Fatal(err)
+	}
+	rec := postForm(env.h, "/resume", url.Values{"code": {rows[0].ResumeCode}}, nil)
+	requireRedirect(t, rec, "/exam")
+	if c := attemptSetCookie(t, rec); c == nil || c.Value == "" {
+		t.Fatalf("resume set no attempt cookie: %+v", c)
+	}
+}
+
 func TestStart_CookieAttributes(t *testing.T) {
 	env := newTestEnv(t)
 	env.openExam(t, simpleExam("score"))
-	rec := postForm(env.h, "/start", url.Values{"name": {"Ada"}}, nil)
+	rec := postForm(env.h, "/start", url.Values{"code": {env.openCode(t)}, "name": {"Ada"}}, nil)
 	requireRedirect(t, rec, "/exam")
 
 	var line string
@@ -581,7 +825,7 @@ func TestStudentPosts_CrossOriginRejected(t *testing.T) {
 	qs := pageQuestions(t, env.examPage(t, cookie))
 	crossSite := http.Header{"Sec-Fetch-Site": {"cross-site"}, "Cookie": cookie["Cookie"]}
 
-	if rec := postForm(env.h, "/start", url.Values{"name": {"Mallory"}}, http.Header{"Sec-Fetch-Site": {"cross-site"}}); rec.Code != http.StatusForbidden {
+	if rec := postForm(env.h, "/start", url.Values{"code": {env.openCode(t)}, "name": {"Mallory"}}, http.Header{"Sec-Fetch-Site": {"cross-site"}}); rec.Code != http.StatusForbidden {
 		t.Errorf("cross-site POST /start = %d, want 403", rec.Code)
 	}
 	if rec := postForm(env.h, "/exam/answer", answerForm(qs[0].ID, qs[0].Options[0]), crossSite); rec.Code != http.StatusForbidden {
@@ -659,7 +903,7 @@ func (tw twin) start(t *testing.T) (http.Header, []pageQuestion) {
 	t.Helper()
 	tw.step(t, "GET /", func(env *testEnv) *httptest.ResponseRecorder { return do(env.h, "GET", "/", nil) })
 	rec := tw.step(t, "POST /start", func(env *testEnv) *httptest.ResponseRecorder {
-		return postForm(env.h, "/start", url.Values{"name": {"Ada"}}, nil)
+		return postForm(env.h, "/start", url.Values{"code": {env.openCode(t)}, "name": {"Ada"}}, nil)
 	})
 	c := attemptSetCookie(t, rec)
 	if c == nil {

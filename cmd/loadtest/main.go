@@ -3,9 +3,8 @@
 // answers all questions at once with the others, submits and checks the
 // score, and the teacher's CSV export is verified against the expected scores.
 //
-// Opening the generated exam closes the teacher's own open exam and is
-// refused while another teacher's exam is open, so the target must be a local
-// server unless -allow-remote is given.
+// The run adds an exam and its attempts to the server, so the target must be
+// a local server unless -allow-remote is given.
 package main
 
 import (
@@ -43,6 +42,7 @@ var (
 	radioRe = regexp.MustCompile(`<input type="radio" name="q(\d+)" value="(\d+)"[^>]*?( checked)?>`)
 	scoreRe = regexp.MustCompile(`<p id="score">(\d+) / (\d+)</p>`)
 	examRe  = regexp.MustCompile(`^/admin/exams/(\d+)$`)
+	codeRe  = regexp.MustCompile(`id="exam-code"[^>]*>([A-Z2-9]{6})<`)
 )
 
 type config struct {
@@ -61,7 +61,7 @@ func main() {
 	flag.IntVar(&cfg.students, "students", 100, "number of simulated students")
 	flag.IntVar(&cfg.questions, "questions", 40, "number of questions in the generated exam")
 	flag.DurationVar(&cfg.timeout, "timeout", 2*time.Minute, "deadline for the whole run")
-	flag.BoolVar(&allowRemote, "allow-remote", false, "allow a base URL that is not localhost (opening the exam closes the open one)")
+	flag.BoolVar(&allowRemote, "allow-remote", false, "allow a base URL that is not localhost (the run adds an exam and attempts there)")
 	flag.Parse()
 
 	if err := checkConfig(cfg, allowRemote); err != nil {
@@ -86,7 +86,7 @@ func checkConfig(cfg config, allowRemote bool) error {
 	case host == "localhost", host == "127.0.0.1", host == "::1":
 	case allowRemote:
 	default:
-		return fmt.Errorf("refusing non-local host %q: opening the load-test exam closes the open exam (use -allow-remote)", host)
+		return fmt.Errorf("refusing non-local host %q: the load test adds an exam and attempts to the server (use -allow-remote)", host)
 	}
 	if cfg.email == "" {
 		return errors.New("-teacher-email must not be empty")
@@ -190,7 +190,7 @@ func run(ctx context.Context, cfg config) bool {
 	}
 	t := &tally{}
 
-	admin, examID, err := setup(ctx, c, cfg)
+	admin, examID, code, err := setup(ctx, c, cfg)
 	if err != nil {
 		t.fail(0, "setup", "%v", err)
 		report(cfg, t, nil, 0)
@@ -204,7 +204,7 @@ func run(ctx context.Context, cfg config) bool {
 	var done sync.WaitGroup
 	for i := 1; i <= cfg.students; i++ {
 		done.Go(func() {
-			latencies[i] = student(ctx, c, cfg, t, i, &ready, start)
+			latencies[i] = student(ctx, c, cfg, t, code, i, &ready, start)
 		})
 	}
 	ready.Wait()
@@ -268,22 +268,24 @@ func signIn(ctx context.Context, c *client, cfg config) (adminCookie string, err
 	return adminCookie, nil
 }
 
-func setup(ctx context.Context, c *client, cfg config) (admin string, examID int, err error) {
+// setup signs the teacher in, imports and opens the generated exam and
+// returns the admin cookie, the exam's id and its code.
+func setup(ctx context.Context, c *client, cfg config) (admin string, examID int, code string, err error) {
 	admin, err = signIn(ctx, c, cfg)
 	if err != nil {
-		return "", 0, err
+		return "", 0, "", err
 	}
 
 	resp, body, err := c.do(ctx, http.MethodGet, "/admin/exams", admin, "", nil)
 	if err != nil {
-		return "", 0, fmt.Errorf("exams page: %w", err)
+		return "", 0, "", fmt.Errorf("exams page: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", 0, fmt.Errorf("exams page: status %d", resp.StatusCode)
+		return "", 0, "", fmt.Errorf("exams page: status %d", resp.StatusCode)
 	}
 	m := csrfRe.FindSubmatch(body)
 	if m == nil {
-		return "", 0, errors.New("exams page: no csrf_token field")
+		return "", 0, "", errors.New("exams page: no csrf_token field")
 	}
 	csrf := string(m[1])
 
@@ -292,31 +294,42 @@ func setup(ctx context.Context, c *client, cfg config) (admin string, examID int
 	mw.WriteField("csrf_token", csrf)
 	fw, err := mw.CreateFormFile("file", "loadtest.md")
 	if err != nil {
-		return "", 0, err
+		return "", 0, "", err
 	}
 	fw.Write(examText(cfg.questions, time.Now()))
 	mw.Close()
 	resp, _, err = c.do(ctx, http.MethodPost, "/admin/exams", admin, mw.FormDataContentType(), buf.Bytes())
 	if err != nil {
-		return "", 0, fmt.Errorf("import: %w", err)
+		return "", 0, "", fmt.Errorf("import: %w", err)
 	}
 	if err := expectRedirect(resp, ""); err != nil {
-		return "", 0, fmt.Errorf("import: %w", err)
+		return "", 0, "", fmt.Errorf("import: %w", err)
 	}
 	loc := examRe.FindStringSubmatch(resp.Header.Get("Location"))
 	if loc == nil {
-		return "", 0, fmt.Errorf("import: redirect to %q, want /admin/exams/<id>", resp.Header.Get("Location"))
+		return "", 0, "", fmt.Errorf("import: redirect to %q, want /admin/exams/<id>", resp.Header.Get("Location"))
 	}
 	examID, _ = strconv.Atoi(loc[1])
 
 	resp, _, err = c.postForm(ctx, fmt.Sprintf("/admin/exams/%d/open", examID), admin, url.Values{"csrf_token": {csrf}})
 	if err != nil {
-		return "", 0, fmt.Errorf("open: %w", err)
+		return "", 0, "", fmt.Errorf("open: %w", err)
 	}
 	if err := expectRedirect(resp, "/admin/exams"); err != nil {
-		return "", 0, fmt.Errorf("open: %w", err)
+		return "", 0, "", fmt.Errorf("open: %w", err)
 	}
-	return admin, examID, nil
+
+	resp, body, err = c.do(ctx, http.MethodGet, fmt.Sprintf("/admin/exams/%d", examID), admin, "", nil)
+	if err != nil {
+		return "", 0, "", fmt.Errorf("exam page: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", 0, "", fmt.Errorf("exam page: status %d", resp.StatusCode)
+	}
+	if m = codeRe.FindSubmatch(body); m == nil {
+		return "", 0, "", errors.New("exam page: no exam code")
+	}
+	return admin, examID, string(m[1]), nil
 }
 
 // examText generates the exam file. The correct option of question q
@@ -347,8 +360,8 @@ func expectedScore(i, questions int) int { return i % (questions + 1) }
 
 type pick struct{ question, option string }
 
-func student(ctx context.Context, c *client, cfg config, t *tally, i int, ready *sync.WaitGroup, start <-chan struct{}) []time.Duration {
-	picks, cookie := prepare(ctx, c, cfg, t, i)
+func student(ctx context.Context, c *client, cfg config, t *tally, code string, i int, ready *sync.WaitGroup, start <-chan struct{}) []time.Duration {
+	picks, cookie := prepare(ctx, c, cfg, t, code, i)
 	ready.Done()
 	<-start
 	if picks == nil {
@@ -412,10 +425,10 @@ func student(ctx context.Context, c *client, cfg config, t *tally, i int, ready 
 	return latencies
 }
 
-// prepare starts student i and plans its answers in display order. It returns
-// nil picks after reporting a failure.
-func prepare(ctx context.Context, c *client, cfg config, t *tally, i int) ([]pick, string) {
-	resp, _, err := c.postForm(ctx, "/start", "", url.Values{"name": {fmt.Sprintf("Student %03d", i)}})
+// prepare starts student i in the exam with code and plans its answers in
+// display order. It returns nil picks after reporting a failure.
+func prepare(ctx context.Context, c *client, cfg config, t *tally, code string, i int) ([]pick, string) {
+	resp, _, err := c.postForm(ctx, "/start", "", url.Values{"code": {code}, "name": {fmt.Sprintf("Student %03d", i)}})
 	if err != nil {
 		t.fail(i, "start", "%v", err)
 		return nil, ""

@@ -92,13 +92,78 @@ func (h *harness) questions(t *testing.T, examID int64) []exam.Question {
 	return qs
 }
 
+// code returns the exam code of examID.
+func (h *harness) code(t *testing.T, examID int64) string {
+	t.Helper()
+	var code string
+	if err := h.db.QueryRow(`SELECT code FROM exam WHERE id = ?`, examID).Scan(&code); err != nil {
+		t.Fatalf("code of exam %d: %v", examID, err)
+	}
+	return code
+}
+
+// openCode returns the code of the single open exam; the test fails when
+// the number of open exams is not 1.
+func (h *harness) openCode(t *testing.T) string {
+	t.Helper()
+	var ids []int64
+	rows, err := h.db.Query(`SELECT id FROM exam WHERE is_open = 1`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 1 {
+		t.Fatalf("open exams = %v, want exactly one", ids)
+	}
+	return h.code(t, ids[0])
+}
+
+// start begins an attempt on the single open exam.
 func (h *harness) start(t *testing.T, name string) string {
 	t.Helper()
-	token, err := h.svc.Start(context.Background(), name)
+	return h.startWith(t, h.openCode(t), name)
+}
+
+// startIn begins an attempt on examID with that exam's code.
+func (h *harness) startIn(t *testing.T, examID int64, name string) string {
+	t.Helper()
+	return h.startWith(t, h.code(t, examID), name)
+}
+
+func (h *harness) startWith(t *testing.T, code, name string) string {
+	t.Helper()
+	token, err := h.svc.Start(context.Background(), code, name)
 	if err != nil {
-		t.Fatalf("Start(%q): %v", name, err)
+		t.Fatalf("Start(%q, %q): %v", code, name, err)
 	}
 	return token
+}
+
+// attemptRows counts every attempt row, whatever its exam.
+func (h *harness) attemptRows(t *testing.T) int {
+	t.Helper()
+	var n int
+	if err := h.db.QueryRow(`SELECT COUNT(*) FROM attempt`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// otherCode is a well-formed exam code that differs from code.
+func otherCode(code string) string {
+	if code == "ABCDEF" {
+		return "GHJKMN"
+	}
+	return "ABCDEF"
 }
 
 func (h *harness) save(t *testing.T, token string, questionID, optionID int64) time.Duration {
@@ -205,30 +270,83 @@ func order(v attempt.View) [][]int64 {
 	return out
 }
 
-func TestStart_RequiresOpenExam(t *testing.T) {
+func TestStart_RefusesCodeWithoutOpenExam(t *testing.T) {
 	h := newHarness(t)
-	_, err := h.svc.Start(context.Background(), "Ayu")
-	wantErr(t, "Start without exams", err, attempt.ErrNoOpenExam)
+	ctx := context.Background()
+	refused := func(label, code string) {
+		t.Helper()
+		before := h.attemptRows(t)
+		_, err := h.svc.Start(ctx, code, "Ayu")
+		wantErr(t, label, err, attempt.ErrNoOpenExam)
+		if got := h.attemptRows(t); got != before {
+			t.Fatalf("%s: attempt rows %d → %d", label, before, got)
+		}
+	}
+	refused("no exams", "ABCDEF")
 
 	id := h.importExam(t, examText("none", examfile.ShowScore, 2, 2))
-	_, err = h.svc.Start(context.Background(), "Ayu")
-	wantErr(t, "Start with a closed exam", err, attempt.ErrNoOpenExam)
+	code := h.code(t, id)
+	refused("closed exam's code", code)
 
-	if err := h.exams.Open(context.Background(), h.owner, id); err != nil {
+	if err := h.exams.Open(ctx, h.owner, id); err != nil {
 		t.Fatal(err)
 	}
-	token := h.start(t, "Ayu")
+	refused("another well-formed code", otherCode(code))
+	refused("empty code", "")
+	refused("short code", "ABC")
+	refused("code plus one symbol", code+"A")
+	token := h.startIn(t, id, "Ayu")
 
-	if err := h.exams.Close(context.Background(), h.owner, id); err != nil {
+	if err := h.exams.Close(ctx, h.owner, id); err != nil {
 		t.Fatal(err)
 	}
-	_, err = h.svc.Start(context.Background(), "Budi")
-	wantErr(t, "Start after Close", err, attempt.ErrNoOpenExam)
+	refused("after Close", code)
 
 	q := h.questions(t, id)[0]
 	h.save(t, token, q.ID, correctOption(q))
 	if got := h.only(t, id).Score; got != 1 {
 		t.Fatalf("score after save on closed exam = %d, want 1", got)
+	}
+}
+
+func TestStart_EntersTheExamNamedByTheCode(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	other := exam.Actor{TeacherID: sqlitetest.Teacher(t, h.db, "other@example.test")}
+	first := h.openExam(t, "# First exam\n"+strings.SplitN(examText("none", examfile.ShowScore, 2, 2), "\n", 2)[1])
+	second, err := h.exams.Import(ctx, other, []byte("# Second exam\n"+strings.SplitN(examText("none", examfile.ShowScore, 3, 2), "\n", 2)[1]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.exams.Open(ctx, other, second); err != nil {
+		t.Fatal(err)
+	}
+
+	ayu := h.startIn(t, first, "Ayu")
+	if v := h.view(t, ayu); v.ExamTitle != "First exam" || len(v.Questions) != 2 {
+		t.Errorf("first exam's code: title %q, %d questions; want \"First exam\", 2", v.ExamTitle, len(v.Questions))
+	}
+	budi := h.startIn(t, second, "Budi")
+	if v := h.view(t, budi); v.ExamTitle != "Second exam" || len(v.Questions) != 3 {
+		t.Errorf("second exam's code: title %q, %d questions; want \"Second exam\", 3", v.ExamTitle, len(v.Questions))
+	}
+	if s := h.only(t, first); s.StudentName != "Ayu" {
+		t.Errorf("first exam's attempt is %q, want Ayu", s.StudentName)
+	}
+	if s := h.only(t, second); s.StudentName != "Budi" {
+		t.Errorf("second exam's attempt is %q, want Budi", s.StudentName)
+	}
+
+	if err := h.exams.Close(ctx, h.owner, first); err != nil {
+		t.Fatal(err)
+	}
+	_, err = h.svc.Start(ctx, h.code(t, first), "Citra")
+	wantErr(t, "closed exam's code", err, attempt.ErrNoOpenExam)
+	h.startIn(t, second, "Dewi")
+	q := h.questions(t, first)[0]
+	h.save(t, ayu, q.ID, correctOption(q))
+	if got := h.only(t, first).Score; got != 1 {
+		t.Errorf("score of the first exam's attempt after Close = %d, want 1", got)
 	}
 }
 
@@ -249,7 +367,7 @@ func TestStart_NameValidation(t *testing.T) {
 		"invalid UTF-8":   "Ay\xffu",
 	}
 	for label, name := range invalid {
-		_, err := h.svc.Start(context.Background(), name)
+		_, err := h.svc.Start(context.Background(), h.code(t, id), name)
 		wantErr(t, label, err, attempt.ErrInvalidName)
 	}
 	if got := len(h.list(t, id)); got != 1 {
@@ -268,6 +386,39 @@ func TestStart_NameValidation(t *testing.T) {
 	}
 	if rows[2].StudentName != "Ayu" || rows[2].ID == rows[0].ID {
 		t.Fatalf("second Ayu = %+v, want a separate attempt from %+v", rows[2], rows[0])
+	}
+}
+
+func TestStart_CodeAsTyped(t *testing.T) {
+	h := newHarness(t)
+	id := h.openExam(t, examText("none", examfile.ShowScore, 1, 2))
+	code := h.code(t, id)
+	lower := strings.ToLower(code)
+	for i, typed := range []string{lower, lower[:3] + "-" + lower[3:], "  " + code[:2] + " " + code[2:4] + " " + code[4:] + "  "} {
+		h.startWith(t, typed, "Ayu")
+		if got := len(h.list(t, id)); got != i+1 {
+			t.Fatalf("after Start(%q): %d attempts, want %d", typed, got, i+1)
+		}
+	}
+}
+
+func TestStart_InvalidNameBeforeCode(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	closed := h.importExam(t, examText("none", examfile.ShowScore, 1, 2))
+	id := h.openExam(t, examText("none", examfile.ShowScore, 1, 2))
+	for label, code := range map[string]string{
+		"closed exam's code": h.code(t, closed),
+		"empty code":         "",
+		"malformed code":     "ABC",
+		"unknown code":       otherCode(h.code(t, id)),
+		"right code":         h.code(t, id),
+	} {
+		_, err := h.svc.Start(ctx, code, "")
+		wantErr(t, label, err, attempt.ErrInvalidName)
+	}
+	if got := h.attemptRows(t); got != 0 {
+		t.Fatalf("invalid names created %d attempts", got)
 	}
 }
 

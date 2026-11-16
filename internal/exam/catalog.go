@@ -8,41 +8,14 @@ import (
 	"time"
 )
 
-// Open opens examID for actor and closes the acting teacher's other open
-// exam. An exam outside the actor's scope is ErrNotFound, checked first so a
-// foreign exam reveals nothing. When another teacher's exam is open the call
-// is refused with ErrOtherTeacherOpen and nothing changes; this holds for
-// admins too. Opening an open exam is a no-op.
+// Open opens examID for actor. No other exam is touched; opening an open
+// exam is a no-op.
 func (s *Service) Open(ctx context.Context, actor Actor, examID int64) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	res, err := s.db.ExecContext(ctx, `UPDATE exam SET is_open = 1 WHERE id = ? AND `+inScope, scoped(examID, actor)...)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
-	var found int
-	err = tx.QueryRowContext(ctx, `SELECT 1 FROM exam WHERE id = ? AND `+inScope, scoped(examID, actor)...).Scan(&found)
-	if errors.Is(err, sql.ErrNoRows) {
-		return ErrNotFound
-	}
-	if err != nil {
-		return err
-	}
-	var openOwner sql.NullInt64
-	err = tx.QueryRowContext(ctx, `SELECT owner_id FROM exam WHERE is_open = 1 AND id <> ?`, examID).Scan(&openOwner)
-	switch {
-	case errors.Is(err, sql.ErrNoRows):
-	case err != nil:
-		return err
-	case !openOwner.Valid || openOwner.Int64 != actor.TeacherID:
-		return ErrOtherTeacherOpen
-	}
-	if _, err := tx.ExecContext(ctx, `UPDATE exam SET is_open = 0 WHERE is_open = 1 AND id <> ?`, examID); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `UPDATE exam SET is_open = 1 WHERE id = ?`, examID); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return requireRow(res)
 }
 
 // Close closes examID for actor. Attempts are not touched.
@@ -76,19 +49,21 @@ func requireRow(res sql.Result) error {
 }
 
 // examColumns reads an exam row. The owner columns are COALESCEd because an
-// exam from before migration 0004 has no owner until startup assigns one.
+// exam from before migration 0004 has no owner until startup assigns one;
+// the code likewise, for an exam from before migration 0005.
 const examColumns = `SELECT id, title, shuffle, show_result, monitor, is_open, created_at,
 	(SELECT COUNT(*) FROM question WHERE exam_id = exam.id),
 	(SELECT COUNT(*) FROM attempt WHERE exam_id = exam.id),
 	COALESCE(exam.owner_id, 0),
-	COALESCE((SELECT email FROM teacher WHERE id = exam.owner_id), '')
+	COALESCE((SELECT email FROM teacher WHERE id = exam.owner_id), ''),
+	COALESCE(exam.code, '')
 	FROM exam`
 
 func scanExam(row interface{ Scan(...any) error }) (Exam, error) {
 	var e Exam
 	var created int64
 	err := row.Scan(&e.ID, &e.Title, &e.Shuffle, &e.ShowResult, &e.Monitor, &e.Open, &created,
-		&e.QuestionCount, &e.AttemptCount, &e.OwnerID, &e.OwnerEmail)
+		&e.QuestionCount, &e.AttemptCount, &e.OwnerID, &e.OwnerEmail, &e.Code)
 	e.CreatedAt = time.UnixMilli(created).UTC()
 	return e, err
 }
@@ -118,18 +93,6 @@ func (s *Service) Get(ctx context.Context, actor Actor, examID int64) (Exam, err
 		return Exam{}, ErrNotFound
 	}
 	return e, err
-}
-
-// Current returns the open exam, if any.
-func (s *Service) Current(ctx context.Context) (Exam, bool, error) {
-	e, err := scanExam(s.db.QueryRowContext(ctx, examColumns+` WHERE is_open = 1`))
-	if errors.Is(err, sql.ErrNoRows) {
-		return Exam{}, false, nil
-	}
-	if err != nil {
-		return Exam{}, false, err
-	}
-	return e, true, nil
 }
 
 // Questions returns the exam's questions in original order, with the key.

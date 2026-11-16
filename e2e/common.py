@@ -140,6 +140,28 @@ def import_and_open(page: Page, zip_path) -> int:
     return exam_id
 
 
+EXAM_CODE = re.compile(r"^[ABCDEFGHJKMNPQRSTVWXYZ2-9]{6}$")
+REFUSED = "No open exam has that code. Check it with your teacher."
+
+
+def exam_code(page: Page, exam_id: int) -> str:
+    """The code in the exam's row; the page must be on the exams list."""
+    code = page.locator(f"#exams tr[data-exam-id='{exam_id}'] td.code").inner_text().strip()
+    if not EXAM_CODE.match(code):
+        raise AssertionError(f"exam {exam_id} has code {code!r}, want 6 symbols of the code alphabet")
+    return code
+
+
+def start(page: Page, base_url: str, code: str, name: str) -> None:
+    """Open the landing page, type the code and the name, press Start; lands on the exam."""
+    page.goto(base_url + "/")
+    form = page.locator("#start-form")
+    form.locator("input[name=code]").fill(code)
+    form.locator("input[name=name]").fill(name)
+    form.locator("button[type=submit]").click()
+    expect(page.locator("main#exam")).to_be_visible()
+
+
 def watch(context: BrowserContext, base_url: str) -> dict:
     """Record every request URL, console error and page error in context."""
     log = {"requests": [], "console_errors": [], "page_errors": []}

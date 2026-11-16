@@ -11,6 +11,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"io"
 	"io/fs"
 	"math/rand/v2"
 	"os"
@@ -39,6 +40,13 @@ type harness struct {
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
+	return newHarnessWithRandom(t, rand.NewChaCha8([32]byte{1, 2, 3}))
+}
+
+// newHarnessWithRandom returns a harness whose service draws media keys and
+// exam codes from random.
+func newHarnessWithRandom(t *testing.T, random io.Reader) *harness {
+	t.Helper()
 	dir := t.TempDir()
 	media, err := os.OpenRoot(dir)
 	if err != nil {
@@ -47,7 +55,6 @@ func newHarness(t *testing.T) *harness {
 	t.Cleanup(func() { media.Close() })
 	h := &harness{db: sqlitetest.Open(t), media: media, dir: dir, clock: fixedNow}
 	h.owner = exam.Actor{TeacherID: sqlitetest.Teacher(t, h.db, "owner@example.test")}
-	random := rand.NewChaCha8([32]byte{1, 2, 3})
 	h.svc = exam.NewService(h.db, media, func() time.Time { return h.clock }, random)
 	return h
 }
@@ -269,7 +276,7 @@ func TestImport_StoresExamAndImages(t *testing.T) {
 	want := exam.Exam{
 		ID: id, Title: "Geometry", Shuffle: examfile.ShuffleNone, ShowResult: examfile.ShowReview,
 		Monitor: true, Open: false, CreatedAt: fixedNow, QuestionCount: 2, AttemptCount: 0,
-		OwnerID: h.owner.TeacherID, OwnerEmail: "owner@example.test",
+		OwnerID: h.owner.TeacherID, OwnerEmail: "owner@example.test", Code: h.storedCode(t, id),
 	}
 	if !ex.CreatedAt.Equal(fixedNow) {
 		t.Errorf("CreatedAt = %v, want %v", ex.CreatedAt, fixedNow)
@@ -520,7 +527,7 @@ func TestReplace_DBFailureLeavesNoMedia(t *testing.T) {
 	}
 }
 
-func TestOpen_ClosesOtherExam(t *testing.T) {
+func TestOpen_NeverClosesAnotherExam(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()
 	a := h.mustImport(t, []byte(simpleExam))
@@ -534,12 +541,14 @@ func TestOpen_ClosesOtherExam(t *testing.T) {
 	if err := h.svc.Open(ctx, h.owner, b); err != nil {
 		t.Fatal(err)
 	}
-	if h.mustGet(t, a).Open || !h.mustGet(t, b).Open {
-		t.Errorf("open flags: a=%v b=%v, want only b", h.mustGet(t, a).Open, h.mustGet(t, b).Open)
+	if got := h.openIDs(t); !slices.Equal(got, []int64{a, b}) {
+		t.Errorf("open exams = %v, want [%d %d]", got, a, b)
 	}
-	cur, ok, err := h.svc.Current(ctx)
-	if err != nil || !ok || cur.ID != b {
-		t.Errorf("Current = %+v, %v, %v; want exam %d", cur, ok, err, b)
+	if err := h.svc.Close(ctx, h.owner, a); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.openIDs(t); !slices.Equal(got, []int64{b}) {
+		t.Errorf("open exams after closing a = %v, want [%d]", got, b)
 	}
 }
 
@@ -554,8 +563,11 @@ func TestClose(t *testing.T) {
 	if err := h.svc.Close(ctx, h.owner, id); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
-	if _, ok, err := h.svc.Current(ctx); err != nil || ok {
-		t.Errorf("Current after Close: ok=%v err=%v", ok, err)
+	if got := h.openIDs(t); len(got) != 0 {
+		t.Errorf("open exams after Close = %v, want none", got)
+	}
+	if _, ok, err := h.svc.OpenByCode(ctx, h.mustGet(t, id).Code); err != nil || ok {
+		t.Errorf("OpenByCode after Close: ok=%v err=%v", ok, err)
 	}
 	if ex := h.mustGet(t, id); ex.Open || ex.AttemptCount != 1 {
 		t.Errorf("after Close: %+v", ex)
@@ -721,7 +733,7 @@ func TestScope_MutationsOnForeignExamAreNotFound(t *testing.T) {
 	}
 }
 
-func TestOpen_RefusedWhileOtherTeachersExamIsOpen(t *testing.T) {
+func TestOpen_TeachersOpenAndCloseIndependently(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()
 	a := h.teacher(t, "a@example.test")
@@ -731,7 +743,6 @@ func TestOpen_RefusedWhileOtherTeachersExamIsOpen(t *testing.T) {
 	a2 := h.importAs(t, a, []byte(simpleExam))
 	b1 := h.importAs(t, b, []byte(simpleExam))
 	d1 := h.importAs(t, admin, []byte(simpleExam))
-	d2 := h.importAs(t, admin, []byte(simpleExam))
 
 	mustOpen := func(actor exam.Actor, id int64) {
 		t.Helper()
@@ -751,40 +762,31 @@ func TestOpen_RefusedWhileOtherTeachersExamIsOpen(t *testing.T) {
 			t.Fatalf("open exams = %v, want %v", got, ids)
 		}
 	}
-	refused := func(name string, actor exam.Actor, id int64) {
-		t.Helper()
-		if err := h.svc.Open(ctx, actor, id); !errors.Is(err, exam.ErrOtherTeacherOpen) {
-			t.Errorf("%s: Open = %v, want ErrOtherTeacherOpen", name, err)
-		}
-	}
 
 	mustOpen(a, a1)
-	refused("B on B1", b, b1)
-	wantOpen(a1)
-	refused("admin on B1", admin, b1)
-	refused("admin on A2", admin, a2)
-	refused("admin on its own exam", admin, d1)
-	wantOpen(a1)
-
-	mustOpen(a, a2)
-	wantOpen(a2)
-
-	mustClose(admin, a2)
-	mustOpen(admin, b1)
-	wantOpen(b1)
-
-	mustClose(admin, b1)
-	mustOpen(admin, d1)
-	mustOpen(admin, d2)
-	wantOpen(d2)
-
-	mustClose(admin, d2)
-	wantOpen()
 	mustOpen(b, b1)
-	wantOpen(b1)
+	wantOpen(a1, b1)
+
+	mustOpen(admin, d1)
+	mustOpen(admin, a2)
+	wantOpen(a1, a2, b1, d1)
+
+	mustClose(b, b1)
+	wantOpen(a1, a2, d1)
+
+	if err := h.svc.Close(ctx, b, a1); !errors.Is(err, exam.ErrNotFound) {
+		t.Errorf("Close(B, a1) = %v, want ErrNotFound", err)
+	}
+	if err := h.svc.Open(ctx, b, a1); !errors.Is(err, exam.ErrNotFound) {
+		t.Errorf("Open(B, a1) = %v, want ErrNotFound", err)
+	}
+	wantOpen(a1, a2, d1)
+
+	mustClose(admin, a1)
+	wantOpen(a2, d1)
 }
 
-func TestOpen_ForeignExamIsNotFoundEvenWhileAnotherIsOpen(t *testing.T) {
+func TestOpen_ForeignExamIsNotFound(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()
 	a := h.teacher(t, "a@example.test")
@@ -796,5 +798,188 @@ func TestOpen_ForeignExamIsNotFoundEvenWhileAnotherIsOpen(t *testing.T) {
 	}
 	if err := h.svc.Open(ctx, b, a2); !errors.Is(err, exam.ErrNotFound) {
 		t.Errorf("Open(B, A's other exam) = %v, want ErrNotFound", err)
+	}
+	if got := h.openIDs(t); !slices.Equal(got, []int64{a1}) {
+		t.Errorf("open exams = %v, want only a1 = [%d] (a2 = %d stays closed)", got, a1, a2)
+	}
+}
+
+var examCode = regexp.MustCompile(`^[ABCDEFGHJKMNPQRSTVWXYZ2-9]{6}$`)
+
+// storedCode reads the code column of exam id.
+func (h *harness) storedCode(t *testing.T, id int64) string {
+	t.Helper()
+	var code string
+	if err := h.db.QueryRow(`SELECT code FROM exam WHERE id = ?`, id).Scan(&code); err != nil {
+		t.Fatal(err)
+	}
+	return code
+}
+
+// codeBytes are random bytes that shortcode.Random turns into code: one
+// alphabet index per symbol, then six bytes the draw does not need.
+func codeBytes(indexes ...byte) []byte {
+	return append(indexes, 0, 0, 0, 0, 0, 0)
+}
+
+func TestImport_GeneratesCode(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	first := h.mustImport(t, []byte(simpleExam))
+	second := h.mustImport(t, []byte(simpleExam))
+
+	a, b := h.mustGet(t, first).Code, h.mustGet(t, second).Code
+	if !examCode.MatchString(a) || !examCode.MatchString(b) {
+		t.Fatalf("codes = %q, %q; want 6 symbols of the alphabet", a, b)
+	}
+	if stored := h.storedCode(t, first); stored != a {
+		t.Errorf("stored code = %q, Get says %q", stored, a)
+	}
+	if a == b {
+		t.Errorf("two imports share code %q", a)
+	}
+	list, err := h.svc.List(ctx, h.owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	listed := map[int64]string{}
+	for _, e := range list {
+		listed[e.ID] = e.Code
+	}
+	if listed[first] != a || listed[second] != b {
+		t.Errorf("List codes = %v, want %d:%q %d:%q", listed, first, a, second, b)
+	}
+}
+
+func TestImport_CodeCollisionRetries(t *testing.T) {
+	abcdef := codeBytes(0, 1, 2, 3, 4, 5)
+	random := slices.Concat(
+		bytes.Repeat([]byte{1}, 16), abcdef,
+		bytes.Repeat([]byte{2}, 16), abcdef, codeBytes(6, 7, 8, 9, 10, 11),
+	)
+	h := newHarnessWithRandom(t, bytes.NewReader(random))
+	first := h.mustImport(t, []byte(simpleExam))
+	second := h.mustImport(t, []byte(simpleExam))
+	if got := h.mustGet(t, first).Code; got != "ABCDEF" {
+		t.Errorf("first code = %q, want ABCDEF", got)
+	}
+	if got := h.mustGet(t, second).Code; got != "GHJKMN" {
+		t.Errorf("second code = %q, want GHJKMN after the collision", got)
+	}
+}
+
+func TestImport_CodeExhaustionStoresNothing(t *testing.T) {
+	abcdef := codeBytes(0, 1, 2, 3, 4, 5)
+	random := slices.Concat(
+		bytes.Repeat([]byte{1}, 16), abcdef,
+		bytes.Repeat([]byte{2}, 16), bytes.Repeat(abcdef, 5),
+	)
+	h := newHarnessWithRandom(t, bytes.NewReader(random))
+	h.mustImport(t, []byte(simpleExam))
+	entries := h.mediaEntries(t)
+
+	zipData, _ := imageExam(t, "Unlucky", color.Black)
+	_, err := h.svc.Import(context.Background(), h.owner, zipData)
+	var fileErr *examfile.Error
+	if err == nil || errors.As(err, &fileErr) {
+		t.Fatalf("Import after five collisions: err = %v, want a non-file error", err)
+	}
+	if !strings.Contains(err.Error(), "could not generate a unique exam code") {
+		t.Errorf("Import after five collisions: err = %v, want the unique-code failure", err)
+	}
+	var n int
+	if err := h.db.QueryRow(`SELECT COUNT(*) FROM exam`).Scan(&n); err != nil || n != 1 {
+		t.Errorf("exams = %d, %v; want 1", n, err)
+	}
+	if got := h.mediaEntries(t); !slices.Equal(got, entries) {
+		t.Errorf("media entries = %v, want %v", got, entries)
+	}
+}
+
+func TestReplace_KeepsCode(t *testing.T) {
+	h := newHarness(t)
+	id := h.mustImport(t, []byte(simpleExam))
+	before := h.mustGet(t, id).Code
+	if err := h.svc.Replace(context.Background(), h.owner, id, []byte("# Renamed\n\n1. Q\n- a *\n- b\n")); err != nil {
+		t.Fatalf("Replace: %v", err)
+	}
+	after := h.mustGet(t, id)
+	if after.Title != "Renamed" {
+		t.Fatalf("title after Replace = %q, want Renamed", after.Title)
+	}
+	if after.Code != before {
+		t.Errorf("code after Replace = %q, want %q", after.Code, before)
+	}
+}
+
+func TestAssignMissingCodes_LeavesCodedExamsAlone(t *testing.T) {
+	h := newHarness(t)
+	a := h.mustImport(t, []byte(simpleExam))
+	b := h.mustImport(t, []byte(simpleExam))
+	codeA, codeB := h.mustGet(t, a).Code, h.mustGet(t, b).Code
+
+	n, err := h.svc.AssignMissingCodes(context.Background())
+	if err != nil || n != 0 {
+		t.Fatalf("AssignMissingCodes = %d, %v; want 0, nil", n, err)
+	}
+	if got := h.mustGet(t, a).Code; got != codeA {
+		t.Errorf("code of %d = %q, want %q", a, got, codeA)
+	}
+	if got := h.mustGet(t, b).Code; got != codeB {
+		t.Errorf("code of %d = %q, want %q", b, got, codeB)
+	}
+}
+
+func TestNormalizeCode(t *testing.T) {
+	for _, in := range []string{"abc-def", " ABC DEF ", "a.b.c.d.e.f"} {
+		if got, ok := exam.NormalizeCode(in); got != "ABCDEF" || !ok {
+			t.Errorf("NormalizeCode(%q) = %q, %v; want ABCDEF, true", in, got, ok)
+		}
+	}
+	for _, in := range []string{"ABCDE", "ABCDEFG", "ABCDEO", "", "ABCD-EFGH"} {
+		if _, ok := exam.NormalizeCode(in); ok {
+			t.Errorf("NormalizeCode(%q) ok, want refused", in)
+		}
+	}
+}
+
+func TestOpenByCode(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	id := h.mustImport(t, []byte(simpleExam))
+	code := h.mustGet(t, id).Code
+	lower := strings.ToLower(code)
+	typed := []string{code, lower, lower[:3] + "-" + lower[3:], " " + code[:3] + " " + code[3:] + " "}
+
+	notFound := func(label, input string) {
+		t.Helper()
+		if e, ok, err := h.svc.OpenByCode(ctx, input); err != nil || ok {
+			t.Errorf("%s: OpenByCode(%q) = %+v, %v, %v; want not found", label, input, e, ok, err)
+		}
+	}
+	for _, in := range typed {
+		notFound("before Open", in)
+	}
+	if err := h.svc.Open(ctx, h.owner, id); err != nil {
+		t.Fatal(err)
+	}
+	for _, in := range typed {
+		e, ok, err := h.svc.OpenByCode(ctx, in)
+		if err != nil || !ok || e.ID != id || e.Title != "Simple" || e.Code != code {
+			t.Errorf("OpenByCode(%q) = %+v, %v, %v; want exam %d %q", in, e, ok, err, id, code)
+		}
+	}
+	other := "ABCDEF"
+	if other == code {
+		other = "GHJKMN"
+	}
+	notFound("unknown code", other)
+	notFound("empty", "")
+	notFound("short", "ABC")
+	if err := h.svc.Close(ctx, h.owner, id); err != nil {
+		t.Fatal(err)
+	}
+	for _, in := range typed {
+		notFound("after Close", in)
 	}
 }

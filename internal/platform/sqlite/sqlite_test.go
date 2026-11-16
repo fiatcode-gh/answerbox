@@ -3,6 +3,7 @@ package sqlite_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/fiatcode-gh/go-exam/internal/platform/sqlite"
 	"github.com/fiatcode-gh/go-exam/internal/platform/sqlite/sqlitetest"
+	"github.com/fiatcode-gh/go-exam/internal/shortcode"
 )
 
 func openFile(t *testing.T, path string) *sql.DB {
@@ -48,18 +50,36 @@ const ownerTeacher = `INSERT INTO teacher (id, email, created_at) VALUES (1, 'ow
 // it (migrations 0001 and 0002, user_version 2) and returns a raw handle.
 func openVersion2(t *testing.T, path string) *sql.DB {
 	t.Helper()
+	return openBuilt(t, path, 2)
+}
+
+// openVersion4 creates a database file at path as the teachers release left
+// it (migrations 0001 to 0004, user_version 4) and returns a raw handle.
+func openVersion4(t *testing.T, path string) *sql.DB {
+	t.Helper()
+	return openBuilt(t, path, 4)
+}
+
+// openBuilt applies the first version migrations by hand to a new file at
+// path, sets user_version and returns a raw handle.
+func openBuilt(t *testing.T, path string, version int) *sql.DB {
+	t.Helper()
 	old, err := sql.Open("sqlite", path+"?_pragma=foreign_keys(1)")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"migrations/0001_init.sql", "migrations/0002_monitor.sql"} {
+	names, err := filepath.Glob("migrations/*.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range names[:version] {
 		schema, err := os.ReadFile(name)
 		if err != nil {
 			t.Fatal(err)
 		}
 		mustExec(t, old, string(schema))
 	}
-	mustExec(t, old, `PRAGMA user_version = 2`)
+	mustExec(t, old, fmt.Sprintf(`PRAGMA user_version = %d`, version))
 	return old
 }
 
@@ -83,13 +103,13 @@ func TestOpen_WAL(t *testing.T) {
 	}
 
 	mustExec(t, db, ownerTeacher)
-	mustExec(t, db, `INSERT INTO exam (title, shuffle, show_result, media_key, created_at, owner_id) VALUES ('t','none','score','k1',0,1)`)
+	mustExec(t, db, `INSERT INTO exam (title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES ('t','none','score','k1',0,1,'AAAAAA')`)
 	tx, err := db.Begin()
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
 	defer tx.Rollback()
-	mustExec(t, tx, `INSERT INTO exam (title, shuffle, show_result, media_key, created_at, owner_id) VALUES ('u','none','score','k2',0,1)`)
+	mustExec(t, tx, `INSERT INTO exam (title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES ('u','none','score','k2',0,1,'BBBBBB')`)
 
 	// A reader on another handle (as sqlite3 .backup would be) is not blocked by the open write transaction.
 	reader := openFile(t, path)
@@ -110,16 +130,16 @@ func TestOpen_MigratesOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	if got := pragma(t, db, "user_version"); got != "4" {
-		t.Errorf("user_version = %s, want 4", got)
+	if got := pragma(t, db, "user_version"); got != "5" {
+		t.Errorf("user_version = %s, want 5", got)
 	}
 	mustExec(t, db, ownerTeacher)
-	mustExec(t, db, `INSERT INTO exam (title, shuffle, show_result, media_key, created_at, owner_id) VALUES ('t','none','score','k1',0,1)`)
+	mustExec(t, db, `INSERT INTO exam (title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES ('t','none','score','k1',0,1,'AAAAAA')`)
 	db.Close()
 
 	db = openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "4" {
-		t.Errorf("user_version after reopen = %s, want 4", got)
+	if got := pragma(t, db, "user_version"); got != "5" {
+		t.Errorf("user_version after reopen = %s, want 5", got)
 	}
 	var title string
 	if err := db.QueryRow(`SELECT title FROM exam`).Scan(&title); err != nil || title != "t" {
@@ -151,8 +171,8 @@ func TestMigrate_0002KeepsVersion1Data(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "4" {
-		t.Fatalf("user_version = %s, want 4", got)
+	if got := pragma(t, db, "user_version"); got != "5" {
+		t.Fatalf("user_version = %s, want 5", got)
 	}
 	var (
 		title, name, code string
@@ -197,8 +217,8 @@ func TestMigrate_0003KeepsVersion2Data(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "4" {
-		t.Fatalf("user_version = %s, want 4", got)
+	if got := pragma(t, db, "user_version"); got != "5" {
+		t.Fatalf("user_version = %s, want 5", got)
 	}
 	var (
 		title, name, code, kind  string
@@ -260,8 +280,8 @@ func TestMigrate_0004KeepsExamsAndRequiresOwner(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "4" {
-		t.Fatalf("user_version = %s, want 4", got)
+	if got := pragma(t, db, "user_version"); got != "5" {
+		t.Fatalf("user_version = %s, want 5", got)
 	}
 	var (
 		title, student string
@@ -278,12 +298,12 @@ func TestMigrate_0004KeepsExamsAndRequiresOwner(t *testing.T) {
 	}
 
 	const needsOwner = "exam needs an owner"
-	_, err = db.Exec(`INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at) VALUES (2,'New','none','score','k2',0)`)
+	_, err = db.Exec(`INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, code) VALUES (2,'New','none','score','k2',0,'AAAAAA')`)
 	if err == nil || !strings.Contains(err.Error(), needsOwner) {
 		t.Fatalf("insert without owner: err = %v, want %q", err, needsOwner)
 	}
 	id := sqlitetest.Teacher(t, db, "ada@example.test")
-	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id) VALUES (2,'New','none','score','k2',0,?)`, id)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES (2,'New','none','score','k2',0,?,'AAAAAA')`, id)
 	_, err = db.Exec(`UPDATE exam SET owner_id = NULL WHERE id = 2`)
 	if err == nil || !strings.Contains(err.Error(), needsOwner) {
 		t.Fatalf("clearing the owner: err = %v, want %q", err, needsOwner)
@@ -294,23 +314,104 @@ func TestMigrate_0004KeepsExamsAndRequiresOwner(t *testing.T) {
 	}
 }
 
-func TestSchema_OneOpenExam(t *testing.T) {
+func TestSchema_SeveralOpenExams(t *testing.T) {
 	db := sqlitetest.Open(t)
 	mustExec(t, db, ownerTeacher)
-	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, owner_id) VALUES (1,'a','none','score',1,'k1',0,1)`)
-	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id) VALUES (2,'b','none','score','k2',0,1)`)
-	_, err := db.Exec(`UPDATE exam SET is_open = 1 WHERE id = 2`)
-	if err == nil || !strings.Contains(err.Error(), "UNIQUE") {
-		t.Fatalf("second open exam: err = %v, want UNIQUE constraint error", err)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, owner_id, code) VALUES (1,'a','none','score',1,'k1',0,1,'AAAAAA')`)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, owner_id, code) VALUES (2,'b','none','score',1,'k2',0,1,'BBBBBB')`)
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE name = 'exam_one_open'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("exam_one_open index count = %d, %v; want 0", n, err)
 	}
-	mustExec(t, db, `UPDATE exam SET is_open = 0 WHERE id = 1`)
-	mustExec(t, db, `UPDATE exam SET is_open = 1 WHERE id = 2`)
+}
+
+// TestMigrate_0005KeepsExamsAndAddsCodes opens a version-4 database with an
+// open exam, an attempt and an answer and checks that the exam-code migration
+// keeps every row (the code still unset until startup gives one) and that
+// from then on an exam cannot be stored without a code, a code is unique and
+// a set code never changes.
+func TestMigrate_0005KeepsExamsAndAddsCodes(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "go-exam.db")
+	old := openVersion4(t, path)
+	mustExec(t, old, ownerTeacher)
+	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id) VALUES (1,'Old','none','score',1,'k1',5,0,1)`)
+	mustExec(t, old, `INSERT INTO question (id, exam_id, position, body_html) VALUES (1,1,1,'q1')`)
+	mustExec(t, old, `INSERT INTO question_option (id, question_id, position, body_html, is_correct) VALUES (1,1,1,'o1',1),(2,1,2,'o2',0)`)
+	mustExec(t, old, `INSERT INTO attempt (id, exam_id, student_name, token_hash, resume_code, shuffle_seed, started_at, deadline_at) VALUES (1,1,'Ayu',x'01','ABCDEFGH',7,10,20)`)
+	mustExec(t, old, `INSERT INTO answer (attempt_id, question_id, option_id) VALUES (1,1,2)`)
+	old.Close()
+
+	db := openFile(t, path)
+	if got := pragma(t, db, "user_version"); got != "5" {
+		t.Fatalf("user_version = %s, want 5", got)
+	}
+	var (
+		title, student string
+		open, option   int
+		owner          int64
+		code           sql.NullString
+	)
+	err := db.QueryRow(`SELECT e.title, e.is_open, e.owner_id, e.code, a.student_name, an.option_id
+		FROM exam e JOIN attempt a ON a.exam_id = e.id JOIN answer an ON an.attempt_id = a.id`).
+		Scan(&title, &open, &owner, &code, &student, &option)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if title != "Old" || open != 1 || owner != 1 || code.Valid || student != "Ayu" || option != 2 {
+		t.Fatalf("after migration: %q open=%d owner=%d code=%v %q option=%d", title, open, owner, code, student, option)
+	}
+
+	const needsCode = "exam needs a code"
+	_, err = db.Exec(`INSERT INTO exam (title, shuffle, show_result, media_key, created_at, owner_id) VALUES ('New','none','score','k2',0,1)`)
+	if err == nil || !strings.Contains(err.Error(), needsCode) {
+		t.Fatalf("insert without code: err = %v, want %q", err, needsCode)
+	}
+	mustExec(t, db, `UPDATE exam SET code = 'ABCDEF' WHERE id = 1`)
+	_, err = db.Exec(`INSERT INTO exam (title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES ('New','none','score','k3',0,1,'ABCDEF')`)
+	if err == nil || !strings.Contains(err.Error(), "UNIQUE") {
+		t.Fatalf("repeated code: err = %v, want a UNIQUE constraint error", err)
+	}
+	mustExec(t, db, `INSERT INTO exam (title, shuffle, show_result, is_open, media_key, created_at, owner_id, code) VALUES ('New','none','score',1,'k4',0,1,'GHJKMN')`)
+	const fixed = "exam code is fixed"
+	for _, q := range []string{
+		`UPDATE exam SET code = 'ZZZZZZ' WHERE id = 1`,
+		`UPDATE exam SET code = NULL WHERE id = 1`,
+	} {
+		if _, err := db.Exec(q); err == nil || !strings.Contains(err.Error(), fixed) {
+			t.Errorf("%s: err = %v, want %q", q, err, fixed)
+		}
+	}
+	mustExec(t, db, `UPDATE exam SET title = 'x' WHERE id = 1`)
+}
+
+// TestSchema_CodeFormat keeps the schema's code check in step with
+// shortcode.Alphabet.
+func TestSchema_CodeFormat(t *testing.T) {
+	db := sqlitetest.Open(t)
+	mustExec(t, db, ownerTeacher)
+	insert := func(key, code string) error {
+		_, err := db.Exec(`INSERT INTO exam (title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES ('t','none','score',?,0,1,?)`, key, code)
+		return err
+	}
+	symbols := "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	for i := range len(symbols) {
+		c := symbols[i]
+		err := insert("k"+string(c), "AAAAA"+string(c))
+		if want := strings.IndexByte(shortcode.Alphabet, c) >= 0; want != (err == nil) {
+			t.Errorf("code AAAAA%c: err = %v, want accepted = %v", c, err, want)
+		}
+	}
+	for _, bad := range []string{"abcdef", "ABCDE", "ABCDEFG", "ABC-DE", ""} {
+		if err := insert("bad"+bad, bad); err == nil || !strings.Contains(err.Error(), "CHECK") {
+			t.Errorf("code %q: err = %v, want a CHECK constraint error", bad, err)
+		}
+	}
 }
 
 func TestSchema_FreezeTriggers(t *testing.T) {
 	db := sqlitetest.Open(t)
 	mustExec(t, db, ownerTeacher)
-	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id) VALUES (1,'a','none','score','k1',0,1)`)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES (1,'a','none','score','k1',0,1,'AAAAAA')`)
 	mustExec(t, db, `INSERT INTO question (id, exam_id, position, body_html) VALUES (1,1,1,'q1')`)
 	mustExec(t, db, `INSERT INTO question_option (id, question_id, position, body_html, is_correct) VALUES (1,1,1,'o1',1)`)
 

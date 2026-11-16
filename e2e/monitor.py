@@ -22,9 +22,11 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from common import (
     add_sign_in_args,
     build_fixture_zip,
+    exam_code,
     foreign_requests,
     import_and_open,
     require_cross_site,
+    start,
     teacher_login,
     watch,
 )
@@ -45,14 +47,6 @@ def step(name: str):
         yield
     except Exception as err:  # every failure names its step
         raise StepFailed(f"FAIL [{name}]: {err}") from err
-
-
-def start(page: Page, base_url: str, name: str) -> None:
-    page.goto(base_url + "/")
-    form = page.locator("#start-form")
-    form.locator("input[name=name]").fill(name)
-    form.locator("button[type=submit]").click()
-    expect(page.locator("main#exam")).to_be_visible()
 
 
 def question(page: Page, n: int):
@@ -216,12 +210,13 @@ def run(base_url: str, email: str, oidc_url: str, out: Path) -> None:
             zip_on, key = build_fixture_zip(Path(tmp) / "on", title="Monitor on")
             teacher_login(teacher, base_url, email)
             on_id = import_and_open(teacher, zip_on)
+            on_code = exam_code(teacher, on_id)
             teacher.goto(f"{base_url}/admin/exams/{on_id}")
             expect(teacher.locator("dl.settings")).to_contain_text(re.compile(r"Monitor\s*On"))
 
         s1 = new_context(**DESKTOP).new_page()
         with step("2 student starts; no banner; an answer saves"):
-            start(s1, base_url, "Ayu Lestari")
+            start(s1, base_url, on_code, "Ayu Lestari")
             expect(s1.locator("main#exam")).to_have_attribute("data-monitor", "on")
             expect(s1.locator("#monitor-banner")).to_be_hidden()
             s1.evaluate(PROBE_JS)
@@ -344,7 +339,7 @@ def run(base_url: str, email: str, oidc_url: str, out: Path) -> None:
 
         with step("7a without the banner element the monitor stays off and the exam page still works"):
             s3 = new_context(**DESKTOP).new_page()
-            start(s3, base_url, "Citra Dewi")
+            start(s3, base_url, on_code, "Citra Dewi")
 
             def without_banner(route):
                 response = route.fetch()
@@ -368,6 +363,7 @@ def run(base_url: str, email: str, oidc_url: str, out: Path) -> None:
             zip_off, _ = build_fixture_zip(Path(tmp) / "off", title="Monitor off", monitor="off")
             teacher.goto(f"{base_url}/admin/exams")
             off_id = import_and_open(teacher, zip_off)
+            off_code = exam_code(teacher, off_id)
             teacher.goto(f"{base_url}/admin/exams/{off_id}")
             expect(teacher.locator("dl.settings")).to_contain_text(re.compile(r"Monitor\s*Off"))
 
@@ -376,7 +372,7 @@ def run(base_url: str, email: str, oidc_url: str, out: Path) -> None:
         s2_context.on("request", lambda r: r.url.endswith("/exam/event") and event_posts.append(r.url))
         s2 = s2_context.new_page()
         with step("9 monitor off: leaving, paste and right-click are neither blocked nor flagged"):
-            start(s2, base_url, "Budi Santoso")
+            start(s2, base_url, off_code, "Budi Santoso")
             expect(s2.locator("main#exam")).to_have_attribute("data-monitor", "off")
             s2.evaluate(PROBE_JS)
             pick_and_save(s2, 1, 0)

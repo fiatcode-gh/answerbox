@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -165,15 +167,21 @@ func dumpRows(t *testing.T, db *sql.DB) string {
 	return b.String()
 }
 
-func TestNewAdmin_AssignsExistingExamsToFirstAdmin(t *testing.T) {
-	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "go-exam.db")
+// openOldDatabase creates a database file at path with the first version
+// migrations applied by hand, as that release left it, and returns a raw
+// handle.
+func openOldDatabase(t *testing.T, path string, version int) *sql.DB {
+	t.Helper()
 	old, err := sql.Open("sqlite", path+"?_pragma=foreign_keys(1)")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"0001_init.sql", "0002_monitor.sql"} {
-		schema, err := os.ReadFile("../../internal/platform/sqlite/migrations/" + name)
+	names, err := filepath.Glob("../../internal/platform/sqlite/migrations/*.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range names[:version] {
+		schema, err := os.ReadFile(name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -181,8 +189,17 @@ func TestNewAdmin_AssignsExistingExamsToFirstAdmin(t *testing.T) {
 			t.Fatalf("%s: %v", name, err)
 		}
 	}
+	if _, err := old.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, version)); err != nil {
+		t.Fatal(err)
+	}
+	return old
+}
+
+func TestNewAdmin_AssignsExistingExamsToFirstAdmin(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "go-exam.db")
+	old := openOldDatabase(t, path, 2)
 	for _, q := range []string{
-		`PRAGMA user_version = 2`,
 		`INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor) VALUES (1,'Old','none','score',1,'k1',5,1)`,
 		`INSERT INTO question (id, exam_id, position, body_html) VALUES (1,1,1,'q1')`,
 		`INSERT INTO question_option (id, question_id, position, body_html, is_correct) VALUES (1,1,1,'o1',1),(2,1,2,'o2',0)`,
@@ -238,6 +255,103 @@ func TestNewAdmin_AssignsExistingExamsToFirstAdmin(t *testing.T) {
 	}
 	if strings.Contains(logs.String(), assigned) {
 		t.Errorf("second start logged an assignment: %q", logs.String())
+	}
+}
+
+var examCodePattern = regexp.MustCompile(`^[ABCDEFGHJKMNPQRSTVWXYZ2-9]{6}$`)
+
+// examCodes returns every exam's code by id.
+func examCodes(t *testing.T, db *sql.DB) map[int64]string {
+	t.Helper()
+	rows, err := db.Query(`SELECT id, code FROM exam ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	codes := map[int64]string{}
+	for rows.Next() {
+		var id int64
+		var code string
+		if err := rows.Scan(&id, &code); err != nil {
+			t.Fatal(err)
+		}
+		codes[id] = code
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return codes
+}
+
+func TestAssignExamCodes_UpgradedDatabase(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "go-exam.db")
+	old := openOldDatabase(t, path, 4)
+	for _, q := range []string{
+		`INSERT INTO teacher (id, email, created_at) VALUES (1,'first@example.test',0)`,
+		`INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id) VALUES (1,'Live','none','score',1,'k1',5,1,1)`,
+		`INSERT INTO question (id, exam_id, position, body_html) VALUES (1,1,1,'q1')`,
+		`INSERT INTO question_option (id, question_id, position, body_html, is_correct) VALUES (1,1,1,'o1',1),(2,1,2,'o2',0)`,
+		`INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id) VALUES (2,'Draft','none','score',0,'k2',6,1,1)`,
+	} {
+		if _, err := old.Exec(q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	for i := range 51 {
+		if _, err := old.Exec(`INSERT INTO attempt (exam_id, student_name, token_hash, shuffle_seed, status, started_at, deadline_at, finished_at)
+			VALUES (1, ?, ?, ?, 'submitted', 10, 20, 15)`, fmt.Sprintf("Student %d", i), []byte{byte(i)}, i); err != nil {
+			t.Fatalf("attempt %d: %v", i, err)
+		}
+	}
+	before := dumpRows(t, old)
+	old.Close()
+
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	exams := newExams(t, db)
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	if _, err := newAdmin(ctx, db, exams, []string{"first@example.test"}, logger); err != nil {
+		t.Fatal(err)
+	}
+	if err := assignExamCodes(ctx, exams, logger); err != nil {
+		t.Fatalf("assignExamCodes: %v", err)
+	}
+
+	codes := examCodes(t, db)
+	if len(codes) != 2 || !examCodePattern.MatchString(codes[1]) || !examCodePattern.MatchString(codes[2]) || codes[1] == codes[2] {
+		t.Fatalf("codes = %v, want two different exam codes", codes)
+	}
+	var open, attempts int
+	if err := db.QueryRow(`SELECT is_open, (SELECT COUNT(*) FROM attempt WHERE exam_id = 1) FROM exam WHERE id = 1`).Scan(&open, &attempts); err != nil || open != 1 || attempts != 51 {
+		t.Errorf("exam 1: open=%d attempts=%d err=%v; want open with 51 attempts", open, attempts, err)
+	}
+	if after := dumpRows(t, db); after != before {
+		t.Errorf("rows changed:\n%s\nwant\n%s", after, before)
+	}
+	const given = "existing exams given a code"
+	if !strings.Contains(logs.String(), given) || !strings.Contains(logs.String(), "count=2") {
+		t.Errorf("log = %q, want %q with count=2", logs.String(), given)
+	}
+
+	third, err := exams.Import(ctx, exam.Actor{TeacherID: 1}, []byte("# Third\n\n1. Q\n- a *\n- b\n"))
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	codes = examCodes(t, db)
+	logs.Reset()
+	if err := assignExamCodes(ctx, exams, logger); err != nil {
+		t.Fatalf("second assignExamCodes: %v", err)
+	}
+	if again := examCodes(t, db); len(again) != 3 || !maps.Equal(again, codes) || !examCodePattern.MatchString(again[third]) {
+		t.Errorf("codes after the second call = %v, want %v", again, codes)
+	}
+	if logs.Len() != 0 {
+		t.Errorf("second call logged %q, want nothing", logs.String())
 	}
 }
 

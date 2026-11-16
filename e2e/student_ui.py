@@ -21,9 +21,11 @@ from playwright.sync_api import Page, expect, sync_playwright
 from common import (
     add_sign_in_args,
     build_fixture_zip,
+    exam_code,
     foreign_requests,
     import_and_open,
     require_cross_site,
+    start,
     teacher_login,
     watch,
 )
@@ -47,14 +49,6 @@ def step(name: str):
 def seconds(timer: str) -> int:
     m, s = timer.split(":")
     return int(m) * 60 + int(s)
-
-
-def start(page: Page, base_url: str, name: str) -> None:
-    page.goto(base_url + "/")
-    form = page.locator("#start-form")
-    form.locator("input[name=name]").fill(name)
-    form.locator("button[type=submit]").click()
-    expect(page.locator("main#exam")).to_be_visible()
 
 
 def question(page: Page, n: int):
@@ -96,12 +90,13 @@ def run(base_url: str, email: str, oidc_url: str, out: Path) -> None:
             teacher = new_context(**DESKTOP).new_page()
             zip_path, _ = build_fixture_zip(tmp)
             teacher_login(teacher, base_url, email)
-            import_and_open(teacher, zip_path)
+            exam_id = import_and_open(teacher, zip_path)
+            code = exam_code(teacher, exam_id)
 
         s1_context = new_context(**phone)
         s1 = s1_context.new_page()
         with step("2 S1 starts; timer counts down; navigator closed"):
-            start(s1, base_url, "Ayu Lestari")
+            start(s1, base_url, code, "Ayu Lestari")
             timer = s1.locator("#timer")
             expect(timer).to_have_text(re.compile(r"^\d\d:\d\d$"))
             before = seconds(timer.inner_text())
@@ -174,7 +169,7 @@ def run(base_url: str, email: str, oidc_url: str, out: Path) -> None:
         with step("8 S2 is submitted automatically when the countdown ends"):
             s2 = new_context(**phone).new_page()
             s2.clock.install()
-            start(s2, base_url, "Budi Santoso")
+            start(s2, base_url, code, "Budi Santoso")
             pick(s2, 1, 0)
             expect(s2.locator("#save-state")).to_have_attribute("data-state", "saved")
             expect(question(s2, 1).locator(".q-state")).to_have_attribute("data-state", "saved")
@@ -184,7 +179,7 @@ def run(base_url: str, email: str, oidc_url: str, out: Path) -> None:
 
         with step("9 S3 on desktop sees the navigator as a left column"):
             s3 = new_context(**DESKTOP).new_page()
-            start(s3, base_url, "Citra Dewi")
+            start(s3, base_url, code, "Citra Dewi")
             expect(s3.locator("#question-nav")).to_be_visible()
             expect(s3.locator("#nav-toggle")).to_be_hidden()
             nav = s3.locator("#question-nav").bounding_box()
@@ -196,7 +191,7 @@ def run(base_url: str, email: str, oidc_url: str, out: Path) -> None:
         with step("10 S4's countdown ignores a jump of the device clock"):
             s4 = new_context(**phone).new_page()
             s4.clock.install()
-            start(s4, base_url, "Dewi Kusuma")
+            start(s4, base_url, code, "Dewi Kusuma")
             timer = s4.locator("#timer")
             before = seconds(timer.inner_text())
             s4.clock.set_system_time(datetime.now() + timedelta(hours=2))
@@ -213,7 +208,7 @@ def run(base_url: str, email: str, oidc_url: str, out: Path) -> None:
         )
         with step("11 S5 sees a refused pick as not saved, without retries or a blocked Submit"):
             s5 = new_context(**DESKTOP).new_page()
-            start(s5, base_url, "Eka Putri")
+            start(s5, base_url, code, "Eka Putri")
             answer_posts = []
 
             def refuse(route):

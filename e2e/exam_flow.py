@@ -23,12 +23,14 @@ from playwright.sync_api import BrowserContext, Page, expect, sync_playwright
 from common import (
     add_sign_in_args,
     build_fixture_zip,
+    exam_code,
     foreign_requests,
     import_and_open,
     import_exam,
     open_exam,
     refused_login,
     require_cross_site,
+    start,
     teacher_login,
     watch,
 )
@@ -47,14 +49,6 @@ class StepFailed(Exception):
 def seconds(timer: str) -> int:
     m, s = timer.split(":")
     return int(m) * 60 + int(s)
-
-
-def start(page: Page, base_url: str, name: str) -> None:
-    page.goto(base_url + "/")
-    form = page.locator("#start-form")
-    form.locator("input[name=name]").fill(name)
-    form.locator("button[type=submit]").click()
-    expect(page.locator("main#exam")).to_be_visible()
 
 
 def page_state(page: Page) -> list[list]:
@@ -233,14 +227,17 @@ def flow(run: Run, email: str) -> None:
 
         with step("3 teacher opens the exam"):
             open_exam(teacher, exam_id)
+            geometry_code = exam_code(teacher, exam_id)
             run.shot(teacher, "desktop-admin-exams.png")
 
         a = new_context(**phone).new_page()
-        with step("4 student A sees the landing page and starts"):
+        with step("4 student A sees the plain landing page and starts with the code"):
             a.goto(base_url + "/")
-            expect(a.locator("h1")).to_have_text("Geometry check")
+            expect(a.locator("h1")).to_have_text("go-exam")
+            expect(a.locator("#start-code")).to_have_value("")
+            expect(a.locator("body")).not_to_contain_text("Geometry check")
             run.shot(a, "phone-landing.png")
-            start(a, base_url, AYU)
+            start(a, base_url, geometry_code, AYU)
 
         with step("5 student A answers all 6 (4 correct, 2 wrong)"):
             expect(a.locator("#timer")).to_have_text(TIMER)
@@ -284,7 +281,7 @@ def flow(run: Run, email: str) -> None:
         b1_context = new_context(**phone)
         b1 = b1_context.new_page()
         with step("9 student B starts on phone context B1 and answers 2 (1 correct, 1 wrong)"):
-            start(b1, base_url, BUDI)
+            start(b1, base_url, geometry_code, BUDI)
             answer(b1, key, [True, False])
             b_state = page_state(b1)
             if [v is not None for _, v in b_state] != [True, True, False, False, False, False]:
@@ -432,16 +429,20 @@ def flow(run: Run, email: str) -> None:
         algebra_dir = Path(tmp) / "algebra"
         algebra_dir.mkdir()
         algebra_zip, algebra_key = build_fixture_zip(algebra_dir, title="Algebra check", show_result="score")
-        with step("20 teacher imports and opens Algebra check; Geometry check closes"):
+        with step("20 teacher imports and opens Algebra check; Geometry check stays open"):
             teacher.goto(base_url + "/admin/exams")
-            import_and_open(teacher, algebra_zip)
-            expect(teacher.locator(f"#exams tr[data-exam-id='{exam_id}']")).to_contain_text("Closed")
+            algebra_id = import_and_open(teacher, algebra_zip)
+            algebra_code = exam_code(teacher, algebra_id)
+            expect(teacher.locator(f"#exams tr[data-exam-id='{exam_id}'] .badge")).to_have_text("Open")
 
-        with step("21 student C takes Algebra check and sees only the score"):
+        with step("21 student C follows the Algebra check link, takes it and sees only the score"):
             c = new_context(**phone).new_page()
-            c.goto(base_url + "/")
+            c.goto(f"{base_url}/?code={algebra_code.lower()}")
             expect(c.locator("h1")).to_have_text("Algebra check")
-            start(c, base_url, "Citra Dewi")
+            expect(c.locator("#start-code")).to_have_value(algebra_code)
+            c.locator("#start-form input[name=name]").fill("Citra Dewi")
+            c.locator("#start-form button[type=submit]").click()
+            expect(c.locator("main#exam")).to_be_visible()
             answer(c, algebra_key, [True])
             submit(c, re.compile(r"You answered 1 of 6 questions\."))
             c.locator("#submit-confirm").click()

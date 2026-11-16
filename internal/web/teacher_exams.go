@@ -114,6 +114,8 @@ type examDetailData struct {
 	Questions      []exam.Question
 	Alert          string
 	FrozenNotice   string
+	// StudentLink is the address students open to enter this exam.
+	StudentLink string
 }
 
 func (s *server) examDetail(w http.ResponseWriter, r *http.Request) {
@@ -156,6 +158,7 @@ func (s *server) renderExamDetail(w http.ResponseWriter, r *http.Request, status
 		Questions:      questions,
 		Alert:          alert,
 		FrozenNotice:   frozenNotice,
+		StudentLink:    s.deps.PublicURL + "/?code=" + e.Code,
 	})
 }
 
@@ -186,10 +189,6 @@ func (s *server) replaceExam(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// otherOpenMessage refuses opening an exam while another teacher's exam is
-// open. It names no exam: the other exam is none of the actor's business.
-const otherOpenMessage = "Another teacher's exam is open right now. Only one exam can be open at a time, so yours stays closed until theirs is closed."
-
 // setExamOpen returns the handler for the open or close action: it applies
 // change to the exam for the signed-in teacher and returns to the list.
 func (s *server) setExamOpen(change func(context.Context, exam.Actor, int64) error) http.HandlerFunc {
@@ -203,8 +202,6 @@ func (s *server) setExamOpen(change func(context.Context, exam.Actor, int64) err
 		switch {
 		case errors.Is(err, exam.ErrNotFound):
 			s.notFound(w, r)
-		case errors.Is(err, exam.ErrOtherTeacherOpen):
-			s.renderExamList(w, r, http.StatusConflict, otherOpenMessage)
 		case err != nil:
 			s.serverError(w, r, err)
 		default:
