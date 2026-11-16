@@ -40,7 +40,7 @@ fmt.Println(2 + 3)
 </pre>
       <ul>
         <li>The first line is the title: <code># Title</code>.</li>
-        <li>Optional settings follow the title: <code>shuffle: none | questions | questions, options</code> (default <code>questions</code>), <code>show_result: none | score | review</code> (default <code>score</code>) and <code>monitor: on | off</code> (default <code>on</code>; flags leaving the page, copy, paste, right-click and resizing).</li>
+        <li>Optional settings follow the title: <code>shuffle: none | questions | questions, options</code> (default <code>questions</code>), <code>show_result: none | score | review</code> (default <code>score</code>), <code>monitor: on | off</code> (default <code>on</code>; flags leaving the page, copy, paste, right-click and resizing) and <code>duration: &lt;minutes&gt;</code> (a whole number from 5 to 240, default <code>60</code>).</li>
         <li>Questions are numbered <code>1.</code>, <code>2.</code>, … at the start of a line.</li>
         <li>Options start with <code>- </code>. Each question needs at least two.</li>
         <li>Mark exactly one option per question as correct with a trailing <code>*</code>.</li>
@@ -70,15 +70,16 @@ fmt.Println(2 + 3)
           <td>{{.Title}}</td>
           <td class="code">{{.Code}}</td>
           {{if $.Me.Admin}}<td class="owner">{{.OwnerEmail}}</td>{{end}}
-          <td>{{if .Open}}<span class="badge badge-ok">Open</span>{{else}}<span class="badge badge-muted">Closed</span>{{end}}</td>
+          <td>{{if .Open}}<span class="badge badge-ok">Open</span>{{else}}<span class="badge badge-muted">Closed</span>{{end}}{{with .Opens}}<small class="schedule">Opens {{.}}</small>{{end}}{{with .Closes}}<small class="schedule">Closes {{.}}</small>{{end}}</td>
           <td class="numeric">{{.QuestionCount}}</td>
           <td class="numeric">{{.AttemptCount}}</td>
-          <td class="row-actions">{{if .Open}}<form method="post" action="/admin/exams/{{.ID}}/close"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit" class="secondary">Close</button></form>{{else}}<form method="post" action="/admin/exams/{{.ID}}/open"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit">Open</button></form>{{end}} <a href="/admin/exams/{{.ID}}">View</a> <a href="/admin/exams/{{.ID}}/attempts">Results</a></td>
+          <td class="row-actions">{{if or .Schedule.Set (not .Open)}}<form method="post" action="/admin/exams/{{.ID}}/open"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit">Open</button></form>{{end}}{{if or .Schedule.Set .Open}}<form method="post" action="/admin/exams/{{.ID}}/close"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit" class="secondary">Close</button></form>{{end}} <a href="/admin/exams/{{.ID}}">View</a> <a href="/admin/exams/{{.ID}}/attempts">Results</a></td>
         </tr>
         {{end}}
       </tbody>
     </table>
   </div>
+  {{if .Scheduled}}<p class="zone-note">Times are shown in {{.Zone}}.</p>{{end}}
   {{else}}
   <p class="empty">No exams yet. Import one above.</p>
   {{end}}

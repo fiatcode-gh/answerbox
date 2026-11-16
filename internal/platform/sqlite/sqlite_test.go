@@ -60,6 +60,13 @@ func openVersion4(t *testing.T, path string) *sql.DB {
 	return openBuilt(t, path, 4)
 }
 
+// openVersion5 creates a database file at path as the exam-code release left
+// it (migrations 0001 to 0005, user_version 5) and returns a raw handle.
+func openVersion5(t *testing.T, path string) *sql.DB {
+	t.Helper()
+	return openBuilt(t, path, 5)
+}
+
 // openBuilt applies the first version migrations by hand to a new file at
 // path, sets user_version and returns a raw handle.
 func openBuilt(t *testing.T, path string, version int) *sql.DB {
@@ -130,16 +137,16 @@ func TestOpen_MigratesOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	if got := pragma(t, db, "user_version"); got != "5" {
-		t.Errorf("user_version = %s, want 5", got)
+	if got := pragma(t, db, "user_version"); got != "6" {
+		t.Errorf("user_version = %s, want 6", got)
 	}
 	mustExec(t, db, ownerTeacher)
 	mustExec(t, db, `INSERT INTO exam (title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES ('t','none','score','k1',0,1,'AAAAAA')`)
 	db.Close()
 
 	db = openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "5" {
-		t.Errorf("user_version after reopen = %s, want 5", got)
+	if got := pragma(t, db, "user_version"); got != "6" {
+		t.Errorf("user_version after reopen = %s, want 6", got)
 	}
 	var title string
 	if err := db.QueryRow(`SELECT title FROM exam`).Scan(&title); err != nil || title != "t" {
@@ -171,8 +178,8 @@ func TestMigrate_0002KeepsVersion1Data(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "5" {
-		t.Fatalf("user_version = %s, want 5", got)
+	if got := pragma(t, db, "user_version"); got != "6" {
+		t.Fatalf("user_version = %s, want 6", got)
 	}
 	var (
 		title, name, code string
@@ -217,8 +224,8 @@ func TestMigrate_0003KeepsVersion2Data(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "5" {
-		t.Fatalf("user_version = %s, want 5", got)
+	if got := pragma(t, db, "user_version"); got != "6" {
+		t.Fatalf("user_version = %s, want 6", got)
 	}
 	var (
 		title, name, code, kind  string
@@ -280,8 +287,8 @@ func TestMigrate_0004KeepsExamsAndRequiresOwner(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "5" {
-		t.Fatalf("user_version = %s, want 5", got)
+	if got := pragma(t, db, "user_version"); got != "6" {
+		t.Fatalf("user_version = %s, want 6", got)
 	}
 	var (
 		title, student string
@@ -342,8 +349,8 @@ func TestMigrate_0005KeepsExamsAndAddsCodes(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "5" {
-		t.Fatalf("user_version = %s, want 5", got)
+	if got := pragma(t, db, "user_version"); got != "6" {
+		t.Fatalf("user_version = %s, want 6", got)
 	}
 	var (
 		title, student string
@@ -382,6 +389,128 @@ func TestMigrate_0005KeepsExamsAndAddsCodes(t *testing.T) {
 		}
 	}
 	mustExec(t, db, `UPDATE exam SET title = 'x' WHERE id = 1`)
+}
+
+// TestMigrate_0006KeepsExamsAt60MinutesWithoutSchedule opens a version-5
+// database with an open and a closed exam, an attempt and an answer and checks
+// that the schedule migration keeps every row, gives both exams 60 minutes and
+// no schedule, and leaves the button state as it was.
+func TestMigrate_0006KeepsExamsAt60MinutesWithoutSchedule(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "go-exam.db")
+	old := openVersion5(t, path)
+	mustExec(t, old, ownerTeacher)
+	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id, code) VALUES (1,'Live','none','score',1,'k1',5,0,1,'3VK583')`)
+	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id, code) VALUES (2,'Draft','none','score',0,'k2',6,0,1,'ABCDEF')`)
+	mustExec(t, old, `INSERT INTO question (id, exam_id, position, body_html) VALUES (1,1,1,'q1')`)
+	mustExec(t, old, `INSERT INTO question_option (id, question_id, position, body_html, is_correct) VALUES (1,1,1,'o1',1),(2,1,2,'o2',0)`)
+	mustExec(t, old, `INSERT INTO attempt (id, exam_id, student_name, token_hash, resume_code, shuffle_seed, started_at, deadline_at) VALUES (1,1,'Ayu',x'01','ABCDEFGH',7,10,20)`)
+	mustExec(t, old, `INSERT INTO answer (attempt_id, question_id, option_id) VALUES (1,1,2)`)
+	old.Close()
+
+	db := openFile(t, path)
+	if got := pragma(t, db, "user_version"); got != "6" {
+		t.Fatalf("user_version = %s, want 6", got)
+	}
+	for id, wantOpen := range map[int64]int{1: 1, 2: 0} {
+		var open, minutes, noOpens, noCloses int
+		err := db.QueryRow(`SELECT is_open, duration_minutes, opens_at IS NULL, closes_at IS NULL FROM exam WHERE id = ?`, id).
+			Scan(&open, &minutes, &noOpens, &noCloses)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if open != wantOpen || minutes != 60 || noOpens != 1 || noCloses != 1 {
+			t.Errorf("exam %d: is_open=%d duration_minutes=%d opens_at null=%d closes_at null=%d; want %d, 60, 1, 1",
+				id, open, minutes, noOpens, noCloses, wantOpen)
+		}
+	}
+	var started, deadline, option int64
+	err := db.QueryRow(`SELECT a.started_at, a.deadline_at, an.option_id FROM attempt a JOIN answer an ON an.attempt_id = a.id WHERE a.id = 1`).
+		Scan(&started, &deadline, &option)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if started != 10 || deadline != 20 || option != 2 {
+		t.Errorf("attempt after migration: started_at=%d deadline_at=%d option=%d; want 10, 20, 2", started, deadline, option)
+	}
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name = 'exam_duration_frozen'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("exam_duration_frozen trigger count = %d, %v; want 1", n, err)
+	}
+}
+
+// wantErr fails the test unless err contains want.
+func wantErr(t *testing.T, what string, err error, want string) {
+	t.Helper()
+	if err == nil || !strings.Contains(err.Error(), want) {
+		t.Errorf("%s: err = %v, want %q", what, err, want)
+	}
+}
+
+func TestSchema_DurationLimitsAndFreeze(t *testing.T) {
+	db := sqlitetest.Open(t)
+	mustExec(t, db, ownerTeacher)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES (1,'a','none','score','k1',0,1,'AAAAAA')`)
+	var minutes int
+	if err := db.QueryRow(`SELECT duration_minutes FROM exam WHERE id = 1`).Scan(&minutes); err != nil || minutes != 60 {
+		t.Fatalf("default duration_minutes = %d, %v; want 60", minutes, err)
+	}
+
+	for _, bad := range []int{4, 241} {
+		_, err := db.Exec(`INSERT INTO exam (title, shuffle, show_result, media_key, created_at, owner_id, code, duration_minutes) VALUES ('b','none','score','k2',0,1,'BBBBBB',?)`, bad)
+		wantErr(t, fmt.Sprintf("insert duration_minutes = %d", bad), err, "CHECK")
+		_, err = db.Exec(`UPDATE exam SET duration_minutes = ? WHERE id = 1`, bad)
+		wantErr(t, fmt.Sprintf("update duration_minutes = %d", bad), err, "CHECK")
+	}
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id, code, duration_minutes) VALUES (2,'b','none','score','k2',0,1,'BBBBBB',5)`)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id, code, duration_minutes) VALUES (3,'c','none','score','k3',0,1,'CCCCCC',240)`)
+	mustExec(t, db, `UPDATE exam SET duration_minutes = 5 WHERE id = 1`)
+	mustExec(t, db, `UPDATE exam SET duration_minutes = 240 WHERE id = 1`)
+
+	mustExec(t, db, `INSERT INTO attempt (id, exam_id, student_name, token_hash, shuffle_seed, started_at, deadline_at) VALUES (1,1,'s',x'01',0,0,0)`)
+	_, err := db.Exec(`UPDATE exam SET duration_minutes = 30 WHERE id = 1`)
+	wantErr(t, "length change with attempt", err, "exam is frozen")
+	mustExec(t, db, `UPDATE exam SET duration_minutes = 240, title = 'x' WHERE id = 1`)
+	mustExec(t, db, `UPDATE exam SET title = 'y' WHERE id = 1`)
+
+	mustExec(t, db, `DELETE FROM attempt WHERE id = 1`)
+	mustExec(t, db, `UPDATE exam SET duration_minutes = 30 WHERE id = 1`)
+}
+
+func TestSchema_ScheduleChecks(t *testing.T) {
+	db := sqlitetest.Open(t)
+	mustExec(t, db, ownerTeacher)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, owner_id, code) VALUES (1,'closed','none','score',0,'k1',0,1,'AAAAAA')`)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, owner_id, code) VALUES (2,'open','none','score',1,'k2',0,1,'BBBBBB')`)
+
+	const setTimes = `UPDATE exam SET opens_at = ?, closes_at = ? WHERE id = 1`
+	for _, c := range []struct {
+		opens, closes any
+		ok            bool
+	}{
+		{100, nil, true},
+		{nil, 100, true},
+		{100, 100, false},
+		{100, 99, false},
+		{100, 101, true},
+	} {
+		_, err := db.Exec(setTimes, c.opens, c.closes)
+		what := fmt.Sprintf("closed exam opens_at=%v closes_at=%v", c.opens, c.closes)
+		if c.ok {
+			if err != nil {
+				t.Errorf("%s: %v", what, err)
+			}
+		} else {
+			wantErr(t, what, err, "CHECK")
+		}
+	}
+	_, err := db.Exec(`UPDATE exam SET is_open = 1 WHERE id = 1`)
+	wantErr(t, "is_open = 1 on a scheduled exam", err, "CHECK")
+	mustExec(t, db, `UPDATE exam SET is_open = 1, opens_at = NULL, closes_at = NULL WHERE id = 1`)
+
+	_, err = db.Exec(`UPDATE exam SET opens_at = 100 WHERE id = 2`)
+	wantErr(t, "opens_at on an open exam", err, "CHECK")
+	_, err = db.Exec(`UPDATE exam SET closes_at = 100 WHERE id = 2`)
+	wantErr(t, "closes_at on an open exam", err, "CHECK")
 }
 
 // TestSchema_CodeFormat keeps the schema's code check in step with

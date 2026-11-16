@@ -11,7 +11,7 @@
     <input type="text" id="name" name="name" value="{{.Name}}" maxlength="100" autocomplete="name" required{{if .ExamTitle}} autofocus{{end}}>
     <button type="submit">Start exam</button>
   </form>
-  <p class="landing-note">You have 60 minutes. The timer starts when you press Start and does not pause.</p>
+  <p class="landing-note">{{if .Minutes}}You have {{.Minutes}} minutes. {{end}}The timer starts when you press Start and does not pause.</p>
   {{if .LastResult}}<p class="last-result"><a href="/exam">See your last result</a></p>{{end}}
   <details class="resume"{{if .ResumeOpen}} open{{end}}>
     <summary>Have a resume code?</summary>

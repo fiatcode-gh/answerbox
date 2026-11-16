@@ -19,7 +19,7 @@ import (
 type examRoute struct{ Method, Path string }
 
 // examRoutes returns every adminRoutes entry under /admin/exams/1. It fails
-// when fewer than today's ten remain, so a route cannot drop out silently.
+// when fewer than today's eleven remain, so a route cannot drop out silently.
 func examRoutes(t *testing.T) []examRoute {
 	t.Helper()
 	var out []examRoute
@@ -28,8 +28,8 @@ func examRoutes(t *testing.T) []examRoute {
 			out = append(out, examRoute(r))
 		}
 	}
-	if len(out) < 10 {
-		t.Fatalf("adminRoutes has %d exam routes, want at least 10", len(out))
+	if len(out) < 11 {
+		t.Fatalf("adminRoutes has %d exam routes, want at least 11", len(out))
 	}
 	return out
 }
@@ -94,7 +94,7 @@ func (env *testEnv) call(t *testing.T, route examRoute, examID, attemptID int64,
 	case strings.HasSuffix(target, "/replace"):
 		return serve(env.h, uploadRequest(t, target, who.csrf, "exam.md", []byte("# Replaced\n\n1. Q\n- a *\n- b\n"), who.cookie))
 	default:
-		return postForm(env.h, target, url.Values{"csrf_token": {who.csrf}, "name": {"Renamed"}}, who.cookie)
+		return postForm(env.h, target, url.Values{"csrf_token": {who.csrf}, "name": {"Renamed"}, "opens_at": {"2026-11-20T08:00"}}, who.cookie)
 	}
 }
 
@@ -114,7 +114,7 @@ func TestOwnership_ForeignExamIs404OnEveryRoute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if e.Title != "Algebra" || e.Open {
+	if e.Title != "Algebra" || e.Open || e.Schedule.Set() {
 		t.Errorf("A's exam changed: %+v", e)
 	}
 	rows := env.list(t, id)

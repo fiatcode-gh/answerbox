@@ -179,7 +179,7 @@ func TestRecordEvent_Rejections(t *testing.T) {
 	wantErr(t, "finished", err, attempt.ErrFinished)
 
 	late := h.start(t, "Budi")
-	h.clock = h.clock.Add(attempt.Duration + attempt.Grace + time.Second)
+	h.clock = h.clock.Add(defaultLength + attempt.Grace + time.Second)
 	_, err = h.svc.RecordEvent(context.Background(), late, attempt.Copy, 0)
 	wantErr(t, "timed out", err, attempt.ErrFinished)
 

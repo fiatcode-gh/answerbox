@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/fiatcode-gh/go-exam/internal/attempt"
+	"github.com/fiatcode-gh/go-exam/internal/exam"
 	"github.com/fiatcode-gh/go-exam/internal/examfile"
 	"github.com/fiatcode-gh/go-exam/internal/oidcfake"
 )
@@ -103,6 +104,19 @@ func TestAdminExams_ListAndEmptyState(t *testing.T) {
 	}
 }
 
+func TestExamPage_ShowsLength(t *testing.T) {
+	env := newTestEnv(t)
+	cookie, _, _ := env.signIn(t)
+	id, err := env.exams.Import(context.Background(), env.owner, []byte("# Timed\nduration: 45\n\n1. Q one\n- a *\n- b\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := do(env.h, "GET", fmt.Sprintf("/admin/exams/%d", id), cookie).Body.String()
+	if !regexp.MustCompile(`<dt>Length</dt>\s*<dd>45 minutes</dd>`).MatchString(body) {
+		t.Errorf("exam page lacks the length 45 minutes:\n%s", body)
+	}
+}
+
 func TestExamPage_ShowsCodeAndStudentLink(t *testing.T) {
 	env := newTestEnv(t)
 	cookie, _, _ := env.signIn(t)
@@ -155,6 +169,15 @@ func TestNewHandler_RequiresPublicURL(t *testing.T) {
 	d.PublicURL = ""
 	if _, err := NewHandler(d); err == nil || !strings.Contains(err.Error(), "PublicURL") {
 		t.Errorf("NewHandler without PublicURL = %v, want an error naming PublicURL", err)
+	}
+}
+
+func TestNewHandler_RequiresNow(t *testing.T) {
+	env := newTestEnv(t)
+	d := env.deps
+	d.Now = nil
+	if _, err := NewHandler(d); err == nil || !strings.Contains(err.Error(), "Now") {
+		t.Errorf("NewHandler without Now = %v, want an error naming Now", err)
 	}
 }
 
@@ -607,9 +630,274 @@ func TestFormatHelp_ExampleImports(t *testing.T) {
 	if ex.Shuffle != examfile.ShuffleQuestionsOptions || ex.ShowResult != examfile.ShowReview {
 		t.Errorf("example headers parsed as %q / %q", ex.Shuffle, ex.ShowResult)
 	}
-	for _, rule := range []string{"<code># Title</code>", "shuffle:", "show_result:", "trailing <code>*</code>", ".zip", "PNG, JPEG, GIF or WebP", "10 MB"} {
+	for _, rule := range []string{"<code># Title</code>", "shuffle:", "show_result:", "duration:", "trailing <code>*</code>", ".zip", "PNG, JPEG, GIF or WebP", "10 MB"} {
 		if !strings.Contains(help[1], rule) {
 			t.Errorf("format help lacks %q", rule)
+		}
+	}
+}
+
+// scheduleFixture is a Jakarta app with one closed exam and a signed-in
+// admin. testStart is 16:30 on 14 Nov 2026 in Jakarta.
+type scheduleFixture struct {
+	env    *testEnv
+	cookie http.Header
+	csrf   string
+	id     int64
+}
+
+func newScheduleFixture(t *testing.T) *scheduleFixture {
+	t.Helper()
+	env := newJakartaEnv(t)
+	cookie, csrf, _ := env.signIn(t)
+	id, err := env.exams.Import(context.Background(), env.owner, []byte(textExam))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &scheduleFixture{env: env, cookie: cookie, csrf: csrf, id: id}
+}
+
+func (f *scheduleFixture) schedule(opens, closes string) *httptest.ResponseRecorder {
+	return postForm(f.env.h, examPath(f.id)+"/schedule", url.Values{"csrf_token": {f.csrf}, "opens_at": {opens}, "closes_at": {closes}}, f.cookie)
+}
+
+func (f *scheduleFixture) action(t *testing.T, name string) {
+	t.Helper()
+	requireRedirect(t, postForm(f.env.h, examPath(f.id)+"/"+name, url.Values{"csrf_token": {f.csrf}}, f.cookie), "/admin/exams")
+}
+
+func (f *scheduleFixture) page(t *testing.T) string {
+	t.Helper()
+	rec := do(f.env.h, "GET", examPath(f.id), f.cookie)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("exam page = %d", rec.Code)
+	}
+	return rec.Body.String()
+}
+
+// row is the exam's row of the exams list.
+func (f *scheduleFixture) row(t *testing.T) string {
+	t.Helper()
+	body := do(f.env.h, "GET", "/admin/exams", f.cookie).Body.String()
+	row := regexp.MustCompile(fmt.Sprintf(`(?s)<tr data-exam-id="%d">.*?</tr>`, f.id)).FindString(body)
+	if row == "" {
+		t.Fatalf("exams list has no row for exam %d:\n%s", f.id, body)
+	}
+	return row
+}
+
+// at moves the clock to now and signs in again, since a move of days
+// outlives the session.
+func (f *scheduleFixture) at(t *testing.T, now time.Time) {
+	t.Helper()
+	f.env.clock = now
+	f.cookie, f.csrf, _ = f.env.signIn(t)
+}
+
+func (f *scheduleFixture) stored(t *testing.T) exam.Schedule {
+	t.Helper()
+	e, err := f.env.exams.Get(context.Background(), f.env.owner, f.id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return e.Schedule
+}
+
+// scheduleTimes is the text of the schedule line of the exam page.
+func scheduleTimes(t *testing.T, body string) string {
+	t.Helper()
+	m := regexp.MustCompile(`(?s)<p id="schedule-times">(.*?)</p>`).FindStringSubmatch(body)
+	if m == nil {
+		t.Fatalf("exam page has no schedule-times:\n%s", body)
+	}
+	return html.UnescapeString(m[1])
+}
+
+// inputValue is the value of the input with id in body.
+func inputValue(t *testing.T, body, id string) string {
+	t.Helper()
+	m := regexp.MustCompile(`<input[^>]*id="` + id + `"[^>]*>`).FindString(body)
+	v := regexp.MustCompile(`value="([^"]*)"`).FindStringSubmatch(m)
+	if v == nil {
+		t.Fatalf("no input %s with a value:\n%s", id, body)
+	}
+	return html.UnescapeString(v[1])
+}
+
+// requireForms checks which of the open and close forms of exam id body has.
+func requireForms(t *testing.T, where, body string, id int64, open, close bool) {
+	t.Helper()
+	for action, want := range map[string]bool{"open": open, "close": close} {
+		if got := strings.Contains(body, fmt.Sprintf(`action="/admin/exams/%d/%s"`, id, action)); got != want {
+			t.Errorf("%s has the %s form = %v, want %v:\n%s", where, action, got, want, body)
+		}
+	}
+}
+
+// requireBadge checks the Open or Closed badge.
+func requireBadge(t *testing.T, where, body string, open bool) {
+	t.Helper()
+	want, other := ">Closed</span>", ">Open</span>"
+	if open {
+		want, other = other, want
+	}
+	if !strings.Contains(body, want) || strings.Contains(body, other) {
+		t.Errorf("%s lacks the badge %q:\n%s", where, want, body)
+	}
+}
+
+const joinNote = "Students can start with this code only while the exam is open."
+
+func TestSchedule_SetShowsOnPages(t *testing.T) {
+	f := newScheduleFixture(t)
+	requireRedirect(t, f.schedule("2026-11-17T08:00", "2026-11-17T09:30"), examPath(f.id))
+
+	opens, closes := time.Date(2026, 11, 17, 1, 0, 0, 0, time.UTC), time.Date(2026, 11, 17, 2, 30, 0, 0, time.UTC)
+	if got := f.stored(t); !got.OpensAt.Equal(opens) || !got.ClosesAt.Equal(closes) {
+		t.Fatalf("stored schedule = %v – %v, want %v – %v", got.OpensAt, got.ClosesAt, opens, closes)
+	}
+
+	body := f.page(t)
+	if got := scheduleTimes(t, body); got != "Opens 2026-11-17 08:00 · Closes 2026-11-17 09:30" {
+		t.Errorf("schedule times = %q", got)
+	}
+	if !strings.Contains(body, "Times are shown in Asia/Jakarta.") {
+		t.Errorf("exam page lacks the zone note:\n%s", body)
+	}
+	if o, c := inputValue(t, body, "schedule-opens"), inputValue(t, body, "schedule-closes"); o != "2026-11-17T08:00" || c != "2026-11-17T09:30" {
+		t.Errorf("inputs = %q, %q", o, c)
+	}
+	requireBadge(t, "exam page", body, false)
+	requireForms(t, "exam page", body, f.id, true, true)
+
+	row := f.row(t)
+	// Each time is its own line, so a plain teacher's list fits a 1280 px window.
+	for _, want := range []string{`<small class="schedule">Opens 2026-11-17 08:00</small>`, `<small class="schedule">Closes 2026-11-17 09:30</small>`} {
+		if !strings.Contains(row, want) {
+			t.Errorf("list row lacks %q:\n%s", want, row)
+		}
+	}
+	requireBadge(t, "list row", row, false)
+	requireForms(t, "list row", row, f.id, true, true)
+	if list := do(f.env.h, "GET", "/admin/exams", f.cookie).Body.String(); !strings.Contains(list, `<p class="zone-note">Times are shown in Asia/Jakarta.</p>`) {
+		t.Errorf("exams list lacks the zone note:\n%s", list)
+	}
+
+	f.at(t, opens.Add(30*time.Minute))
+	body = f.page(t)
+	requireBadge(t, "exam page inside the window", body, true)
+	requireForms(t, "exam page inside the window", body, f.id, true, true)
+	if strings.Contains(body, joinNote) {
+		t.Errorf("exam page inside the window shows the join note:\n%s", body)
+	}
+	row = f.row(t)
+	requireBadge(t, "list row inside the window", row, true)
+	requireForms(t, "list row inside the window", row, f.id, true, true)
+
+	f.at(t, closes)
+	requireBadge(t, "exam page after the window", f.page(t), false)
+	requireBadge(t, "list row after the window", f.row(t), false)
+}
+
+func TestSchedule_ListZoneNoteOnlyWithASchedule(t *testing.T) {
+	f := newScheduleFixture(t)
+	if list := do(f.env.h, "GET", "/admin/exams", f.cookie).Body.String(); strings.Contains(list, "Times are shown in") {
+		t.Errorf("exams list without a schedule shows the zone note:\n%s", list)
+	}
+}
+
+func TestSchedule_OneTimeOnly(t *testing.T) {
+	t.Run("close time only", func(t *testing.T) {
+		f := newScheduleFixture(t)
+		requireRedirect(t, f.schedule("", "2026-11-17T09:30"), examPath(f.id))
+		body := f.page(t)
+		requireBadge(t, "exam page", body, true)
+		if got := scheduleTimes(t, body); got != "Closes 2026-11-17 09:30" {
+			t.Errorf("schedule times = %q", got)
+		}
+		if strings.Contains(f.row(t), "Opens") {
+			t.Errorf("list row shows an open time:\n%s", f.row(t))
+		}
+	})
+	t.Run("open time only", func(t *testing.T) {
+		f := newScheduleFixture(t)
+		requireRedirect(t, f.schedule("2026-11-17T08:00", ""), examPath(f.id))
+		body := f.page(t)
+		requireBadge(t, "exam page", body, false)
+		if got := scheduleTimes(t, body); got != "Opens 2026-11-17 08:00" {
+			t.Errorf("schedule times = %q", got)
+		}
+		if strings.Contains(f.row(t), "Closes") {
+			t.Errorf("list row shows a close time:\n%s", f.row(t))
+		}
+		f.at(t, time.Date(2026, 11, 17, 1, 0, 0, 0, time.UTC))
+		requireBadge(t, "exam page at the open time", f.page(t), true)
+	})
+}
+
+func TestSchedule_Validation422(t *testing.T) {
+	for _, c := range []struct {
+		name, opens, closes, alert string
+	}{
+		{"both empty", "", "", "Enter an open time, a close time or both. To remove the schedule, press Open or Close."},
+		{"open unparsable", "tomorrow", "", "Enter a valid date and time."},
+		{"close unparsable", "", "2026-11-17T09:30:00x", "Enter a valid date and time."},
+		{"close before open", "2026-11-17T09:30", "2026-11-17T08:00", "The close time must be after the open time."},
+		{"close equal to open", "2026-11-17T09:30", "2026-11-17T09:30", "The close time must be after the open time."},
+		{"close in the past", "", "2026-11-14T16:00", "The close time must be in the future."},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newScheduleFixture(t)
+			rec := f.schedule(c.opens, c.closes)
+			body := rec.Body.String()
+			if rec.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("status = %d, want 422:\n%s", rec.Code, body)
+			}
+			if !strings.Contains(body, `<div role="alert" class="alert">`+c.alert+`</div>`) {
+				t.Errorf("alert %q missing:\n%s", c.alert, body)
+			}
+			if o, cl := inputValue(t, body, "schedule-opens"), inputValue(t, body, "schedule-closes"); o != c.opens || cl != c.closes {
+				t.Errorf("inputs = %q, %q, want the typed %q, %q", o, cl, c.opens, c.closes)
+			}
+			if f.stored(t).Set() {
+				t.Errorf("schedule stored: %+v", f.stored(t))
+			}
+		})
+	}
+}
+
+func TestSchedule_ButtonsClear(t *testing.T) {
+	f := newScheduleFixture(t)
+	requireCleared := func(open bool) {
+		t.Helper()
+		body := f.page(t)
+		if got := scheduleTimes(t, body); got != "No schedule. The exam follows the Open and Close buttons." {
+			t.Errorf("schedule times = %q", got)
+		}
+		if o, c := inputValue(t, body, "schedule-opens"), inputValue(t, body, "schedule-closes"); o != "" || c != "" {
+			t.Errorf("inputs = %q, %q, want empty", o, c)
+		}
+		requireBadge(t, "exam page", body, open)
+		requireForms(t, "exam page", body, f.id, !open, open)
+	}
+
+	requireRedirect(t, f.schedule("2026-11-17T08:00", "2026-11-17T09:30"), examPath(f.id))
+	f.action(t, "open")
+	requireCleared(true)
+
+	requireRedirect(t, f.schedule("2026-11-17T08:00", "2026-11-17T09:30"), examPath(f.id))
+	f.action(t, "close")
+	requireCleared(false)
+}
+
+func TestSchedule_UnknownExam404(t *testing.T) {
+	f := newScheduleFixture(t)
+	for _, target := range []string{"/admin/exams/999/schedule", "/admin/exams/x/schedule"} {
+		for _, opens := range []string{"2026-11-17T08:00", "tomorrow"} {
+			form := url.Values{"csrf_token": {f.csrf}, "opens_at": {opens}}
+			if rec := postForm(f.env.h, target, form, f.cookie); rec.Code != http.StatusNotFound {
+				t.Errorf("POST %s opens_at=%s = %d, want 404", target, opens, rec.Code)
+			}
 		}
 	}
 }

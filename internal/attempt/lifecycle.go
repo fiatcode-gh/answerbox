@@ -17,9 +17,11 @@ import (
 
 const maxNameRunes = 100
 
-// Start begins an attempt on the open exam with that code and returns its
-// cookie token. The code is read as exam.NormalizeCode accepts it; a
-// malformed, unknown or closed code is ErrNoOpenExam.
+// Start begins an attempt on the exam with that code and returns its cookie
+// token. The code is read as exam.NormalizeCode accepts it; a malformed,
+// unknown or closed code is ErrNoOpenExam, and an exam whose open time is
+// still ahead is a *NotYetOpenError. Whether the exam is open is decided by
+// exam.LoadEntry at the start transaction's time.
 func (s *Service) Start(ctx context.Context, code, name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if !validName(name) {
@@ -35,13 +37,15 @@ func (s *Service) Start(ctx context.Context, code, name string) (string, error) 
 	}
 	defer tx.Rollback()
 
-	var examID int64
-	err = tx.QueryRowContext(ctx, `SELECT id FROM exam WHERE code = ? AND is_open = 1`, examCode).Scan(&examID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", ErrNoOpenExam
-	}
+	entry, found, err := exam.LoadEntry(ctx, tx, examCode, fromMillis(now))
 	if err != nil {
 		return "", err
+	}
+	if !found {
+		return "", ErrNoOpenExam
+	}
+	if entry.Availability == exam.NotYetOpen {
+		return "", &NotYetOpenError{Entry: entry}
 	}
 
 	var seed [8]byte
@@ -59,7 +63,7 @@ func (s *Service) Start(ctx context.Context, code, name string) (string, error) 
 	_, err = tx.ExecContext(ctx, `INSERT INTO attempt
 		(exam_id, student_name, token_hash, resume_code, shuffle_seed, started_at, deadline_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		examID, name, hash, resumeCode, int64(binary.LittleEndian.Uint64(seed[:])), now, now+Duration.Milliseconds())
+		entry.ExamID, name, hash, resumeCode, int64(binary.LittleEndian.Uint64(seed[:])), now, now+int64(entry.DurationMinutes)*60000)
 	if err != nil {
 		return "", err
 	}

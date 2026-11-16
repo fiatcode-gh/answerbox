@@ -36,6 +36,7 @@ var adminRoutes = []struct{ Method, Path string }{
 	{"POST", "/admin/exams/1/replace"},
 	{"POST", "/admin/exams/1/open"},
 	{"POST", "/admin/exams/1/close"},
+	{"POST", "/admin/exams/1/schedule"},
 	{"GET", "/admin/exams/1/attempts"},
 	{"GET", "/admin/exams/1/attempts.csv"},
 	{"GET", "/admin/exams/1/attempts/1"},
@@ -146,6 +147,7 @@ func newTestEnvWith(t *testing.T, db *sql.DB, cfg envConfig) *testEnv {
 		Location:  cfg.location,
 		Logger:    slog.New(slog.NewTextHandler(cfg.logOut, nil)),
 		PublicURL: "http://app.test",
+		Now:       now,
 	}
 	env.h, err = NewHandler(env.deps)
 	if err != nil {

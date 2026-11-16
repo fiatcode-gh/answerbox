@@ -38,8 +38,8 @@ func (s *Service) insertExam(ctx context.Context, ownerID int64, ex examfile.Exa
 		return 0, err
 	}
 	res, err := tx.ExecContext(ctx,
-		`INSERT INTO exam (title, shuffle, show_result, monitor, is_open, media_key, created_at, owner_id, code) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?)`,
-		ex.Title, string(ex.Shuffle), string(ex.ShowResult), ex.Monitor, key, s.now().UnixMilli(), ownerID, code)
+		`INSERT INTO exam (title, shuffle, show_result, monitor, duration_minutes, is_open, media_key, created_at, owner_id, code) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+		ex.Title, string(ex.Shuffle), string(ex.ShowResult), ex.Monitor, ex.DurationMinutes, key, s.now().UnixMilli(), ownerID, code)
 	if err != nil {
 		return 0, fmt.Errorf("exam: insert: %w", err)
 	}
@@ -56,9 +56,9 @@ func (s *Service) insertExam(ctx context.Context, ownerID int64, ex examfile.Exa
 	return id, nil
 }
 
-// Replace swaps the content, title and header settings of an exam in actor's
-// scope that has no attempts. ID, code, owner, open state and creation time
-// are kept.
+// Replace swaps the content, title and header settings (including the exam
+// length) of an exam in actor's scope that has no attempts. ID, code, owner,
+// open state, schedule and creation time are kept.
 func (s *Service) Replace(ctx context.Context, actor Actor, examID int64, data []byte) error {
 	ex, key, err := s.prepare(data)
 	if err != nil {
@@ -98,8 +98,8 @@ func (s *Service) replaceExam(ctx context.Context, actor Actor, examID int64, ex
 		return "", fmt.Errorf("exam: delete questions: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx,
-		`UPDATE exam SET title = ?, shuffle = ?, show_result = ?, monitor = ?, media_key = ? WHERE id = ?`,
-		ex.Title, string(ex.Shuffle), string(ex.ShowResult), ex.Monitor, key, examID); err != nil {
+		`UPDATE exam SET title = ?, shuffle = ?, show_result = ?, monitor = ?, duration_minutes = ?, media_key = ? WHERE id = ?`,
+		ex.Title, string(ex.Shuffle), string(ex.ShowResult), ex.Monitor, ex.DurationMinutes, key, examID); err != nil {
 		return "", fmt.Errorf("exam: update: %w", err)
 	}
 	if err := insertQuestions(ctx, tx, examID, ex.Questions); err != nil {

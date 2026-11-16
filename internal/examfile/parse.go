@@ -10,7 +10,8 @@ import (
 
 var (
 	titleRe      = regexp.MustCompile(`^#[ \t]+(\S.*)$`)
-	headerRe     = regexp.MustCompile(`^(shuffle|show_result|monitor)[ \t]*:[ \t]*(.*)$`)
+	headerRe     = regexp.MustCompile(`^(shuffle|show_result|monitor|duration)[ \t]*:[ \t]*(.*)$`)
+	durationRe   = regexp.MustCompile(`^[1-9][0-9]{0,2}$`)
 	questionRe   = regexp.MustCompile(`^(\d{1,4})[.)](?:[ \t]+(.*))?$`)
 	optionRe     = regexp.MustCompile(`^[ \t]*-(?:[ \t]+(.*))?$`)
 	commaRe      = regexp.MustCompile(`\s*,\s*`)
@@ -58,7 +59,7 @@ func Parse(u Upload, mediaBase string) (Exam, error) {
 }
 
 func scan(lines []string) (Exam, []*rawQuestion, error) {
-	ex := Exam{Shuffle: ShuffleQuestions, ShowResult: ShowScore, Monitor: true}
+	ex := Exam{Shuffle: ShuffleQuestions, ShowResult: ShowScore, Monitor: true, DurationMinutes: DefaultDurationMinutes}
 
 	i := 0
 	for i < len(lines) && isBlank(lines[i]) {
@@ -94,7 +95,7 @@ func scan(lines []string) (Exam, []*rawQuestion, error) {
 				continue
 			}
 			if !questionRe.MatchString(line) {
-				return ex, nil, errorf(`line %d: expected "shuffle:", "show_result:", "monitor:" or question 1`, n)
+				return ex, nil, errorf(`line %d: expected "shuffle:", "show_result:", "monitor:", "duration:" or question 1`, n)
 			}
 		}
 
@@ -179,6 +180,12 @@ func setHeader(ex *Exam, seen map[string]bool, key, raw string, n int) error {
 		default:
 			return errorf(`line %d: monitor must be "on" or "off"`, n)
 		}
+	case "duration":
+		minutes, err := strconv.Atoi(value)
+		if !durationRe.MatchString(value) || err != nil || minutes < MinDurationMinutes || minutes > MaxDurationMinutes {
+			return errorf("line %d: duration must be a whole number of minutes from %d to %d", n, MinDurationMinutes, MaxDurationMinutes)
+		}
+		ex.DurationMinutes = minutes
 	}
 	return nil
 }

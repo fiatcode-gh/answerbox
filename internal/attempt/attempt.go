@@ -13,13 +13,12 @@ import (
 	"io"
 	"time"
 
+	"github.com/fiatcode-gh/go-exam/internal/exam"
 	"github.com/fiatcode-gh/go-exam/internal/examfile"
 )
 
-const (
-	Duration = 60 * time.Minute
-	Grace    = 3 * time.Second
-)
+// Grace is how long after the deadline a save or submit still counts.
+const Grace = 3 * time.Second
 
 // Status is the lifecycle state of an attempt.
 type Status string
@@ -38,6 +37,12 @@ var (
 	ErrInvalidChoice = errors.New("attempt: question or option does not belong to this exam")
 	ErrBadCode       = errors.New("attempt: resume code is not valid")
 )
+
+// NotYetOpenError refuses a start on an exam whose open time is still ahead.
+// Entry is the exam the code names, with that open time.
+type NotYetOpenError struct{ Entry exam.Entry }
+
+func (e *NotYetOpenError) Error() string { return "attempt: exam is not open yet" }
 
 // View is what the student sees. It carries no answer key while the attempt
 // is in progress.

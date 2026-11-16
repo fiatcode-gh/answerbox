@@ -44,7 +44,13 @@ type Exam struct {
 	Shuffle    examfile.Shuffle
 	ShowResult examfile.ShowResult
 	Monitor    bool
-	Open       bool
+	// Open reports whether students can start now: AvailabilityAt is OpenNow
+	// at the moment the exam was read.
+	Open bool
+	// Schedule is the exam's open and close time; zero when it has none.
+	Schedule Schedule
+	// DurationMinutes is the exam length in whole minutes.
+	DurationMinutes int
 	// Code is what students type to enter the exam. It is empty only for an
 	// exam from before migration 0005, until startup gives it one.
 	Code          string
@@ -74,6 +80,7 @@ type Option struct {
 // Queryer is satisfied by *sql.DB and *sql.Tx.
 type Queryer interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
 // Service manages exams in the database and their images under media.

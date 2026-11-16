@@ -348,13 +348,15 @@ table th {
   margin-bottom: 0;
 }
 
-.row-actions {
+/* The actions wrap between buttons and links, never inside one. */
+.row-actions button,
+.row-actions a {
   white-space: nowrap;
 }
 
 .row-actions form {
   display: inline-block;
-  margin: 0 var(--ge-space-3) 0 0;
+  margin: var(--ge-space-1) var(--ge-space-3) var(--ge-space-1) 0;
 }
 
 .row-actions button {
@@ -430,6 +432,37 @@ table th {
 .join-note {
   margin: 0;
   color: var(--ge-muted);
+}
+
+section.schedule {
+  margin-bottom: var(--ge-space-5);
+}
+
+section.schedule h2 {
+  margin-bottom: var(--ge-space-2);
+}
+
+.schedule-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--ge-space-4);
+}
+
+.schedule-fields label {
+  flex: 0 1 16rem;
+}
+
+#schedule-form button {
+  width: auto;
+  margin-bottom: var(--ge-space-3);
+  min-height: var(--ge-touch);
+}
+
+small.schedule {
+  display: block;
+  margin: var(--ge-space-1) 0 0;
+  color: var(--ge-muted);
+  white-space: nowrap;
 }
 
 .settings {

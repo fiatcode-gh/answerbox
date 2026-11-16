@@ -1,6 +1,6 @@
 # go-exam
 
-go-exam is a small, self-hosted web app for classroom multiple-choice exams. Students type the exam's code and their name, or open a link that carries the code, and take that exam within a one-hour limit; the teacher imports exams from text files, opens and closes them, and reviews the results.
+go-exam is a small, self-hosted web app for classroom multiple-choice exams. Students type the exam's code and their name, or open a link that carries the code, and take that exam within its time limit, the exam's own length (60 minutes unless the exam file says otherwise); the teacher imports exams from text files, opens and closes them by hand or on a schedule, and reviews the results.
 
 It is not a learning platform. Teachers sign in with their Google account, and only emails on the app's teacher list may sign in. Each teacher sees only their own exams and results; admins (the emails in `GOEXAM_ADMIN_EMAILS`) also see every exam and manage the teacher list. Students have no accounts. Several exams can be open at the same time.
 
@@ -18,7 +18,7 @@ All configuration comes from environment variables.
 | `GOEXAM_DATA_DIR` | `./data` (image: `/data`) | Directory holding the database and uploaded images. |
 | `GOEXAM_LISTEN_ADDR` | `:8080` | Address the HTTP server listens on. |
 | `GOEXAM_TRUSTED_PROXIES` | empty (trust nobody) | Comma-separated CIDRs or IPs whose `X-Forwarded-For` is trusted for the client address in the request log. |
-| `GOEXAM_TIME_ZONE` | `UTC` | IANA time zone used to display times (time zone data is built in). |
+| `GOEXAM_TIME_ZONE` | `UTC` | IANA time zone used to display times, to type and show schedule times, and for the open time students read (time zone data is built in). |
 
 The app refuses to start without the four required settings. [`.env.example`](.env.example) lists every setting with a one-line explanation; the optional ones stay commented out, because an empty value in an env file overrides the default (for example the image's `/data`). Teacher sessions last 12 hours and survive restarts. The admin role follows `GOEXAM_ADMIN_EMAILS` at every request; an email taken out of it stays an ordinary teacher until an admin removes it on the Teachers page. Recovery is an environment change plus a restart: there is no password.
 
@@ -37,10 +37,21 @@ A Google account can sign in only when its email is verified and on the teacher 
 - Every exam gets a 6-character code when it is imported: capital letters and digits without look-alikes (no I, L, O, U, 0, 1). The code never changes, also when the questions are replaced, and no other exam ever gets it.
 - The exam page shows the code large, for a projector, and the student link `<GOEXAM_PUBLIC_URL>/?code=XXXXXX`. The exams list shows each exam's code.
 - Students open the app and type the code and their name. Any case works, and spaces and a dash are ignored. With the link, the name is all they type.
-- A code works only while its exam is open. Otherwise the student reads "No open exam has that code. Check it with your teacher.", the same sentence for a mistyped code and for a closed exam.
+- A code works only while its exam is open. Otherwise the student reads "No open exam has that code. Check it with your teacher.", the same sentence for a mistyped code, for a closed exam and for an exam whose close time has passed.
+- A code of a scheduled exam that is not open yet shows the exam's title and when it opens, for example "This exam opens at 08:00." (with the date when that is not today), both through the student link and after pressing Start. The student starts once the open time has come.
 - Several exams can be open at once; opening one never closes another. Closing an exam stops new starts only; attempts in progress continue.
 - A student with an exam in progress is sent back to it. A resume code needs no exam code.
 - Exams imported before this version get their code the first time the new version starts.
+
+## Schedule
+
+- The exam page has a Schedule section with an open time and a close time. Save schedule sets them; the exams list shows them under the exam's status.
+- Either time may be empty. Without an open time the exam opens as soon as the schedule is saved; without a close time it stays open until the teacher presses Close.
+- The close time must be after the open time and in the future. An open time in the past opens the exam at once.
+- The exam is open exactly from the open time until the close time; at the close time itself it is closed.
+- The close time stops new starts only. Attempts in progress keep their full length.
+- Open and Close remove the schedule and leave the exam open or closed. Saving a schedule on an exam opened with the button hands it to the schedule.
+- Times are typed and shown in `GOEXAM_TIME_ZONE`.
 
 ## Run with a container
 
@@ -114,7 +125,7 @@ fmt.Println(2 + 3)
 Rules:
 
 - The first line is the title: `# Title`.
-- Optional settings follow the title: `shuffle: none | questions | questions, options` (default `questions`), `show_result: none | score | review` (default `score`) and `monitor: on | off` (default `on`).
+- Optional settings follow the title: `shuffle: none | questions | questions, options` (default `questions`), `show_result: none | score | review` (default `score`), `monitor: on | off` (default `on`) and `duration: <minutes>` (the time limit, a whole number from 5 to 240, default `60`). Like the questions, the length is fixed once an attempt exists.
 - With `monitor: on`, the exam page blocks copy, cut, paste and the right-click menu, and reports to the teacher when the student leaves the page for more than 3 seconds, tries one of those blocked actions or resizes the window. The student sees "Your teacher has been notified." after each event, and the page asks the browser to keep the screen on. The teacher sees the count in the results list (Flags) and CSV (`flags`), and each event on the attempt page. The monitor cannot see other apps, other devices, screenshots or browser extensions; it discourages cheating, it does not prevent it. Events never change answers, time or score.
 - Questions are numbered `1.`, `2.`, … at the start of a line.
 - Options start with `- `. Each question needs at least two.
@@ -150,6 +161,8 @@ uv run e2e/exam_flow.py  --base-url http://localhost:8080 --admin-email admin@ex
 uv run e2e/monitor.py    --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/monitor
 uv run e2e/teachers.py   --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/teachers
 uv run e2e/exam_codes.py --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/exam-codes
+# The server must run with GOEXAM_TIME_ZONE=Asia/Jakarta; the run waits about two minutes on the real clock:
+uv run e2e/scheduled_exams.py --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --time-zone Asia/Jakarta --out e2e/out/scheduled-exams
 ```
 
 The fake provider signs in any identity and is not part of the container image.

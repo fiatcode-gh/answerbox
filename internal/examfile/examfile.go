@@ -37,6 +37,13 @@ const (
 	MaxTitleRunes    = 200
 )
 
+// Exam length in whole minutes, set by the "duration:" header.
+const (
+	MinDurationMinutes     = 5
+	MaxDurationMinutes     = 240
+	DefaultDurationMinutes = 60
+)
+
 // Upload is the content of an uploaded exam file.
 type Upload struct {
 	Text  []byte            // exam text, valid UTF-8
@@ -46,12 +53,13 @@ type Upload struct {
 
 // Exam is a parsed and validated exam.
 type Exam struct {
-	Title      string
-	Shuffle    Shuffle
-	ShowResult ShowResult
-	Monitor    bool // anti-cheat monitor; "monitor: on" by default
-	Questions  []Question
-	Images     []Image // referenced images only, unique by Name
+	Title           string
+	Shuffle         Shuffle
+	ShowResult      ShowResult
+	Monitor         bool // anti-cheat monitor; "monitor: on" by default
+	DurationMinutes int  // DefaultDurationMinutes without a "duration:" header
+	Questions       []Question
+	Images          []Image // referenced images only, unique by Name
 }
 
 type Question struct {

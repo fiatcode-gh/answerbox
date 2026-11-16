@@ -8,19 +8,20 @@ import (
 	"time"
 )
 
-// Open opens examID for actor. No other exam is touched; opening an open
-// exam is a no-op.
+// Open opens examID for actor now and removes its schedule. No other exam is
+// touched; opening an open exam is a no-op.
 func (s *Service) Open(ctx context.Context, actor Actor, examID int64) error {
-	res, err := s.db.ExecContext(ctx, `UPDATE exam SET is_open = 1 WHERE id = ? AND `+inScope, scoped(examID, actor)...)
+	res, err := s.db.ExecContext(ctx, `UPDATE exam SET is_open = 1, opens_at = NULL, closes_at = NULL WHERE id = ? AND `+inScope, scoped(examID, actor)...)
 	if err != nil {
 		return err
 	}
 	return requireRow(res)
 }
 
-// Close closes examID for actor. Attempts are not touched.
+// Close closes examID for actor and removes its schedule. Attempts are not
+// touched.
 func (s *Service) Close(ctx context.Context, actor Actor, examID int64) error {
-	res, err := s.db.ExecContext(ctx, `UPDATE exam SET is_open = 0 WHERE id = ? AND `+inScope, scoped(examID, actor)...)
+	res, err := s.db.ExecContext(ctx, `UPDATE exam SET is_open = 0, opens_at = NULL, closes_at = NULL WHERE id = ? AND `+inScope, scoped(examID, actor)...)
 	if err != nil {
 		return err
 	}
@@ -56,15 +57,21 @@ const examColumns = `SELECT id, title, shuffle, show_result, monitor, is_open, c
 	(SELECT COUNT(*) FROM attempt WHERE exam_id = exam.id),
 	COALESCE(exam.owner_id, 0),
 	COALESCE((SELECT email FROM teacher WHERE id = exam.owner_id), ''),
-	COALESCE(exam.code, '')
+	COALESCE(exam.code, ''),
+	duration_minutes, opens_at, closes_at
 	FROM exam`
 
-func scanExam(row interface{ Scan(...any) error }) (Exam, error) {
+// scanExam reads one examColumns row; Open is decided for the moment now.
+func scanExam(row interface{ Scan(...any) error }, now time.Time) (Exam, error) {
 	var e Exam
 	var created int64
-	err := row.Scan(&e.ID, &e.Title, &e.Shuffle, &e.ShowResult, &e.Monitor, &e.Open, &created,
-		&e.QuestionCount, &e.AttemptCount, &e.OwnerID, &e.OwnerEmail, &e.Code)
+	var buttonOpen bool
+	var opensAt, closesAt sql.NullInt64
+	err := row.Scan(&e.ID, &e.Title, &e.Shuffle, &e.ShowResult, &e.Monitor, &buttonOpen, &created,
+		&e.QuestionCount, &e.AttemptCount, &e.OwnerID, &e.OwnerEmail, &e.Code, &e.DurationMinutes, &opensAt, &closesAt)
 	e.CreatedAt = time.UnixMilli(created).UTC()
+	e.Schedule = Schedule{OpensAt: fromMillis(opensAt), ClosesAt: fromMillis(closesAt)}
+	e.Open = AvailabilityAt(buttonOpen, e.Schedule, now) == OpenNow
 	return e, err
 }
 
@@ -75,9 +82,10 @@ func (s *Service) List(ctx context.Context, actor Actor) ([]Exam, error) {
 		return nil, err
 	}
 	defer rows.Close()
+	now := s.now()
 	var out []Exam
 	for rows.Next() {
-		e, err := scanExam(rows)
+		e, err := scanExam(rows, now)
 		if err != nil {
 			return nil, err
 		}
@@ -88,7 +96,7 @@ func (s *Service) List(ctx context.Context, actor Actor) ([]Exam, error) {
 
 // Get returns one exam in actor's scope.
 func (s *Service) Get(ctx context.Context, actor Actor, examID int64) (Exam, error) {
-	e, err := scanExam(s.db.QueryRowContext(ctx, examColumns+` WHERE id = ? AND `+inScope, scoped(examID, actor)...))
+	e, err := scanExam(s.db.QueryRowContext(ctx, examColumns+` WHERE id = ? AND `+inScope, scoped(examID, actor)...), s.now())
 	if errors.Is(err, sql.ErrNoRows) {
 		return Exam{}, ErrNotFound
 	}

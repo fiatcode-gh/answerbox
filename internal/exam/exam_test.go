@@ -275,7 +275,7 @@ func TestImport_StoresExamAndImages(t *testing.T) {
 	ex := h.mustGet(t, id)
 	want := exam.Exam{
 		ID: id, Title: "Geometry", Shuffle: examfile.ShuffleNone, ShowResult: examfile.ShowReview,
-		Monitor: true, Open: false, CreatedAt: fixedNow, QuestionCount: 2, AttemptCount: 0,
+		Monitor: true, Open: false, DurationMinutes: 60, CreatedAt: fixedNow, QuestionCount: 2, AttemptCount: 0,
 		OwnerID: h.owner.TeacherID, OwnerEmail: "owner@example.test", Code: h.storedCode(t, id),
 	}
 	if !ex.CreatedAt.Equal(fixedNow) {
@@ -441,18 +441,58 @@ func TestReplace_FrozenOnceAttemptExists(t *testing.T) {
 	entriesBefore := h.mediaEntries(t)
 	h.insertAttempt(t, id, "alice")
 
-	newZip, _ := imageExam(t, "New", color.White)
+	newZip := buildZip(t,
+		zipEntry{"exam.md", []byte("# New\nduration: 30\n\n1. Q ![x](i.png)\n- a *\n- b\n")},
+		zipEntry{"i.png", pngBytes(t, color.White)},
+	)
 	if err := h.svc.Replace(ctx, h.owner, id, newZip); !errors.Is(err, exam.ErrFrozen) {
 		t.Fatalf("Replace = %v, want ErrFrozen", err)
 	}
 	if after := h.mustQuestions(t, id); !reflect.DeepEqual(after, before) {
 		t.Errorf("questions changed:\n%+v\nwant\n%+v", after, before)
 	}
-	if ex := h.mustGet(t, id); ex.Title != "Old" || ex.AttemptCount != 1 {
+	if ex := h.mustGet(t, id); ex.Title != "Old" || ex.AttemptCount != 1 || ex.DurationMinutes != 60 {
 		t.Errorf("exam after frozen Replace = %+v", ex)
 	}
 	if entries := h.mediaEntries(t); !slices.Equal(entries, entriesBefore) {
 		t.Errorf("media entries = %v, want %v", entries, entriesBefore)
+	}
+}
+
+func TestImport_StoresDuration(t *testing.T) {
+	h := newHarness(t)
+	plain := h.mustImport(t, []byte(simpleExam))
+	timed := h.mustImport(t, []byte("# Timed\nduration: 45\n\n1. Q\n- a *\n- b\n"))
+
+	if got := h.mustGet(t, plain).DurationMinutes; got != 60 {
+		t.Errorf("default DurationMinutes = %d, want 60", got)
+	}
+	if got := h.mustGet(t, timed).DurationMinutes; got != 45 {
+		t.Errorf("DurationMinutes = %d, want 45", got)
+	}
+	list, err := h.svc.List(context.Background(), h.owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[int64]int{plain: 60, timed: 45}
+	if len(list) != len(want) {
+		t.Fatalf("List has %d exams, want %d", len(list), len(want))
+	}
+	for _, e := range list {
+		if e.DurationMinutes != want[e.ID] {
+			t.Errorf("List exam %d DurationMinutes = %d, want %d", e.ID, e.DurationMinutes, want[e.ID])
+		}
+	}
+}
+
+func TestReplace_ChangesDurationBeforeAttempts(t *testing.T) {
+	h := newHarness(t)
+	id := h.mustImport(t, []byte(simpleExam))
+	if err := h.svc.Replace(context.Background(), h.owner, id, []byte("# Simple\nduration: 30\n\n1. Q\n- a *\n- b\n")); err != nil {
+		t.Fatalf("Replace: %v", err)
+	}
+	if got := h.mustGet(t, id).DurationMinutes; got != 30 {
+		t.Errorf("DurationMinutes after Replace = %d, want 30", got)
 	}
 }
 
@@ -566,8 +606,8 @@ func TestClose(t *testing.T) {
 	if got := h.openIDs(t); len(got) != 0 {
 		t.Errorf("open exams after Close = %v, want none", got)
 	}
-	if _, ok, err := h.svc.OpenByCode(ctx, h.mustGet(t, id).Code); err != nil || ok {
-		t.Errorf("OpenByCode after Close: ok=%v err=%v", ok, err)
+	if _, ok, err := h.svc.EntryByCode(ctx, h.mustGet(t, id).Code); err != nil || ok {
+		t.Errorf("EntryByCode after Close: ok=%v err=%v", ok, err)
 	}
 	if ex := h.mustGet(t, id); ex.Open || ex.AttemptCount != 1 {
 		t.Errorf("after Close: %+v", ex)
@@ -704,6 +744,9 @@ func TestScope_MutationsOnForeignExamAreNotFound(t *testing.T) {
 	}
 	if err := h.svc.Close(ctx, b, id); !errors.Is(err, exam.ErrNotFound) {
 		t.Errorf("Close as B = %v, want ErrNotFound", err)
+	}
+	if err := h.svc.SetSchedule(ctx, b, id, exam.Schedule{OpensAt: fixedNow.Add(time.Hour)}); !errors.Is(err, exam.ErrNotFound) {
+		t.Errorf("SetSchedule as B = %v, want ErrNotFound", err)
 	}
 	ex, err := h.svc.Get(ctx, a, id)
 	if err != nil {
@@ -943,7 +986,7 @@ func TestNormalizeCode(t *testing.T) {
 	}
 }
 
-func TestOpenByCode(t *testing.T) {
+func TestEntryByCode(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()
 	id := h.mustImport(t, []byte(simpleExam))
@@ -953,8 +996,16 @@ func TestOpenByCode(t *testing.T) {
 
 	notFound := func(label, input string) {
 		t.Helper()
-		if e, ok, err := h.svc.OpenByCode(ctx, input); err != nil || ok {
-			t.Errorf("%s: OpenByCode(%q) = %+v, %v, %v; want not found", label, input, e, ok, err)
+		if e, ok, err := h.svc.EntryByCode(ctx, input); err != nil || ok || e != (exam.Entry{}) {
+			t.Errorf("%s: EntryByCode(%q) = %+v, %v, %v; want a zero Entry, not found", label, input, e, ok, err)
+		}
+	}
+	found := func(label, input string, want exam.Entry) {
+		t.Helper()
+		e, ok, err := h.svc.EntryByCode(ctx, input)
+		if err != nil || !ok || e.ExamID != want.ExamID || e.Title != want.Title || e.Code != want.Code ||
+			e.DurationMinutes != want.DurationMinutes || e.Availability != want.Availability || !e.OpensAt.Equal(want.OpensAt) {
+			t.Errorf("%s: EntryByCode(%q) = %+v, %v, %v; want %+v", label, input, e, ok, err, want)
 		}
 	}
 	for _, in := range typed {
@@ -963,11 +1014,9 @@ func TestOpenByCode(t *testing.T) {
 	if err := h.svc.Open(ctx, h.owner, id); err != nil {
 		t.Fatal(err)
 	}
+	openNow := exam.Entry{ExamID: id, Title: "Simple", Code: code, DurationMinutes: 60, Availability: exam.OpenNow}
 	for _, in := range typed {
-		e, ok, err := h.svc.OpenByCode(ctx, in)
-		if err != nil || !ok || e.ID != id || e.Title != "Simple" || e.Code != code {
-			t.Errorf("OpenByCode(%q) = %+v, %v, %v; want exam %d %q", in, e, ok, err, id, code)
-		}
+		found("open by button", in, openNow)
 	}
 	other := "ABCDEF"
 	if other == code {
@@ -982,4 +1031,18 @@ func TestOpenByCode(t *testing.T) {
 	for _, in := range typed {
 		notFound("after Close", in)
 	}
+
+	sched := exam.Schedule{OpensAt: fixedNow.Add(time.Hour), ClosesAt: fixedNow.Add(2 * time.Hour)}
+	if err := h.svc.SetSchedule(ctx, h.owner, id, sched); err != nil {
+		t.Fatal(err)
+	}
+	early := openNow
+	early.Availability, early.OpensAt = exam.NotYetOpen, sched.OpensAt
+	found("before the open time", lower, early)
+	h.clock = sched.OpensAt
+	found("inside the window", lower, openNow)
+	h.clock = sched.ClosesAt
+	notFound("at the close time", lower)
+	h.clock = sched.ClosesAt.Add(time.Hour)
+	notFound("after the close time", lower)
 }

@@ -229,6 +229,38 @@ func TestParse_RawHTMLNotRendered(t *testing.T) {
 	}
 }
 
+func TestParse_DurationHeader(t *testing.T) {
+	const body = "1. Q\n- a *\n- b\n"
+	cases := []struct {
+		headers string
+		want    int
+	}{
+		{"", 60},
+		{"duration: 5", 5},
+		{"duration: 240", 240},
+		{"duration:45  ", 45},
+		{"duration \t:  90", 90},
+		{"shuffle: none\nduration: 30\nmonitor: off\nshow_result: review", 30},
+		{"duration: 120\nshow_result: none\nshuffle: none", 120},
+	}
+	for _, c := range cases {
+		t.Run(c.headers, func(t *testing.T) {
+			ex := mustParse(t, textUpload("# T\n"+c.headers+"\n"+body))
+			if ex.DurationMinutes != c.want {
+				t.Errorf("DurationMinutes = %d, want %d", ex.DurationMinutes, c.want)
+			}
+		})
+	}
+	ex := mustParse(t, textUpload("# T\nshuffle: none\nduration: 30\nmonitor: off\nshow_result: review\n"+body))
+	if ex.Shuffle != ShuffleNone || ex.Monitor || ex.ShowResult != ShowReview {
+		t.Errorf("other headers = %q, %v, %q; want none, false, review", ex.Shuffle, ex.Monitor, ex.ShowResult)
+	}
+}
+
+func durationMsg(line int) string {
+	return fmt.Sprintf("line %d: duration must be a whole number of minutes from 5 to 240", line)
+}
+
 func TestParse_Rejections(t *testing.T) {
 	q := "1. Q\n- a *\n- b"
 	many := func(n int) string {
@@ -257,12 +289,24 @@ func TestParse_Rejections(t *testing.T) {
 		{"no title", "\n\nHello\n" + q, nil, `line 3: expected "# Title" as the first line`},
 		{"heading level 2", "## T\n" + q, nil, `line 1: expected "# Title" as the first line`},
 		{"long title", "# " + strings.Repeat("é", 201) + "\n" + q, nil, `line 1: title is longer than 200 characters`},
-		{"header zone junk", "# T\n\nintro\n" + q, nil, `line 3: expected "shuffle:", "show_result:", "monitor:" or question 1`},
+		{"header zone junk", "# T\n\nintro\n" + q, nil, `line 3: expected "shuffle:", "show_result:", "monitor:", "duration:" or question 1`},
 		{"duplicate header", "# T\nshuffle: none\nshow_result: none\nshuffle: none\n" + q, nil, `line 4: duplicate "shuffle" header`},
 		{"bad shuffle", "# T\nshuffle: random\n" + q, nil, `line 2: shuffle must be "none", "questions" or "questions, options"`},
 		{"bad show_result", "# T\nshow_result: all\n" + q, nil, `line 2: show_result must be "none", "score" or "review"`},
 		{"bad monitor", "# T\nmonitor: yes\n" + q, nil, `line 2: monitor must be "on" or "off"`},
 		{"duplicate monitor", "# T\nmonitor: on\nmonitor: off\n" + q, nil, `line 3: duplicate "monitor" header`},
+		{"duration 4", "# T\nduration: 4\n" + q, nil, durationMsg(2)},
+		{"duration 241", "# T\nduration: 241\n" + q, nil, durationMsg(2)},
+		{"duration 0", "# T\nduration: 0\n" + q, nil, durationMsg(2)},
+		{"duration leading zero", "# T\nduration: 045\n" + q, nil, durationMsg(2)},
+		{"duration with unit", "# T\nshuffle: none\nduration: 60 minutes\n" + q, nil, durationMsg(3)},
+		{"duration fraction", "# T\nduration: 1.5\n" + q, nil, durationMsg(2)},
+		{"duration negative", "# T\nduration: -5\n" + q, nil, durationMsg(2)},
+		{"duration plus sign", "# T\nduration: +5\n" + q, nil, durationMsg(2)},
+		{"duration empty", "# T\nduration:\n" + q, nil, durationMsg(2)},
+		{"duration 1000", "# T\nduration: 1000\n" + q, nil, durationMsg(2)},
+		{"duration words", "# T\nduration: sixty\n" + q, nil, durationMsg(2)},
+		{"duplicate duration", "# T\nduration: 30\nduration: 30\n" + q, nil, `line 3: duplicate "duration" header`},
 		{"first question not 1", "# T\n2. Q\n- a *\n- b", nil, `line 2: expected question 1, found question 2`},
 		{"question skipped", "# T\n" + q + "\n3. Q\n- a *\n- b", nil, `line 5: expected question 2, found question 3`},
 		{"501 questions", many(501), nil, `exam has more than 500 questions`},

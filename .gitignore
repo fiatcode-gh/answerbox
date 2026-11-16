@@ -4,3 +4,4 @@
 /oidcfake
 /e2e/out/
 /.env
+__pycache__/

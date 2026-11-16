@@ -11,15 +11,16 @@
     {{if .Exam.Open}}<span class="badge badge-ok">Open</span>{{else}}<span class="badge badge-muted">Closed</span>{{end}}
   </div>
   <div class="exam-actions">
-    {{if .Exam.Open}}
-    <form method="post" action="/admin/exams/{{.Exam.ID}}/close">
-      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-      <button type="submit" class="secondary">Close</button>
-    </form>
-    {{else}}
+    {{if or .Exam.Schedule.Set (not .Exam.Open)}}
     <form method="post" action="/admin/exams/{{.Exam.ID}}/open">
       <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
       <button type="submit">Open</button>
+    </form>
+    {{end}}
+    {{if or .Exam.Schedule.Set .Exam.Open}}
+    <form method="post" action="/admin/exams/{{.Exam.ID}}/close">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button type="submit" class="secondary">Close</button>
     </form>
     {{end}}
     <a role="button" class="secondary" href="/admin/exams/{{.Exam.ID}}/attempts">Results</a>
@@ -32,7 +33,27 @@
     {{if not .Exam.Open}}<p class="join-note">Students can start with this code only while the exam is open.</p>{{end}}
   </section>
 
+  <section class="schedule">
+    <h2>Schedule</h2>
+    <p id="schedule-times">{{if .Exam.Schedule.Set}}{{with .Opens}}Opens {{.}}{{end}}{{if and .Opens .Closes}} · {{end}}{{with .Closes}}Closes {{.}}{{end}}{{else}}No schedule. The exam follows the Open and Close buttons.{{end}}</p>
+    <form id="schedule-form" method="post" action="/admin/exams/{{.Exam.ID}}/schedule">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <div class="schedule-fields">
+        <label for="schedule-opens">Open time
+          <input type="datetime-local" id="schedule-opens" name="opens_at" value="{{.Schedule.Opens}}">
+        </label>
+        <label for="schedule-closes">Close time
+          <input type="datetime-local" id="schedule-closes" name="closes_at" value="{{.Schedule.Closes}}">
+        </label>
+      </div>
+      <button type="submit">Save schedule</button>
+    </form>
+    <p class="zone-note">Times are shown in {{.Zone}}. Without an open time the exam opens when you save; without a close time it stays open until you press Close. The close time stops new starts only. Open and Close remove the schedule.</p>
+  </section>
+
   <dl class="settings">
+    <dt>Length</dt>
+    <dd>{{.Exam.DurationMinutes}} minutes</dd>
     <dt>Shuffle</dt>
     <dd>{{.ShuffleText}}</dd>
     <dt>Result shown to students</dt>

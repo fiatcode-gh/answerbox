@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/fiatcode-gh/go-exam/internal/attempt"
+	"github.com/fiatcode-gh/go-exam/internal/exam"
 )
 
 // unknownToken is syntactically valid (43 base64url characters) but names no
@@ -183,6 +184,14 @@ func simpleExam(show string) string {
 	return "# Algebra & Co\nshuffle: none\nshow_result: " + show + "\n\n1. One\n- a *\n- b\n\n2. Two\n- c\n- d *\n"
 }
 
+// defaultLength is the length of an exam file without a duration header.
+const defaultLength = 60 * time.Minute
+
+// withDuration adds a duration header after the title of an exam text.
+func withDuration(text string, minutes int) string {
+	return strings.Replace(text, "\n", fmt.Sprintf("\nduration: %d\n", minutes), 1)
+}
+
 // requirePlainLanding checks the landing page without an exam title.
 func requirePlainLanding(t *testing.T, label, body string) {
 	t.Helper()
@@ -191,7 +200,7 @@ func requirePlainLanding(t *testing.T, label, body string) {
 		`name="name"`,
 		`<h1 class="landing-title">go-exam</h1>`,
 		`<title>go-exam</title>`,
-		"You have 60 minutes. The timer starts when you press Start and does not pause.",
+		"The timer starts when you press Start and does not pause.",
 		`id="resume-form"`,
 	} {
 		if !strings.Contains(body, want) {
@@ -207,6 +216,45 @@ func requirePlainLanding(t *testing.T, label, body string) {
 	}
 	if strings.Contains(body, `id="no-exam"`) || strings.Contains(body, "Algebra") {
 		t.Errorf("%s: landing reveals an exam:\n%s", label, body)
+	}
+	if strings.Contains(body, "You have") {
+		t.Errorf("%s: landing states an exam length without an exam", label)
+	}
+}
+
+func TestLanding_SaysExamLength(t *testing.T) {
+	env := newTestEnv(t)
+	timed := env.openExam(t, withDuration(simpleExam("score"), 45))
+	plain := env.openExam(t, simpleExam("score"))
+	for _, c := range []struct {
+		examID  int64
+		minutes int
+	}{{timed, 45}, {plain, 60}} {
+		rec := do(env.h, "GET", "/?code="+env.examCode(t, c.examID), nil)
+		want := fmt.Sprintf("You have %d minutes. The timer starts when you press Start and does not pause.", c.minutes)
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), want) {
+			t.Errorf("%d-minute exam: want 200 with %q, got %d:\n%s", c.minutes, want, rec.Code, rec.Body.String())
+		}
+	}
+}
+
+func TestExamPage_TimerStartsAtExamLength(t *testing.T) {
+	env := newTestEnv(t)
+	short := env.openExam(t, withDuration(simpleExam("score"), 5))
+	long := env.openExam(t, withDuration(simpleExam("score"), 240))
+	for _, c := range []struct {
+		examID int64
+		wants  []string
+	}{
+		{short, []string{`data-remaining-ms="300000"`, `data-level="warn">05:00<`}},
+		{long, []string{`data-remaining-ms="14400000"`, `data-level="normal">240:00<`}},
+	} {
+		body := env.examPage(t, env.startIn(t, c.examID, "Ada"))
+		for _, want := range c.wants {
+			if !strings.Contains(body, want) {
+				t.Errorf("exam %d page lacks %q", c.examID, want)
+			}
+		}
 	}
 }
 
@@ -418,6 +466,127 @@ func TestNoLeak_ClosedCodeLooksUnknown(t *testing.T) {
 	if err := tw.k1.exams.Close(context.Background(), tw.k1.owner, examID); err != nil {
 		t.Fatal(err)
 	}
+	tw.step(t, "POST /start", func(env *testEnv) *httptest.ResponseRecorder {
+		return postForm(env.h, "/start", url.Values{"code": {code}, "name": {"Ada"}}, nil)
+	})
+	tw.step(t, "GET /?code=", func(env *testEnv) *httptest.ResponseRecorder {
+		return do(env.h, "GET", "/?code="+code, nil)
+	})
+}
+
+// scheduledExam imports a closed exam and gives it sched.
+func (env *testEnv) scheduledExam(t *testing.T, text string, sched exam.Schedule) int64 {
+	t.Helper()
+	id, err := env.exams.Import(context.Background(), env.owner, []byte(text))
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	if err := env.exams.SetSchedule(context.Background(), env.owner, id, sched); err != nil {
+		t.Fatalf("SetSchedule: %v", err)
+	}
+	return id
+}
+
+// geometryExam is a 45-minute exam titled Geometry.
+var geometryExam = withDuration(strings.Replace(simpleExam("score"), "# Algebra & Co", "# Geometry", 1), 45)
+
+// alertText returns the text of the page's alert, or "" without one.
+func alertText(body string) string {
+	m := regexp.MustCompile(`role="alert"[^>]*>([^<]*)<`).FindStringSubmatch(body)
+	if m == nil {
+		return ""
+	}
+	return m[1]
+}
+
+func TestLanding_EarlyCodeShowsOpensAt(t *testing.T) {
+	jakarta := newJakartaEnv(t).deps.Location
+	local := func(day, hour int) time.Time { return time.Date(2026, 11, day, hour, 0, 0, 0, jakarta) }
+
+	for _, c := range []struct {
+		name      string
+		clock     time.Time
+		opensAt   time.Time
+		wantAlert string
+	}{
+		{"later today", testStart, local(14, 17), "This exam opens at 17:00."},
+		{"another day", testStart, local(17, 8), "This exam opens at 08:00 on Tue, 17 Nov 2026."},
+		{"same local day, next UTC day", time.Date(2026, 11, 14, 18, 0, 0, 0, time.UTC), local(15, 8), "This exam opens at 08:00."},
+	} {
+		env := newJakartaEnv(t)
+		env.clock = c.clock
+		id := env.scheduledExam(t, geometryExam, exam.Schedule{OpensAt: c.opensAt})
+		code := env.examCode(t, id)
+
+		rec := do(env.h, "GET", "/?code="+code, nil)
+		body := rec.Body.String()
+		if rec.Code != http.StatusOK {
+			t.Errorf("%s: status = %d, want 200", c.name, rec.Code)
+		}
+		if got := alertText(body); got != c.wantAlert {
+			t.Errorf("%s: alert = %q, want %q", c.name, got, c.wantAlert)
+		}
+		if !strings.Contains(body, `<h1 class="landing-title">Geometry</h1>`) ||
+			!strings.Contains(inputTag(body, "start-code"), `value="`+code+`"`) ||
+			!strings.Contains(body, "You have 45 minutes.") {
+			t.Errorf("%s: landing does not show the early exam:\n%s", c.name, body)
+		}
+		if got := env.attemptRows(t); got != 0 {
+			t.Errorf("%s: attempt rows = %d, want 0", c.name, got)
+		}
+
+		env.clock = c.opensAt
+		rec = do(env.h, "GET", "/?code="+code, nil)
+		if got := alertText(rec.Body.String()); rec.Code != http.StatusOK || got != "" {
+			t.Errorf("%s at the open time: %d, alert %q; want 200 without an alert", c.name, rec.Code, got)
+		}
+	}
+}
+
+func TestStart_EarlyRefusedWithOpensAt(t *testing.T) {
+	env := newJakartaEnv(t)
+	opensAt := time.Date(2026, 11, 14, 17, 0, 0, 0, env.deps.Location)
+	id := env.scheduledExam(t, geometryExam, exam.Schedule{OpensAt: opensAt})
+	code := strings.ToLower(env.examCode(t, id))
+	const alert = "This exam opens at 17:00."
+
+	if got := alertText(do(env.h, "GET", "/?code="+code, nil).Body.String()); got != alert {
+		t.Fatalf("GET alert = %q, want %q", got, alert)
+	}
+	rec := postForm(env.h, "/start", url.Values{"code": {code}, "name": {"Ada"}}, nil)
+	body := rec.Body.String()
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Errorf("early POST /start = %d, want 422", rec.Code)
+	}
+	if got := alertText(body); got != alert {
+		t.Errorf("early POST alert = %q, want %q", got, alert)
+	}
+	if !strings.Contains(body, `<h1 class="landing-title">Geometry</h1>`) || !strings.Contains(body, "You have 45 minutes.") ||
+		!strings.Contains(inputTag(body, "start-code"), `value="`+code+`"`) || !strings.Contains(inputTag(body, "name"), `value="Ada"`) {
+		t.Errorf("early POST page lacks the title, length or typed values:\n%s", body)
+	}
+	if attemptSetCookie(t, rec) != nil {
+		t.Error("early POST set a cookie")
+	}
+	if got := env.attemptRows(t); got != 0 {
+		t.Errorf("attempt rows after early POST = %d, want 0", got)
+	}
+
+	rec = postForm(env.h, "/start", url.Values{"code": {code}, "name": {""}}, nil)
+	if got := alertText(rec.Body.String()); rec.Code != http.StatusUnprocessableEntity || got != invalidNameAlert {
+		t.Errorf("early POST without a name: %d, alert %q; want 422, %q", rec.Code, got, invalidNameAlert)
+	}
+
+	env.clock = opensAt
+	env.startWith(t, code, "Ada")
+}
+
+func TestNoLeak_ScheduleEndedLooksUnknown(t *testing.T) {
+	tw := twin{newTestEnv(t), newTestEnv(t)}
+	examID := tw.k1.scheduledExam(t, simpleExam("score"), exam.Schedule{ClosesAt: testStart.Add(time.Hour)})
+	code := tw.k1.examCode(t, examID)
+	tw.k1.startIn(t, examID, "Ada")
+	tw.setClock(testStart.Add(time.Hour))
 	tw.step(t, "POST /start", func(env *testEnv) *httptest.ResponseRecorder {
 		return postForm(env.h, "/start", url.Values{"code": {code}, "name": {"Ada"}}, nil)
 	})
@@ -667,7 +836,7 @@ func TestAnswer_AfterDeadline409(t *testing.T) {
 	examID := env.openExam(t, simpleExam("score"))
 	cookie := env.start(t, "Ada")
 	qs := pageQuestions(t, env.examPage(t, cookie))
-	deadline := testStart.Add(attempt.Duration)
+	deadline := testStart.Add(defaultLength)
 
 	env.clock = deadline.Add(2 * time.Second)
 	requireJSON(t, env.answer(cookie, qs[0].ID, qs[0].Options[0]), http.StatusOK, `{"saved":true,"remaining_ms":0}`)
@@ -958,7 +1127,7 @@ func TestNoKeyLeak_FinishedNoneAndScore(t *testing.T) {
 		tw := newTwin(t, "questions, options", "none", 2, 2, k1, k2)
 		cookie, qs := tw.start(t)
 		tw.answer(t, cookie, qs[1].ID, qs[1].Options[1])
-		tw.setClock(testStart.Add(attempt.Duration + time.Minute))
+		tw.setClock(testStart.Add(defaultLength + time.Minute))
 		body := tw.step(t, "GET /exam result", getExam(cookie)).Body.String()
 		if !strings.Contains(body, `data-status="timed_out"`) || strings.Contains(body, `id="score"`) {
 			t.Errorf("want a timed-out none result without #score:\n%s", body)
@@ -1111,7 +1280,7 @@ func TestResult_ByShowResult(t *testing.T) {
 			t.Errorf("submitted heading missing:\n%s", body)
 		}
 		other := env.start(t, "Bob")
-		env.clock = env.clock.Add(attempt.Duration + attempt.Grace + time.Millisecond)
+		env.clock = env.clock.Add(defaultLength + attempt.Grace + time.Millisecond)
 		body = env.examPage(t, other)
 		if !strings.Contains(body, `data-status="timed_out"`) || !strings.Contains(body, "<h1>Time is up</h1>") {
 			t.Errorf("timed-out heading missing:\n%s", body)

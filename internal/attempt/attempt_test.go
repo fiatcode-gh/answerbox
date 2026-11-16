@@ -21,7 +21,15 @@ import (
 
 var t0 = time.Date(2026, 11, 14, 8, 0, 0, 0, time.UTC)
 
-var deadline0 = t0.Add(attempt.Duration)
+// defaultLength is the length of an exam file without a duration header.
+const defaultLength = 60 * time.Minute
+
+var deadline0 = t0.Add(defaultLength)
+
+// withDuration adds a duration header to an exam text from examText.
+func withDuration(text string, minutes int) string {
+	return strings.Replace(text, "\n", fmt.Sprintf("\nduration: %d\n", minutes), 1)
+}
 
 type harness struct {
 	db    *sql.DB
@@ -491,6 +499,50 @@ func TestSaveAnswer_Deadline(t *testing.T) {
 	}
 }
 
+func TestStart_DeadlineUsesExamDuration(t *testing.T) {
+	h := newHarness(t)
+	id := h.openExam(t, withDuration(examText("none", examfile.ShowScore, 2, 2), 5))
+	qs := h.questions(t, id)
+	token := h.start(t, "Ayu")
+	if rem := h.view(t, token).Remaining; rem != 5*time.Minute {
+		t.Fatalf("Remaining at start = %v, want 5m", rem)
+	}
+
+	h.clock = t0.Add(5*time.Minute + 2*time.Second)
+	if rem := h.save(t, token, qs[0].ID, correctOption(qs[0])); rem != 0 {
+		t.Fatalf("remaining 2 s after the 5-minute deadline = %v, want 0", rem)
+	}
+	h.clock = t0.Add(5*time.Minute + 3*time.Second + time.Millisecond)
+	_, err := h.svc.SaveAnswer(context.Background(), token, qs[1].ID, correctOption(qs[1]))
+	wantErr(t, "SaveAnswer after the 5-minute deadline and grace", err, attempt.ErrFinished)
+	s := h.only(t, id)
+	if want := t0.Add(5 * time.Minute); s.Status != attempt.TimedOut || !s.FinishedAt.Equal(want) {
+		t.Fatalf("status %s finished %v, want timed_out at %v", s.Status, s.FinishedAt, want)
+	}
+}
+
+func TestStart_TwoExamsEachUseTheirOwnLength(t *testing.T) {
+	h := newHarness(t)
+	short := h.openExam(t, withDuration(examText("none", examfile.ShowScore, 1, 2), 5))
+	long := h.openExam(t, withDuration(examText("none", examfile.ShowScore, 1, 2), 240))
+	shortToken := h.startIn(t, short, "Ayu")
+	longToken := h.startIn(t, long, "Budi")
+	if rem := h.view(t, shortToken).Remaining; rem != 5*time.Minute {
+		t.Errorf("short exam Remaining = %v, want 5m", rem)
+	}
+	if rem := h.view(t, longToken).Remaining; rem != 240*time.Minute {
+		t.Errorf("long exam Remaining = %v, want 240m", rem)
+	}
+
+	h.clock = t0.Add(6 * time.Minute)
+	if v := h.view(t, shortToken); v.Status != attempt.TimedOut {
+		t.Errorf("short exam status after 6 minutes = %s, want timed_out", v.Status)
+	}
+	if v := h.view(t, longToken); v.Status != attempt.InProgress || v.Remaining != 234*time.Minute {
+		t.Errorf("long exam after 6 minutes: %s, %v; want in_progress, 234m", v.Status, v.Remaining)
+	}
+}
+
 func TestSubmit_StatusByDeadline(t *testing.T) {
 	h := newHarness(t)
 	id := h.openExam(t, examText("none", examfile.ShowScore, 2, 2))
@@ -614,7 +666,7 @@ func TestView_NumbersAndLetters(t *testing.T) {
 	h := newHarness(t)
 	h.openExam(t, examText("questions, options", examfile.ShowScore, 3, 3))
 	v := h.view(t, h.start(t, "Ayu"))
-	if v.Status != attempt.InProgress || v.Remaining != attempt.Duration || v.Result != nil {
+	if v.Status != attempt.InProgress || v.Remaining != defaultLength || v.Result != nil {
 		t.Fatalf("in-progress view = %+v", v)
 	}
 	if v.StudentName != "Ayu" || !strings.HasPrefix(v.ExamTitle, "Exam ") {
@@ -859,4 +911,89 @@ func TestList_Fields(t *testing.T) {
 	if got := h.list(t, 9999); got == nil || len(got) != 0 {
 		t.Fatalf("List(unknown) = %#v, want empty slice", got)
 	}
+}
+
+// scheduledExam imports a closed exam and gives it sched.
+func (h *harness) scheduledExam(t *testing.T, text string, sched exam.Schedule) int64 {
+	t.Helper()
+	id := h.importExam(t, text)
+	if err := h.exams.SetSchedule(context.Background(), h.owner, id, sched); err != nil {
+		t.Fatalf("SetSchedule: %v", err)
+	}
+	return id
+}
+
+func TestStart_FollowsSchedule(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	sched := exam.Schedule{OpensAt: t0.Add(time.Hour), ClosesAt: t0.Add(2 * time.Hour)}
+	id := h.scheduledExam(t, examText("none", examfile.ShowScore, 1, 2), sched)
+	code := h.code(t, id)
+
+	h.clock = sched.OpensAt.Add(-time.Millisecond)
+	_, err := h.svc.Start(ctx, code, "Ayu")
+	var early *attempt.NotYetOpenError
+	if !errors.As(err, &early) {
+		t.Fatalf("Start before the open time: err = %v, want *NotYetOpenError", err)
+	}
+	if early.Entry.Title != "Exam none score" || !early.Entry.OpensAt.Equal(sched.OpensAt) || early.Entry.DurationMinutes != 60 {
+		t.Errorf("NotYetOpenError.Entry = %+v", early.Entry)
+	}
+	if got := h.attemptRows(t); got != 0 {
+		t.Fatalf("attempt rows after an early start = %d, want 0", got)
+	}
+
+	h.clock = sched.OpensAt
+	h.startWith(t, code, "Ayu")
+	h.clock = sched.ClosesAt.Add(-time.Millisecond)
+	h.startWith(t, code, "Budi")
+
+	h.clock = sched.ClosesAt
+	_, err = h.svc.Start(ctx, code, "Citra")
+	wantErr(t, "Start at the close time", err, attempt.ErrNoOpenExam)
+	if got := h.attemptRows(t); got != 2 {
+		t.Fatalf("attempt rows = %d, want 2", got)
+	}
+}
+
+func TestStart_CloseTimeLeavesRunningAttempts(t *testing.T) {
+	h := newHarness(t)
+	sched := exam.Schedule{OpensAt: t0.Add(time.Hour), ClosesAt: t0.Add(2 * time.Hour)}
+	id := h.scheduledExam(t, examText("none", examfile.ShowScore, 1, 2), sched)
+	q := h.questions(t, id)[0]
+
+	started := sched.ClosesAt.Add(-time.Minute)
+	h.clock = started
+	token := h.startIn(t, id, "Ayu")
+
+	h.clock = sched.ClosesAt.Add(10 * time.Minute)
+	if rem := h.save(t, token, q.ID, correctOption(q)); rem != defaultLength-11*time.Minute {
+		t.Errorf("Remaining after the close time = %v, want %v", rem, defaultLength-11*time.Minute)
+	}
+	_, err := h.svc.Start(context.Background(), h.code(t, id), "Budi")
+	wantErr(t, "Start after the close time", err, attempt.ErrNoOpenExam)
+	h.submit(t, token)
+	if s := h.only(t, id); s.Status != attempt.Submitted || s.Score != 1 || !s.StartedAt.Equal(started) {
+		t.Errorf("attempt after the close time: %+v", s)
+	}
+}
+
+func TestStart_ButtonOverridesSchedule(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	sched := exam.Schedule{OpensAt: t0.Add(time.Hour), ClosesAt: t0.Add(2 * time.Hour)}
+
+	early := h.scheduledExam(t, examText("none", examfile.ShowScore, 1, 2), sched)
+	if err := h.exams.Open(ctx, h.owner, early); err != nil {
+		t.Fatal(err)
+	}
+	h.startIn(t, early, "Ayu")
+
+	inside := h.scheduledExam(t, examText("none", examfile.ShowScore, 1, 2), sched)
+	h.clock = sched.OpensAt.Add(time.Minute)
+	if err := h.exams.Close(ctx, h.owner, inside); err != nil {
+		t.Fatal(err)
+	}
+	_, err := h.svc.Start(ctx, h.code(t, inside), "Budi")
+	wantErr(t, "Start after Close inside the window", err, attempt.ErrNoOpenExam)
 }

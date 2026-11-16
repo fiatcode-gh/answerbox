@@ -46,7 +46,7 @@ def _png(width: int, height: int) -> bytes:
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(bytes(rows))) + chunk(b"IEND", b"")
 
 
-def build_fixture_zip(dir, title="Geometry check", show_result="review", monitor=None):
+def build_fixture_zip(dir, title="Geometry check", show_result="review", monitor=None, duration=None):
     """Write a 6-question exam zip (exam.md + triangle.png) into dir.
 
     Returns (zip path, {question text: correct option text}).
@@ -54,6 +54,8 @@ def build_fixture_zip(dir, title="Geometry check", show_result="review", monitor
     lines = [f"# {title}", "shuffle: questions, options", f"show_result: {show_result}"]
     if monitor is not None:
         lines.append(f"monitor: {monitor}")
+    if duration is not None:
+        lines.append(f"duration: {duration}")
     lines.append("")
     key = {}
     for n, (text, options, extra) in enumerate(_QUESTIONS, start=1):

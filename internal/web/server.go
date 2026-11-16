@@ -29,6 +29,8 @@ type Deps struct {
 	// PublicURL is the app's public address, scheme and host without a
 	// trailing slash, used for the student link.
 	PublicURL string
+	// Now is the clock the pages read "today" from.
+	Now func() time.Time
 }
 
 type server struct {
@@ -41,8 +43,8 @@ type server struct {
 // NewHandler parses templates, indexes static assets and returns the
 // complete application handler with its middleware.
 func NewHandler(d Deps) (http.Handler, error) {
-	if d.DB == nil || d.Exams == nil || d.Attempts == nil || d.Admin == nil || d.OIDC == nil || d.Location == nil || d.Logger == nil || d.PublicURL == "" {
-		return nil, errors.New("web: Deps.DB, Exams, Attempts, Admin, OIDC, Location, Logger and PublicURL are required")
+	if d.DB == nil || d.Exams == nil || d.Attempts == nil || d.Admin == nil || d.OIDC == nil || d.Location == nil || d.Logger == nil || d.PublicURL == "" || d.Now == nil {
+		return nil, errors.New("web: Deps.DB, Exams, Attempts, Admin, OIDC, Location, Logger, PublicURL and Now are required")
 	}
 	s, err := newServer(d)
 	if err != nil {

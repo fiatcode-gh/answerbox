@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/fiatcode-gh/go-exam/internal/exam"
 	"github.com/fiatcode-gh/go-exam/internal/examfile"
@@ -22,12 +24,22 @@ func (s *server) mountTeacherExams(admin *http.ServeMux) {
 	admin.HandleFunc("POST /admin/exams/{id}/replace", s.replaceExam)
 	admin.HandleFunc("POST /admin/exams/{id}/open", s.setExamOpen(s.deps.Exams.Open))
 	admin.HandleFunc("POST /admin/exams/{id}/close", s.setExamOpen(s.deps.Exams.Close))
+	admin.HandleFunc("POST /admin/exams/{id}/schedule", s.setExamSchedule)
 }
 
 type examListData struct {
 	adminPage
-	Exams []exam.Exam
+	Exams []examRow
 	Alert string
+	Zone  string
+	// Scheduled is whether a listed exam has a schedule.
+	Scheduled bool
+}
+
+// examRow is an exam of the list with its schedule times as text.
+type examRow struct {
+	exam.Exam
+	Opens, Closes string
 }
 
 func (s *server) examList(w http.ResponseWriter, r *http.Request) {
@@ -40,7 +52,20 @@ func (s *server) renderExamList(w http.ResponseWriter, r *http.Request, status i
 		s.serverError(w, r, err)
 		return
 	}
-	s.page(w, r, status, "admin_exams.html", examListData{adminPage: adminPageFor(r), Exams: exams, Alert: alert})
+	data := examListData{adminPage: adminPageFor(r), Exams: make([]examRow, len(exams)), Alert: alert, Zone: s.deps.Location.String()}
+	for i, e := range exams {
+		data.Exams[i] = examRow{Exam: e, Opens: s.scheduleTime(e.Schedule.OpensAt), Closes: s.scheduleTime(e.Schedule.ClosesAt)}
+		data.Scheduled = data.Scheduled || e.Schedule.Set()
+	}
+	s.page(w, r, status, "admin_exams.html", data)
+}
+
+// scheduleTime is a schedule time as text, empty when not set.
+func (s *server) scheduleTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return s.fullTime(t)
 }
 
 const missingFileMessage = "Choose an exam file (.md, .txt or .zip) to upload."
@@ -116,7 +141,15 @@ type examDetailData struct {
 	FrozenNotice   string
 	// StudentLink is the address students open to enter this exam.
 	StudentLink string
+	// Opens and Closes are the schedule times as text, empty when not set.
+	Opens, Closes string
+	// Schedule holds the values of the schedule form's inputs.
+	Schedule scheduleInput
+	Zone     string
 }
+
+// scheduleInput is the schedule form's two datetime-local values.
+type scheduleInput struct{ Opens, Closes string }
 
 func (s *server) examDetail(w http.ResponseWriter, r *http.Request) {
 	id, ok := examID(r)
@@ -124,7 +157,7 @@ func (s *server) examDetail(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
-	s.renderExamDetail(w, r, http.StatusOK, id, "")
+	s.renderExamDetail(w, r, http.StatusOK, id, "", nil)
 }
 
 // examID parses the {id} path value; ok is false when it is not a number.
@@ -135,7 +168,9 @@ func examID(r *http.Request) (int64, bool) {
 
 const frozenNotice = "This exam has attempts, so its questions are frozen."
 
-func (s *server) renderExamDetail(w http.ResponseWriter, r *http.Request, status int, id int64, alert string) {
+// renderExamDetail renders the exam page. typed holds the schedule form
+// values as the teacher entered them; nil fills the form from the exam.
+func (s *server) renderExamDetail(w http.ResponseWriter, r *http.Request, status int, id int64, alert string, typed *scheduleInput) {
 	e, err := s.deps.Exams.Get(r.Context(), actorFrom(r), id)
 	if errors.Is(err, exam.ErrNotFound) {
 		s.notFound(w, r)
@@ -150,6 +185,10 @@ func (s *server) renderExamDetail(w http.ResponseWriter, r *http.Request, status
 		s.serverError(w, r, err)
 		return
 	}
+	input := scheduleInput{Opens: s.scheduleInputValue(e.Schedule.OpensAt), Closes: s.scheduleInputValue(e.Schedule.ClosesAt)}
+	if typed != nil {
+		input = *typed
+	}
 	s.page(w, r, status, "admin_exam.html", examDetailData{
 		adminPage:      adminPageFor(r),
 		Exam:           e,
@@ -159,7 +198,80 @@ func (s *server) renderExamDetail(w http.ResponseWriter, r *http.Request, status
 		Alert:          alert,
 		FrozenNotice:   frozenNotice,
 		StudentLink:    s.deps.PublicURL + "/?code=" + e.Code,
+		Opens:          s.scheduleTime(e.Schedule.OpensAt),
+		Closes:         s.scheduleTime(e.Schedule.ClosesAt),
+		Schedule:       input,
+		Zone:           s.deps.Location.String(),
 	})
+}
+
+// scheduleInputLayout is the value format of a datetime-local input.
+const scheduleInputLayout = "2006-01-02T15:04"
+
+// scheduleInputValue is t as a datetime-local value in the configured zone,
+// empty when not set.
+func (s *server) scheduleInputValue(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.In(s.deps.Location).Format(scheduleInputLayout)
+}
+
+// parseScheduleInput reads a datetime-local value in the configured zone.
+// Empty is the zero time; ok is false when v is not a valid value.
+func (s *server) parseScheduleInput(v string) (t time.Time, ok bool) {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return time.Time{}, true
+	}
+	t, err := time.ParseInLocation(scheduleInputLayout, v, s.deps.Location)
+	return t, err == nil
+}
+
+const invalidScheduleTimeMessage = "Enter a valid date and time."
+
+var scheduleMessages = []struct {
+	err error
+	msg string
+}{
+	{exam.ErrScheduleEmpty, "Enter an open time, a close time or both. To remove the schedule, press Open or Close."},
+	{exam.ErrScheduleOrder, "The close time must be after the open time."},
+	{exam.ErrSchedulePast, "The close time must be in the future."},
+}
+
+// setExamSchedule gives an exam the open and close times of the schedule
+// form. The rules live in exam.Service; this only reads the two inputs.
+func (s *server) setExamSchedule(w http.ResponseWriter, r *http.Request) {
+	id, ok := examID(r)
+	if !ok {
+		s.notFound(w, r)
+		return
+	}
+	typed := scheduleInput{Opens: r.PostFormValue("opens_at"), Closes: r.PostFormValue("closes_at")}
+	rerender := func(alert string) {
+		s.renderExamDetail(w, r, http.StatusUnprocessableEntity, id, alert, &typed)
+	}
+	opens, okOpens := s.parseScheduleInput(typed.Opens)
+	closes, okCloses := s.parseScheduleInput(typed.Closes)
+	if !okOpens || !okCloses {
+		rerender(invalidScheduleTimeMessage)
+		return
+	}
+	err := s.deps.Exams.SetSchedule(r.Context(), actorFrom(r), id, exam.Schedule{OpensAt: opens, ClosesAt: closes})
+	for _, m := range scheduleMessages {
+		if errors.Is(err, m.err) {
+			rerender(m.msg)
+			return
+		}
+	}
+	switch {
+	case errors.Is(err, exam.ErrNotFound):
+		s.notFound(w, r)
+	case err != nil:
+		s.serverError(w, r, err)
+	default:
+		http.Redirect(w, r, examPath(id), http.StatusSeeOther)
+	}
 }
 
 func (s *server) replaceExam(w http.ResponseWriter, r *http.Request) {
@@ -168,7 +280,7 @@ func (s *server) replaceExam(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
-	rerender := func(status int, alert string) { s.renderExamDetail(w, r, status, id, alert) }
+	rerender := func(status int, alert string) { s.renderExamDetail(w, r, status, id, alert, nil) }
 	data, ok := s.readUpload(w, r, rerender)
 	if !ok {
 		return

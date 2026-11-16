@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/fiatcode-gh/go-exam/internal/attempt"
+	"github.com/fiatcode-gh/go-exam/internal/exam"
 	"github.com/fiatcode-gh/go-exam/internal/examfile"
 )
 
@@ -127,6 +128,7 @@ type landingData struct {
 	Alert      string
 	ResumeOpen bool
 	LastResult bool
+	Minutes    int // the exam's length; 0 when the page shows no exam
 }
 
 func (s *server) landing(w http.ResponseWriter, r *http.Request) {
@@ -141,13 +143,16 @@ func (s *server) landing(w http.ResponseWriter, r *http.Request) {
 	}
 	d := landingData{LastResult: state == cookieFinished}
 	if raw := r.URL.Query().Get("code"); raw != "" {
-		e, found, err := s.deps.Exams.OpenByCode(r.Context(), raw)
+		e, found, err := s.deps.Exams.EntryByCode(r.Context(), raw)
 		switch {
 		case err != nil:
 			s.serverError(w, r, err)
 			return
 		case found:
-			d.ExamTitle, d.Code = e.Title, e.Code
+			d.ExamTitle, d.Code, d.Minutes = e.Title, e.Code, e.DurationMinutes
+			if e.Availability == exam.NotYetOpen {
+				d.Alert = s.opensAtAlert(e.OpensAt)
+			}
 		default:
 			d.Alert = noOpenExamAlert
 		}
@@ -187,22 +192,38 @@ func (s *server) start(w http.ResponseWriter, r *http.Request) {
 	}
 	code, name := r.PostFormValue("code"), r.PostFormValue("name")
 	token, err := s.deps.Attempts.Start(r.Context(), code, name)
-	refused := func(alert string) {
-		s.page(w, r, http.StatusUnprocessableEntity, "landing.html", landingData{
-			Code: code, Name: name, Alert: alert, LastResult: state == cookieFinished,
-		})
+	refused := func(d landingData) {
+		d.Code, d.Name, d.LastResult = code, name, state == cookieFinished
+		s.page(w, r, http.StatusUnprocessableEntity, "landing.html", d)
 	}
+	var early *attempt.NotYetOpenError
 	switch {
 	case err == nil:
 		http.SetCookie(w, newAttemptCookie(token))
 		http.Redirect(w, r, "/exam", http.StatusSeeOther)
 	case errors.Is(err, attempt.ErrInvalidName):
-		refused(invalidNameAlert)
+		refused(landingData{Alert: invalidNameAlert})
 	case errors.Is(err, attempt.ErrNoOpenExam):
-		refused(noOpenExamAlert)
+		refused(landingData{Alert: noOpenExamAlert})
+	case errors.As(err, &early):
+		refused(landingData{
+			ExamTitle: early.Entry.Title,
+			Minutes:   early.Entry.DurationMinutes,
+			Alert:     s.opensAtAlert(early.Entry.OpensAt),
+		})
 	default:
 		s.serverError(w, r, err)
 	}
+}
+
+// opensAtAlert tells a student when an exam opens, in Deps.Location: the
+// clock alone when that is today there, else the clock and the date.
+func (s *server) opensAtAlert(opensAt time.Time) string {
+	local := opensAt.In(s.deps.Location)
+	if sameDay(opensAt, s.deps.Now(), s.deps.Location) {
+		return "This exam opens at " + local.Format(clockLayout) + "."
+	}
+	return "This exam opens at " + local.Format(clockLayout) + " on " + local.Format(dateLayout) + "."
 }
 
 func (s *server) resume(w http.ResponseWriter, r *http.Request) {

@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/fiatcode-gh/go-exam/internal/adminauth"
+	"github.com/fiatcode-gh/go-exam/internal/attempt"
 	"github.com/fiatcode-gh/go-exam/internal/exam"
 	"github.com/fiatcode-gh/go-exam/internal/platform/sqlite"
 	"github.com/fiatcode-gh/go-exam/internal/platform/sqlite/sqlitetest"
@@ -352,6 +353,78 @@ func TestAssignExamCodes_UpgradedDatabase(t *testing.T) {
 	}
 	if logs.Len() != 0 {
 		t.Errorf("second call logged %q, want nothing", logs.String())
+	}
+}
+
+func TestUpgrade_Version5OpenExamKeeps60MinutesAndNoSchedule(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "go-exam.db")
+	old := openOldDatabase(t, path, 5)
+	for _, q := range []string{
+		`INSERT INTO teacher (id, email, created_at) VALUES (1,'first@example.test',0)`,
+		`INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id, code) VALUES (1,'Live','none','score',1,'k1',5,1,1,'3VK583')`,
+		`INSERT INTO question (id, exam_id, position, body_html) VALUES (1,1,1,'q1')`,
+		`INSERT INTO question_option (id, question_id, position, body_html, is_correct) VALUES (1,1,1,'o1',1),(2,1,2,'o2',0)`,
+	} {
+		if _, err := old.Exec(q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	for i := range 51 {
+		if _, err := old.Exec(`INSERT INTO attempt (exam_id, student_name, token_hash, shuffle_seed, status, started_at, deadline_at, finished_at)
+			VALUES (1, ?, ?, ?, 'submitted', 10, 20, 15)`, fmt.Sprintf("Student %d", i), []byte{byte(i)}, i); err != nil {
+			t.Fatalf("attempt %d: %v", i, err)
+		}
+	}
+	before := dumpRows(t, old)
+	old.Close()
+
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	exams := newExams(t, db)
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	if _, err := newAdmin(ctx, db, exams, []string{"first@example.test"}, logger); err != nil {
+		t.Fatal(err)
+	}
+	if err := assignExamCodes(ctx, exams, logger); err != nil {
+		t.Fatalf("assignExamCodes: %v", err)
+	}
+
+	var version string
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != "6" {
+		t.Fatalf("user_version = %s, %v; want 6", version, err)
+	}
+	var (
+		open, minutes, noOpens, noCloses int
+		code                             string
+	)
+	err = db.QueryRow(`SELECT is_open, duration_minutes, opens_at IS NULL, closes_at IS NULL, code FROM exam WHERE id = 1`).
+		Scan(&open, &minutes, &noOpens, &noCloses, &code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if open != 1 || minutes != 60 || noOpens != 1 || noCloses != 1 || code != "3VK583" {
+		t.Errorf("exam 1 = %d, %d, %d, %d, %q; want 1, 60, 1, 1, \"3VK583\"", open, minutes, noOpens, noCloses, code)
+	}
+	if after := dumpRows(t, db); after != before {
+		t.Errorf("rows changed:\n%s\nwant\n%s", after, before)
+	}
+	if strings.Contains(logs.String(), "existing exams given a code") {
+		t.Errorf("log = %q, want no code assignment", logs.String())
+	}
+
+	clock := time.UnixMilli(1_800_000_000_000)
+	students := attempt.NewService(db, func() time.Time { return clock }, rand.Reader)
+	if _, err := students.Start(ctx, "3VK583", "New student"); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	var length int64
+	if err := db.QueryRow(`SELECT deadline_at - started_at FROM attempt WHERE student_name = 'New student'`).Scan(&length); err != nil || length != 3600000 {
+		t.Errorf("deadline_at - started_at = %d, %v; want 3600000", length, err)
 	}
 }
 

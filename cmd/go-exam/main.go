@@ -82,6 +82,7 @@ func run() error {
 		Location:  cfg.Location,
 		Logger:    logger,
 		PublicURL: cfg.PublicURL,
+		Now:       time.Now,
 	})
 	if err != nil {
 		return err

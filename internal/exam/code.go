@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/fiatcode-gh/go-exam/internal/shortcode"
 )
@@ -37,22 +38,52 @@ func NormalizeCode(input string) (string, bool) {
 	return shortcode.Normalize(input, codeLen)
 }
 
-// OpenByCode returns the open exam with the code in input, typed as
-// NormalizeCode accepts. A malformed, unknown or closed code is reported
-// the same way: ok is false.
-func (s *Service) OpenByCode(ctx context.Context, input string) (Exam, bool, error) {
-	code, ok := NormalizeCode(input)
-	if !ok {
-		return Exam{}, false, nil
-	}
-	e, err := scanExam(s.db.QueryRowContext(ctx, examColumns+` WHERE code = ? AND is_open = 1`, code))
+// Entry is what a student's exam code leads to: an exam students can start
+// now or one whose open time is still ahead.
+type Entry struct {
+	ExamID          int64
+	Title, Code     string
+	DurationMinutes int
+	Availability    Availability // OpenNow or NotYetOpen, never Closed
+	OpensAt         time.Time    // the open time still ahead; zero when OpenNow
+}
+
+// LoadEntry resolves a normalized code through q (which may be an open
+// transaction) at the moment now. An unknown code and a Closed exam are the
+// same: ok false and a zero Entry, so no caller can show a closed exam.
+func LoadEntry(ctx context.Context, q Queryer, code string, now time.Time) (Entry, bool, error) {
+	var e Entry
+	var buttonOpen bool
+	var opensAt, closesAt sql.NullInt64
+	err := q.QueryRowContext(ctx,
+		`SELECT id, title, code, duration_minutes, is_open, opens_at, closes_at FROM exam WHERE code = ?`, code).
+		Scan(&e.ExamID, &e.Title, &e.Code, &e.DurationMinutes, &buttonOpen, &opensAt, &closesAt)
 	if errors.Is(err, sql.ErrNoRows) {
-		return Exam{}, false, nil
+		return Entry{}, false, nil
 	}
 	if err != nil {
-		return Exam{}, false, err
+		return Entry{}, false, err
+	}
+	sched := Schedule{OpensAt: fromMillis(opensAt), ClosesAt: fromMillis(closesAt)}
+	e.Availability = AvailabilityAt(buttonOpen, sched, now)
+	switch e.Availability {
+	case Closed:
+		return Entry{}, false, nil
+	case NotYetOpen:
+		e.OpensAt = sched.OpensAt
 	}
 	return e, true, nil
+}
+
+// EntryByCode resolves the code in input, typed as NormalizeCode accepts, at
+// the service's current time. A malformed code is reported like an unknown
+// one: ok is false.
+func (s *Service) EntryByCode(ctx context.Context, input string) (Entry, bool, error) {
+	code, ok := NormalizeCode(input)
+	if !ok {
+		return Entry{}, false, nil
+	}
+	return LoadEntry(ctx, s.db, code, s.now())
 }
 
 // AssignMissingCodes gives every exam without a code a new one and returns
