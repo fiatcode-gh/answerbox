@@ -219,6 +219,23 @@ img {
 .admin-header nav {
   max-width: 1100px;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+.admin-header nav ul {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+/* A long email is cut with an ellipsis instead of widening the page. */
+.signed-in-as {
+  display: inline-block;
+  max-width: min(18rem, 60vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+  color: var(--ge-muted);
 }
 
 .admin-header nav li {
@@ -251,7 +268,7 @@ main.login {
   padding-top: var(--ge-space-6);
 }
 
-main.login button[type="submit"] {
+main.login [role="button"] {
   width: 100%;
   min-height: var(--ge-touch);
 }

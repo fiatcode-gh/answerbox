@@ -56,6 +56,7 @@ fmt.Println(2 + 3)
       <thead>
         <tr>
           <th scope="col">Title</th>
+          {{if .Me.Admin}}<th scope="col">Owner</th>{{end}}
           <th scope="col">Status</th>
           <th scope="col">Questions</th>
           <th scope="col">Attempts</th>
@@ -66,6 +67,7 @@ fmt.Println(2 + 3)
         {{range .Exams}}
         <tr data-exam-id="{{.ID}}">
           <td>{{.Title}}</td>
+          {{if $.Me.Admin}}<td class="owner">{{.OwnerEmail}}</td>{{end}}
           <td>{{if .Open}}<span class="badge badge-ok">Open</span>{{else}}<span class="badge badge-muted">Closed</span>{{end}}</td>
           <td class="numeric">{{.QuestionCount}}</td>
           <td class="numeric">{{.AttemptCount}}</td>

@@ -35,7 +35,7 @@ func (s *server) examList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) renderExamList(w http.ResponseWriter, r *http.Request, status int, alert string) {
-	exams, err := s.deps.Exams.List(r.Context())
+	exams, err := s.deps.Exams.List(r.Context(), actorFrom(r))
 	if err != nil {
 		s.serverError(w, r, err)
 		return
@@ -48,7 +48,7 @@ const missingFileMessage = "Choose an exam file (.md, .txt or .zip) to upload."
 // rerenderFunc renders the page an upload form lives on with an alert.
 type rerenderFunc func(status int, alert string)
 
-// readUpload reads the "file" part of the multipart form requireAdmin has
+// readUpload reads the "file" part of the multipart form requireTeacher has
 // already parsed. On failure it has responded — 422 through rerender, 413 or
 // 500 — and returns ok false.
 func (s *server) readUpload(w http.ResponseWriter, r *http.Request, rerender rerenderFunc) (data []byte, ok bool) {
@@ -78,7 +78,7 @@ func (s *server) importExam(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	id, err := s.deps.Exams.Import(r.Context(), data)
+	id, err := s.deps.Exams.Import(r.Context(), actorFrom(r), data)
 	var invalid *examfile.Error
 	switch {
 	case errors.As(err, &invalid):
@@ -134,7 +134,7 @@ func examID(r *http.Request) (int64, bool) {
 const frozenNotice = "This exam has attempts, so its questions are frozen."
 
 func (s *server) renderExamDetail(w http.ResponseWriter, r *http.Request, status int, id int64, alert string) {
-	e, err := s.deps.Exams.Get(r.Context(), id)
+	e, err := s.deps.Exams.Get(r.Context(), actorFrom(r), id)
 	if errors.Is(err, exam.ErrNotFound) {
 		s.notFound(w, r)
 		return
@@ -170,7 +170,7 @@ func (s *server) replaceExam(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	err := s.deps.Exams.Replace(r.Context(), id, data)
+	err := s.deps.Exams.Replace(r.Context(), actorFrom(r), id, data)
 	var invalid *examfile.Error
 	switch {
 	case errors.As(err, &invalid):
@@ -186,19 +186,25 @@ func (s *server) replaceExam(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// otherOpenMessage refuses opening an exam while another teacher's exam is
+// open. It names no exam: the other exam is none of the actor's business.
+const otherOpenMessage = "Another teacher's exam is open right now. Only one exam can be open at a time, so yours stays closed until theirs is closed."
+
 // setExamOpen returns the handler for the open or close action: it applies
-// change to the exam and returns to the list.
-func (s *server) setExamOpen(change func(context.Context, int64) error) http.HandlerFunc {
+// change to the exam for the signed-in teacher and returns to the list.
+func (s *server) setExamOpen(change func(context.Context, exam.Actor, int64) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, ok := examID(r)
 		if !ok {
 			s.notFound(w, r)
 			return
 		}
-		err := change(r.Context(), id)
+		err := change(r.Context(), actorFrom(r), id)
 		switch {
 		case errors.Is(err, exam.ErrNotFound):
 			s.notFound(w, r)
+		case errors.Is(err, exam.ErrOtherTeacherOpen):
+			s.renderExamList(w, r, http.StatusConflict, otherOpenMessage)
 		case err != nil:
 			s.serverError(w, r, err)
 		default:

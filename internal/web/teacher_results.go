@@ -28,15 +28,16 @@ func (s *server) mountTeacherResults(admin *http.ServeMux) {
 	admin.HandleFunc("POST /admin/exams/{id}/attempts/{aid}/rename", s.attemptRename)
 }
 
-// resultsExam resolves the {id} exam of a results route. On failure it has
-// responded (404 or 500) and returns ok false.
+// resultsExam resolves the {id} exam of a results route for the signed-in
+// teacher; every results handler calls it before touching attempts. On
+// failure it has responded (404 or 500) and returns ok false.
 func (s *server) resultsExam(w http.ResponseWriter, r *http.Request) (e exam.Exam, ok bool) {
 	id, ok := examID(r)
 	if !ok {
 		s.notFound(w, r)
 		return exam.Exam{}, false
 	}
-	e, err := s.deps.Exams.Get(r.Context(), id)
+	e, err := s.deps.Exams.Get(r.Context(), actorFrom(r), id)
 	if errors.Is(err, exam.ErrNotFound) {
 		s.notFound(w, r)
 		return exam.Exam{}, false

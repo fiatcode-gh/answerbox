@@ -55,16 +55,26 @@ func run() error {
 	}
 	defer media.Close()
 
-	admin, err := newAdmin(context.Background(), db, cfg.AdminPassword)
+	exams := exam.NewService(db, media, time.Now, rand.Reader)
+	admin, err := newAdmin(context.Background(), db, exams, cfg.AdminEmails, logger)
 	if err != nil {
 		return err
 	}
 	attempts := attempt.NewService(db, time.Now, rand.Reader)
 	handler, err := web.NewHandler(web.Deps{
 		DB:       db,
-		Exams:    exam.NewService(db, media, time.Now, rand.Reader),
+		Exams:    exams,
 		Attempts: attempts,
 		Admin:    admin,
+		OIDC: adminauth.NewProvider(adminauth.ProviderConfig{
+			Issuer:       cfg.OIDCIssuer,
+			ClientID:     cfg.GoogleClientID,
+			ClientSecret: cfg.GoogleClientSecret,
+			RedirectURL:  cfg.PublicURL + "/admin/auth/callback",
+			HTTPClient:   &http.Client{Timeout: 10 * time.Second},
+			Now:          time.Now,
+			Random:       rand.Reader,
+		}),
 		ClientIP: clientip.New(cfg.TrustedProxies),
 		Location: cfg.Location,
 		Logger:   logger,
@@ -103,7 +113,10 @@ func run() error {
 
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- srv.Serve(ln) }()
-	logger.Info("listening", "addr", ln.Addr().String(), "data_dir", cfg.DataDir)
+	logger.Info("listening", "addr", ln.Addr().String(), "data_dir", cfg.DataDir, "oidc_issuer", cfg.OIDCIssuer)
+	if cfg.OIDCIssuer != config.GoogleIssuer {
+		logger.Warn("sign-in uses a non-Google OpenID provider", "oidc_issuer", cfg.OIDCIssuer)
+	}
 
 	select {
 	case err := <-serveErr:
@@ -119,13 +132,24 @@ func run() error {
 	return nil
 }
 
-// newAdmin returns the teacher sign-in service. Admin sessions are not
-// carried across a restart, so restarting with a changed password ends every
-// session signed in with the old one.
-func newAdmin(ctx context.Context, db *sql.DB, password string) (*adminauth.Service, error) {
-	admin := adminauth.NewService(db, password, time.Now, rand.Reader)
-	if err := admin.ClearSessions(ctx); err != nil {
-		return nil, fmt.Errorf("clear admin sessions: %w", err)
+// newAdmin returns the sign-in service with every configured admin on the
+// teacher list and gives exams that have no owner yet (those from before
+// exam ownership) to the first admin. Sessions are kept across restarts.
+func newAdmin(ctx context.Context, db *sql.DB, exams *exam.Service, adminEmails []string, logger *slog.Logger) (*adminauth.Service, error) {
+	admin, err := adminauth.NewService(db, adminEmails, time.Now, rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("GOEXAM_ADMIN_EMAILS: %w", err)
+	}
+	firstAdminID, err := admin.EnsureAdmins(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("add admins to the teacher list: %w", err)
+	}
+	n, err := exams.AssignUnowned(ctx, firstAdminID)
+	if err != nil {
+		return nil, fmt.Errorf("assign existing exams: %w", err)
+	}
+	if n > 0 {
+		logger.Info("existing exams assigned to the first admin", "count", n)
 	}
 	return admin, nil
 }

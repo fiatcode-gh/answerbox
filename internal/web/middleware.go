@@ -97,8 +97,8 @@ func securityHeaders(next http.Handler) http.Handler {
 	})
 }
 
-// withDeadline gives the request requestTimeout; requireAdmin replaces it
-// with a fresh one once an admin request body has been read.
+// withDeadline gives the request requestTimeout; requireTeacher replaces it
+// with a fresh one once a teacher request body has been read.
 func withDeadline(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), requestTimeout)

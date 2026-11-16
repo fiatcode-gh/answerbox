@@ -23,6 +23,7 @@ import (
 
 	"github.com/fiatcode-gh/go-exam/internal/attempt"
 	"github.com/fiatcode-gh/go-exam/internal/examfile"
+	"github.com/fiatcode-gh/go-exam/internal/oidcfake"
 )
 
 func TestAdminIndex_RedirectsToExams(t *testing.T) {
@@ -59,7 +60,7 @@ func TestAdminExams_ListAndEmptyState(t *testing.T) {
 		}
 	}
 
-	id, err := env.exams.Import(context.Background(), []byte("# Algebra & Co\n\n1. Q one\n- a *\n- b\n\n2. Q two\n- c\n- d *\n"))
+	id, err := env.exams.Import(context.Background(), env.owner, []byte("# Algebra & Co\n\n1. Q one\n- a *\n- b\n\n2. Q two\n- c\n- d *\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,17 +80,17 @@ func TestAdminExams_ListAndEmptyState(t *testing.T) {
 	for _, c := range cells {
 		got = append(got, strings.TrimSpace(regexp.MustCompile(`<[^>]+>`).ReplaceAllString(c[1], "")))
 	}
-	want := []string{"Algebra &amp; Co", "Closed", "2", "0", "Open View Results"}
+	want := []string{"Algebra &amp; Co", testAdminEmail, "Closed", "2", "0", "Open View Results"}
 	if strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("row cells = %q, want %q", got, want)
 	}
-	for _, header := range []string{"Title", "Status", "Questions", "Attempts"} {
+	for _, header := range []string{"Title", "Owner", "Status", "Questions", "Attempts"} {
 		if !strings.Contains(body, "<th scope=\"col\">"+header+"</th>") {
 			t.Errorf("column %q missing", header)
 		}
 	}
 
-	if err := env.exams.Open(context.Background(), id); err != nil {
+	if err := env.exams.Open(context.Background(), env.owner, id); err != nil {
 		t.Fatal(err)
 	}
 	if body = do(env.h, "GET", "/admin/exams", cookie).Body.String(); !strings.Contains(body, ">Open</span>") {
@@ -97,15 +98,17 @@ func TestAdminExams_ListAndEmptyState(t *testing.T) {
 	}
 }
 
-// loginThroughHandler signs in with the login form and reads the CSRF token
-// from the exams page, as a browser would.
+// loginThroughHandler signs the admin in through the provider and the
+// handler, and reads the CSRF token from the exams page.
 func loginThroughHandler(t *testing.T, env *testEnv) (cookie http.Header, csrf string) {
 	t.Helper()
-	rec := postForm(env.h, "/admin/login", url.Values{"password": {testPassword}}, nil)
-	requireRedirect(t, rec, "/admin/exams")
+	rec := env.googleSignIn(t, oidcfake.Identity{Email: testAdminEmail, Name: testAdminName}, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("sign-in callback = %d, want 200:\n%s", rec.Code, rec.Body.String())
+	}
 	c := adminSetCookie(t, rec)
 	if c == nil {
-		t.Fatal("login set no cookie")
+		t.Fatal("sign-in set no cookie")
 	}
 	cookie = adminCookie(c.Value)
 	body := do(env.h, "GET", "/admin/exams", cookie).Body.String()
@@ -306,7 +309,7 @@ func TestImport_SlowBodyStillImports(t *testing.T) {
 		t.Fatalf("import with the parent context ended during upload = %d Location %q, want 303 /admin/exams/{id}:\n%s",
 			rec.Code, loc, rec.Body.String())
 	}
-	exams, err := env.exams.List(context.Background())
+	exams, err := env.exams.List(context.Background(), env.owner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -317,7 +320,7 @@ func TestImport_SlowBodyStillImports(t *testing.T) {
 
 func requireNoExams(t *testing.T, env *testEnv) {
 	t.Helper()
-	exams, err := env.exams.List(context.Background())
+	exams, err := env.exams.List(context.Background(), env.owner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -439,7 +442,7 @@ func TestReplace_Flow(t *testing.T) {
 	rec = serve(env.h, uploadRequest(t, detail+"/replace", csrf, "", nil, cookie))
 	requireAlert(t, rec, http.StatusUnprocessableEntity, "Choose an exam file (.md, .txt or .zip) to upload.")
 
-	if err := env.exams.Open(ctx, id); err != nil {
+	if err := env.exams.Open(ctx, env.owner, id); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := attempt.NewService(env.db, func() time.Time { return env.clock }, rand.NewChaCha8([32]byte{3})).Start(ctx, "Ada"); err != nil {

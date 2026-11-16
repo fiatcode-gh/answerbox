@@ -34,6 +34,7 @@ type harness struct {
 	media *os.Root
 	dir   string
 	clock time.Time
+	owner exam.Actor
 }
 
 func newHarness(t *testing.T) *harness {
@@ -45,23 +46,63 @@ func newHarness(t *testing.T) *harness {
 	}
 	t.Cleanup(func() { media.Close() })
 	h := &harness{db: sqlitetest.Open(t), media: media, dir: dir, clock: fixedNow}
+	h.owner = exam.Actor{TeacherID: sqlitetest.Teacher(t, h.db, "owner@example.test")}
 	random := rand.NewChaCha8([32]byte{1, 2, 3})
 	h.svc = exam.NewService(h.db, media, func() time.Time { return h.clock }, random)
 	return h
 }
 
-func (h *harness) mustImport(t *testing.T, data []byte) int64 {
+// teacher lists email as a teacher and returns it as a non-admin actor.
+func (h *harness) teacher(t *testing.T, email string) exam.Actor {
 	t.Helper()
-	id, err := h.svc.Import(context.Background(), data)
+	return exam.Actor{TeacherID: sqlitetest.Teacher(t, h.db, email)}
+}
+
+// admin lists admin@example.test and returns it as an admin actor.
+func (h *harness) admin(t *testing.T) exam.Actor {
+	t.Helper()
+	return exam.Actor{TeacherID: sqlitetest.Teacher(t, h.db, "admin@example.test"), Admin: true}
+}
+
+func (h *harness) importAs(t *testing.T, actor exam.Actor, data []byte) int64 {
+	t.Helper()
+	id, err := h.svc.Import(context.Background(), actor, data)
 	if err != nil {
 		t.Fatalf("Import: %v", err)
 	}
 	return id
 }
 
+// openIDs returns the ids of the open exams.
+func (h *harness) openIDs(t *testing.T) []int64 {
+	t.Helper()
+	rows, err := h.db.Query(`SELECT id FROM exam WHERE is_open = 1 ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return ids
+}
+
+func (h *harness) mustImport(t *testing.T, data []byte) int64 {
+	t.Helper()
+	return h.importAs(t, h.owner, data)
+}
+
 func (h *harness) mustGet(t *testing.T, id int64) exam.Exam {
 	t.Helper()
-	ex, err := h.svc.Get(context.Background(), id)
+	ex, err := h.svc.Get(context.Background(), h.owner, id)
 	if err != nil {
 		t.Fatalf("Get(%d): %v", id, err)
 	}
@@ -228,6 +269,7 @@ func TestImport_StoresExamAndImages(t *testing.T) {
 	want := exam.Exam{
 		ID: id, Title: "Geometry", Shuffle: examfile.ShuffleNone, ShowResult: examfile.ShowReview,
 		Monitor: true, Open: false, CreatedAt: fixedNow, QuestionCount: 2, AttemptCount: 0,
+		OwnerID: h.owner.TeacherID, OwnerEmail: "owner@example.test",
 	}
 	if !ex.CreatedAt.Equal(fixedNow) {
 		t.Errorf("CreatedAt = %v, want %v", ex.CreatedAt, fixedNow)
@@ -294,11 +336,11 @@ func TestImport_FailureStoresNothing(t *testing.T) {
 	}
 	for name, data := range cases {
 		t.Run(name, func(t *testing.T) {
-			_, err := h.svc.Import(context.Background(), data)
+			_, err := h.svc.Import(context.Background(), h.owner, data)
 			assertExamfileError(t, err)
 		})
 	}
-	list, err := h.svc.List(context.Background())
+	list, err := h.svc.List(context.Background(), h.owner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +369,7 @@ func TestImport_HostileZipWritesOnlyUnderMediaKey(t *testing.T) {
 	}
 
 	h2 := newHarness(t)
-	_, err := h2.svc.Import(context.Background(), buildZip(t,
+	_, err := h2.svc.Import(context.Background(), h2.owner, buildZip(t,
 		zipEntry{"exam.md", []byte("# T\n\n1. Q ![x](../evil.png)\n- a *\n- b\n")},
 		zipEntry{"../evil.png", img},
 	))
@@ -349,7 +391,7 @@ func TestReplace_BeforeAttempts(t *testing.T) {
 	ctx := context.Background()
 	oldZip, _ := imageExam(t, "Old", color.Black)
 	id := h.mustImport(t, oldZip)
-	if err := h.svc.Open(ctx, id); err != nil {
+	if err := h.svc.Open(ctx, h.owner, id); err != nil {
 		t.Fatal(err)
 	}
 	oldKey := h.mediaKey(t, id)
@@ -360,7 +402,7 @@ func TestReplace_BeforeAttempts(t *testing.T) {
 		zipEntry{"exam.md", []byte("# New\nshuffle: questions, options\nshow_result: review\nmonitor: off\n\n1. Fresh ![x](i.png)\n- x\n- y *\n- z\n\n2. Second\n- p *\n- q\n")},
 		zipEntry{"i.png", newImg},
 	)
-	if err := h.svc.Replace(ctx, id, newZip); err != nil {
+	if err := h.svc.Replace(ctx, h.owner, id, newZip); err != nil {
 		t.Fatalf("Replace: %v", err)
 	}
 
@@ -393,7 +435,7 @@ func TestReplace_FrozenOnceAttemptExists(t *testing.T) {
 	h.insertAttempt(t, id, "alice")
 
 	newZip, _ := imageExam(t, "New", color.White)
-	if err := h.svc.Replace(ctx, id, newZip); !errors.Is(err, exam.ErrFrozen) {
+	if err := h.svc.Replace(ctx, h.owner, id, newZip); !errors.Is(err, exam.ErrFrozen) {
 		t.Fatalf("Replace = %v, want ErrFrozen", err)
 	}
 	if after := h.mustQuestions(t, id); !reflect.DeepEqual(after, before) {
@@ -412,13 +454,13 @@ func TestReplace_AllowedAgainAfterAttemptsDeleted(t *testing.T) {
 	ctx := context.Background()
 	id := h.mustImport(t, []byte(simpleExam))
 	attemptID := h.insertAttempt(t, id, "bob")
-	if err := h.svc.Replace(ctx, id, []byte("# Second\n\n1. Q\n- a\n- b *\n")); !errors.Is(err, exam.ErrFrozen) {
+	if err := h.svc.Replace(ctx, h.owner, id, []byte("# Second\n\n1. Q\n- a\n- b *\n")); !errors.Is(err, exam.ErrFrozen) {
 		t.Fatalf("Replace = %v, want ErrFrozen", err)
 	}
 	if _, err := h.db.Exec("DELETE FROM attempt WHERE id = ?", attemptID); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.svc.Replace(ctx, id, []byte("# Second\n\n1. Q\n- a\n- b *\n")); err != nil {
+	if err := h.svc.Replace(ctx, h.owner, id, []byte("# Second\n\n1. Q\n- a\n- b *\n")); err != nil {
 		t.Fatalf("Replace after delete: %v", err)
 	}
 	if ex := h.mustGet(t, id); ex.Title != "Second" {
@@ -433,7 +475,7 @@ func TestReplace_InvalidKeepsOldContent(t *testing.T) {
 	before := h.mustQuestions(t, id)
 	entriesBefore := h.mediaEntries(t)
 
-	err := h.svc.Replace(context.Background(), id, []byte("# Broken\n\n1. No options\n"))
+	err := h.svc.Replace(context.Background(), h.owner, id, []byte("# Broken\n\n1. No options\n"))
 	assertExamfileError(t, err)
 	if after := h.mustQuestions(t, id); !reflect.DeepEqual(after, before) {
 		t.Errorf("questions changed:\n%+v\nwant\n%+v", after, before)
@@ -452,7 +494,7 @@ func TestImport_DBFailureLeavesNoMedia(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	if _, err := h.svc.Import(ctx, zipData); err == nil {
+	if _, err := h.svc.Import(ctx, h.owner, zipData); err == nil {
 		t.Fatal("Import with a cancelled context succeeded")
 	}
 	if entries := h.mediaEntries(t); len(entries) != 0 {
@@ -470,7 +512,7 @@ func TestReplace_DBFailureLeavesNoMedia(t *testing.T) {
 	}
 
 	newZip, _ := imageExam(t, "New", color.White)
-	if err := h.svc.Replace(context.Background(), id, newZip); err == nil {
+	if err := h.svc.Replace(context.Background(), h.owner, id, newZip); err == nil {
 		t.Fatal("Replace on a closed database succeeded")
 	}
 	if entries := h.mediaEntries(t); !slices.Equal(entries, entriesBefore) {
@@ -483,13 +525,13 @@ func TestOpen_ClosesOtherExam(t *testing.T) {
 	ctx := context.Background()
 	a := h.mustImport(t, []byte(simpleExam))
 	b := h.mustImport(t, []byte(simpleExam))
-	if err := h.svc.Open(ctx, a); err != nil {
+	if err := h.svc.Open(ctx, h.owner, a); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.svc.Open(ctx, a); err != nil {
+	if err := h.svc.Open(ctx, h.owner, a); err != nil {
 		t.Fatalf("re-opening open exam: %v", err)
 	}
-	if err := h.svc.Open(ctx, b); err != nil {
+	if err := h.svc.Open(ctx, h.owner, b); err != nil {
 		t.Fatal(err)
 	}
 	if h.mustGet(t, a).Open || !h.mustGet(t, b).Open {
@@ -506,10 +548,10 @@ func TestClose(t *testing.T) {
 	ctx := context.Background()
 	id := h.mustImport(t, []byte(simpleExam))
 	h.insertAttempt(t, id, "carol")
-	if err := h.svc.Open(ctx, id); err != nil {
+	if err := h.svc.Open(ctx, h.owner, id); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.svc.Close(ctx, id); err != nil {
+	if err := h.svc.Close(ctx, h.owner, id); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
 	if _, ok, err := h.svc.Current(ctx); err != nil || ok {
@@ -520,16 +562,16 @@ func TestClose(t *testing.T) {
 	}
 
 	const unknown = 9999
-	if err := h.svc.Open(ctx, unknown); !errors.Is(err, exam.ErrNotFound) {
+	if err := h.svc.Open(ctx, h.owner, unknown); !errors.Is(err, exam.ErrNotFound) {
 		t.Errorf("Open(unknown) = %v", err)
 	}
-	if err := h.svc.Close(ctx, unknown); !errors.Is(err, exam.ErrNotFound) {
+	if err := h.svc.Close(ctx, h.owner, unknown); !errors.Is(err, exam.ErrNotFound) {
 		t.Errorf("Close(unknown) = %v", err)
 	}
-	if _, err := h.svc.Get(ctx, unknown); !errors.Is(err, exam.ErrNotFound) {
+	if _, err := h.svc.Get(ctx, h.owner, unknown); !errors.Is(err, exam.ErrNotFound) {
 		t.Errorf("Get(unknown) = %v", err)
 	}
-	if err := h.svc.Replace(ctx, unknown, []byte(simpleExam)); !errors.Is(err, exam.ErrNotFound) {
+	if err := h.svc.Replace(ctx, h.owner, unknown, []byte(simpleExam)); !errors.Is(err, exam.ErrNotFound) {
 		t.Errorf("Replace(unknown) = %v", err)
 	}
 	if entries := h.mediaEntries(t); len(entries) != 0 {
@@ -548,7 +590,7 @@ func TestList_NewestFirstWithCounts(t *testing.T) {
 	h.insertAttempt(t, first, "a2")
 	h.insertAttempt(t, third, "a3")
 
-	list, err := h.svc.List(ctx)
+	list, err := h.svc.List(ctx, h.owner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -563,5 +605,196 @@ func TestList_NewestFirstWithCounts(t *testing.T) {
 	want := []row{{third, 1, 1}, {second, 1, 0}, {first, 2, 2}}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("List = %+v, want %+v", got, want)
+	}
+}
+
+func TestImport_SetsOwner(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	b := h.teacher(t, "b@example.test")
+	admin := h.admin(t)
+	for _, tc := range []struct {
+		actor exam.Actor
+		email string
+	}{{b, "b@example.test"}, {admin, "admin@example.test"}} {
+		id := h.importAs(t, tc.actor, []byte(simpleExam))
+		ex, err := h.svc.Get(ctx, tc.actor, id)
+		if err != nil {
+			t.Fatalf("Get as %s: %v", tc.email, err)
+		}
+		if ex.OwnerID != tc.actor.TeacherID || ex.OwnerEmail != tc.email {
+			t.Errorf("owner = %d %q, want %d %q", ex.OwnerID, ex.OwnerEmail, tc.actor.TeacherID, tc.email)
+		}
+	}
+}
+
+func TestScope_ListAndGet(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	a := h.teacher(t, "a@example.test")
+	b := h.teacher(t, "b@example.test")
+	admin := h.admin(t)
+	aID := h.importAs(t, a, []byte(simpleExam))
+	h.clock = fixedNow.Add(time.Minute)
+	bID := h.importAs(t, b, []byte(simpleExam))
+
+	ids := func(actor exam.Actor) []int64 {
+		t.Helper()
+		list, err := h.svc.List(ctx, actor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []int64
+		for _, e := range list {
+			out = append(out, e.ID)
+		}
+		return out
+	}
+	if got := ids(a); !slices.Equal(got, []int64{aID}) {
+		t.Errorf("List(A) = %v, want [%d]", got, aID)
+	}
+	if got := ids(b); !slices.Equal(got, []int64{bID}) {
+		t.Errorf("List(B) = %v, want [%d]", got, bID)
+	}
+	if got := ids(admin); !slices.Equal(got, []int64{bID, aID}) {
+		t.Errorf("List(admin) = %v, want [%d %d]", got, bID, aID)
+	}
+	if _, err := h.svc.Get(ctx, b, aID); !errors.Is(err, exam.ErrNotFound) {
+		t.Errorf("Get(B, A's exam) = %v, want ErrNotFound", err)
+	}
+	for _, id := range []int64{aID, bID} {
+		if ex, err := h.svc.Get(ctx, admin, id); err != nil || ex.ID != id {
+			t.Errorf("Get(admin, %d) = %+v, %v", id, ex, err)
+		}
+	}
+}
+
+func TestScope_MutationsOnForeignExamAreNotFound(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	a := h.teacher(t, "a@example.test")
+	b := h.teacher(t, "b@example.test")
+	admin := h.admin(t)
+	oldZip, _ := imageExam(t, "Old", color.Black)
+	id := h.importAs(t, a, oldZip)
+	if err := h.svc.Open(ctx, a, id); err != nil {
+		t.Fatal(err)
+	}
+	questions := h.mustQuestions(t, id)
+	entries := h.mediaEntries(t)
+
+	newZip, _ := imageExam(t, "New", color.White)
+	if err := h.svc.Replace(ctx, b, id, newZip); !errors.Is(err, exam.ErrNotFound) {
+		t.Errorf("Replace as B = %v, want ErrNotFound", err)
+	}
+	if err := h.svc.Open(ctx, b, id); !errors.Is(err, exam.ErrNotFound) {
+		t.Errorf("Open as B = %v, want ErrNotFound", err)
+	}
+	if err := h.svc.Close(ctx, b, id); !errors.Is(err, exam.ErrNotFound) {
+		t.Errorf("Close as B = %v, want ErrNotFound", err)
+	}
+	ex, err := h.svc.Get(ctx, a, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ex.Title != "Old" || !ex.Open {
+		t.Errorf("A's exam after B's attempts: %+v", ex)
+	}
+	if got := h.mustQuestions(t, id); !reflect.DeepEqual(got, questions) {
+		t.Errorf("questions changed:\n%+v\nwant\n%+v", got, questions)
+	}
+	if got := h.mediaEntries(t); !slices.Equal(got, entries) {
+		t.Errorf("media entries = %v, want %v", got, entries)
+	}
+
+	if err := h.svc.Replace(ctx, admin, id, newZip); err != nil {
+		t.Errorf("Replace as admin: %v", err)
+	}
+	if err := h.svc.Open(ctx, admin, id); err != nil {
+		t.Errorf("Open as admin: %v", err)
+	}
+	if err := h.svc.Close(ctx, admin, id); err != nil {
+		t.Errorf("Close as admin: %v", err)
+	}
+	if ex, err := h.svc.Get(ctx, a, id); err != nil || ex.Title != "New" || ex.Open || ex.OwnerID != a.TeacherID {
+		t.Errorf("A's exam after the admin's changes: %+v, %v", ex, err)
+	}
+}
+
+func TestOpen_RefusedWhileOtherTeachersExamIsOpen(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	a := h.teacher(t, "a@example.test")
+	b := h.teacher(t, "b@example.test")
+	admin := h.admin(t)
+	a1 := h.importAs(t, a, []byte(simpleExam))
+	a2 := h.importAs(t, a, []byte(simpleExam))
+	b1 := h.importAs(t, b, []byte(simpleExam))
+	d1 := h.importAs(t, admin, []byte(simpleExam))
+	d2 := h.importAs(t, admin, []byte(simpleExam))
+
+	mustOpen := func(actor exam.Actor, id int64) {
+		t.Helper()
+		if err := h.svc.Open(ctx, actor, id); err != nil {
+			t.Fatalf("Open(%d): %v", id, err)
+		}
+	}
+	mustClose := func(actor exam.Actor, id int64) {
+		t.Helper()
+		if err := h.svc.Close(ctx, actor, id); err != nil {
+			t.Fatalf("Close(%d): %v", id, err)
+		}
+	}
+	wantOpen := func(ids ...int64) {
+		t.Helper()
+		if got := h.openIDs(t); !slices.Equal(got, ids) {
+			t.Fatalf("open exams = %v, want %v", got, ids)
+		}
+	}
+	refused := func(name string, actor exam.Actor, id int64) {
+		t.Helper()
+		if err := h.svc.Open(ctx, actor, id); !errors.Is(err, exam.ErrOtherTeacherOpen) {
+			t.Errorf("%s: Open = %v, want ErrOtherTeacherOpen", name, err)
+		}
+	}
+
+	mustOpen(a, a1)
+	refused("B on B1", b, b1)
+	wantOpen(a1)
+	refused("admin on B1", admin, b1)
+	refused("admin on A2", admin, a2)
+	refused("admin on its own exam", admin, d1)
+	wantOpen(a1)
+
+	mustOpen(a, a2)
+	wantOpen(a2)
+
+	mustClose(admin, a2)
+	mustOpen(admin, b1)
+	wantOpen(b1)
+
+	mustClose(admin, b1)
+	mustOpen(admin, d1)
+	mustOpen(admin, d2)
+	wantOpen(d2)
+
+	mustClose(admin, d2)
+	wantOpen()
+	mustOpen(b, b1)
+	wantOpen(b1)
+}
+
+func TestOpen_ForeignExamIsNotFoundEvenWhileAnotherIsOpen(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	a := h.teacher(t, "a@example.test")
+	b := h.teacher(t, "b@example.test")
+	a1 := h.importAs(t, a, []byte(simpleExam))
+	a2 := h.importAs(t, a, []byte(simpleExam))
+	if err := h.svc.Open(ctx, a, a1); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.Open(ctx, b, a2); !errors.Is(err, exam.ErrNotFound) {
+		t.Errorf("Open(B, A's other exam) = %v, want ErrNotFound", err)
 	}
 }

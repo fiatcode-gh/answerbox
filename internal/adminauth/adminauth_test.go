@@ -5,16 +5,19 @@ import (
 	"database/sql"
 	"errors"
 	"math/rand/v2"
-	"net/netip"
-	"sync"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/fiatcode-gh/go-exam/internal/adminauth"
 	"github.com/fiatcode-gh/go-exam/internal/platform/sqlite/sqlitetest"
 )
 
-const password = "correct-horse-battery"
+const (
+	adminEmail   = "admin@example.test"
+	teacherEmail = "teacher@example.test"
+)
 
 var start = time.Date(2026, 11, 14, 9, 30, 0, 0, time.UTC)
 
@@ -22,254 +25,298 @@ type harness struct {
 	svc   *adminauth.Service
 	db    *sql.DB
 	clock time.Time
+	seeds byte // services made so far; each gets its own random stream
 }
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 	h := &harness{db: sqlitetest.Open(t), clock: start}
-	h.svc = adminauth.NewService(h.db, password, func() time.Time { return h.clock }, rand.NewChaCha8([32]byte{7}))
+	h.svc = h.service(t, adminEmail)
 	return h
+}
+
+// service returns another service on the harness database and clock,
+// configured with adminEmails, after EnsureAdmins.
+func (h *harness) service(t *testing.T, adminEmails ...string) *adminauth.Service {
+	t.Helper()
+	h.seeds++
+	svc, err := adminauth.NewService(h.db, adminEmails, func() time.Time { return h.clock }, rand.NewChaCha8([32]byte{h.seeds}))
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	if _, err := svc.EnsureAdmins(context.Background()); err != nil {
+		t.Fatalf("EnsureAdmins: %v", err)
+	}
+	return svc
 }
 
 func (h *harness) advance(d time.Duration) { h.clock = h.clock.Add(d) }
 
-func (h *harness) login(pw string, ip netip.Addr) (string, error) {
-	return h.svc.Login(context.Background(), pw, ip)
+func verified(email string) adminauth.Identity {
+	return adminauth.Identity{Email: email, EmailVerified: true, Name: "Some One"}
 }
 
-func (h *harness) mustLogin(t *testing.T, ip netip.Addr) string {
+func mustSignIn(t *testing.T, svc *adminauth.Service, id adminauth.Identity) string {
 	t.Helper()
-	tok, err := h.login(password, ip)
+	tok, err := svc.SignIn(context.Background(), id)
 	if err != nil {
-		t.Fatalf("Login(right password, %v): %v", ip, err)
+		t.Fatalf("SignIn(%s): %v", id.Email, err)
 	}
 	return tok
 }
 
-// fail records one wrong password and requires ErrWrongPassword.
-func (h *harness) fail(t *testing.T, ip netip.Addr) {
+func session(t *testing.T, svc *adminauth.Service, token string) (adminauth.Session, bool) {
 	t.Helper()
-	if _, err := h.login("wrong", ip); !errors.Is(err, adminauth.ErrWrongPassword) {
-		t.Fatalf("Login(wrong, %v) = %v, want ErrWrongPassword", ip, err)
-	}
-}
-
-// requireLocked asserts that any password is refused with the given wait.
-func (h *harness) requireLocked(t *testing.T, ip netip.Addr, pw string, want time.Duration) {
-	t.Helper()
-	_, err := h.login(pw, ip)
-	var te *adminauth.ThrottledError
-	if !errors.As(err, &te) {
-		t.Fatalf("Login(%q, %v) = %v, want *ThrottledError", pw, ip, err)
-	}
-	if te.RetryAfter != want {
-		t.Fatalf("RetryAfter = %v, want %v", te.RetryAfter, want)
-	}
-}
-
-func (h *harness) valid(t *testing.T, token string) bool {
-	t.Helper()
-	_, ok, err := h.svc.Session(context.Background(), token)
+	sess, ok, err := svc.Session(context.Background(), token)
 	if err != nil {
 		t.Fatalf("Session: %v", err)
 	}
-	return ok
+	return sess, ok
 }
 
-var ipA = netip.MustParseAddr("198.51.100.10")
+func (h *harness) count(t *testing.T, query string, args ...any) int {
+	t.Helper()
+	var n int
+	if err := h.db.QueryRow(query, args...).Scan(&n); err != nil {
+		t.Fatalf("%s: %v", query, err)
+	}
+	return n
+}
 
-func TestLogin_RightAndWrong(t *testing.T) {
-	h := newHarness(t)
-	tok := h.mustLogin(t, ipA)
-	if tok == "" {
-		t.Fatal("empty token")
+func TestNewService_AdminEmails(t *testing.T) {
+	db := sqlitetest.Open(t)
+	svc, err := adminauth.NewService(db, []string{" Head@Example.Test "}, time.Now, rand.NewChaCha8([32]byte{}))
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
 	}
-	sess, ok, err := h.svc.Session(context.Background(), tok)
-	if err != nil || !ok {
-		t.Fatalf("Session(token) = %v, %v", ok, err)
-	}
-	if sess.CSRFToken == "" || sess.CSRFToken == tok {
-		t.Errorf("CSRFToken = %q, want a separate random token", sess.CSRFToken)
-	}
-	if !sess.ExpiresAt.Equal(start.Add(adminauth.SessionTTL)) {
-		t.Errorf("ExpiresAt = %v, want %v", sess.ExpiresAt, start.Add(adminauth.SessionTTL))
-	}
-
-	h.fail(t, ipA)
-	if h.valid(t, "not-a-token") {
-		t.Error("unknown token is a valid session")
-	}
-
-	var stored int
-	if err := h.db.QueryRow(`SELECT COUNT(*) FROM admin_session WHERE token_hash = ? OR CAST(token_hash AS TEXT) = ? OR csrf_token = ?`,
-		[]byte(tok), tok, tok).Scan(&stored); err != nil {
+	if _, err := svc.EnsureAdmins(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if stored != 0 {
-		t.Error("the raw session token is stored")
+	tok := mustSignIn(t, svc, verified("head@example.test"))
+	if sess, ok := session(t, svc, tok); !ok || !sess.Teacher.Admin || sess.Teacher.Email != "head@example.test" {
+		t.Fatalf("session = %+v ok=%v, want admin head@example.test", sess, ok)
+	}
+
+	_, err = adminauth.NewService(db, []string{"a@example.test", "nope"}, time.Now, rand.NewChaCha8([32]byte{}))
+	if err == nil || !strings.Contains(err.Error(), "entry 2") || strings.Contains(err.Error(), "nope") {
+		t.Errorf("invalid entry: err = %v, want one naming entry 2 without the value", err)
+	}
+	if _, err := adminauth.NewService(db, nil, time.Now, rand.NewChaCha8([32]byte{})); err == nil {
+		t.Error("empty admin list accepted")
 	}
 }
 
-func TestLogin_ThrottleSchedule(t *testing.T) {
+func TestEnsureAdmins_IdempotentAndReallows(t *testing.T) {
 	h := newHarness(t)
-	for range 4 {
-		h.fail(t, ipA)
+	svc, err := adminauth.NewService(h.db, []string{"first@example.test", "second@example.test"}, time.Now, rand.NewChaCha8([32]byte{}))
+	if err != nil {
+		t.Fatal(err)
 	}
-	h.mustLogin(t, ipA) // failures 1–4 cost nothing; success clears
-
-	for range 5 {
-		h.fail(t, ipA)
+	ctx := context.Background()
+	id1, err := svc.EnsureAdmins(ctx)
+	if err != nil {
+		t.Fatal(err)
 	}
-	h.requireLocked(t, ipA, "wrong", 30*time.Second)
-	h.advance(10 * time.Second)
-	h.requireLocked(t, ipA, password, 20*time.Second)
-	h.requireLocked(t, ipA, "wrong", 20*time.Second) // not counted, not extended
-
-	h.advance(20 * time.Second)
-	h.fail(t, ipA) // 6th
-	h.requireLocked(t, ipA, password, 60*time.Second)
-	h.advance(60 * time.Second)
-	h.fail(t, ipA) // 7th
-	h.requireLocked(t, ipA, password, 120*time.Second)
-
-	for _, want := range []time.Duration{240 * time.Second, 480 * time.Second, 15 * time.Minute, 15 * time.Minute} {
-		h.advance(time.Hour - time.Second) // below the idle limit since the last failure
-		h.fail(t, ipA)
-		h.requireLocked(t, ipA, password, want)
+	if _, err := h.db.Exec(`UPDATE teacher SET allowed = 0 WHERE email = 'second@example.test'`); err != nil {
+		t.Fatal(err)
 	}
-
-	h.advance(15 * time.Minute)
-	h.mustLogin(t, ipA)
-	for range 4 {
-		h.fail(t, ipA)
+	id2, err := svc.EnsureAdmins(ctx)
+	if err != nil {
+		t.Fatal(err)
 	}
-	h.mustLogin(t, ipA) // success cleared the lock history
-
-	for range 4 {
-		h.fail(t, ipA)
+	if id1 != id2 {
+		t.Errorf("first admin id = %d then %d", id1, id2)
 	}
-	h.advance(time.Hour)
-	h.fail(t, ipA) // the 4 earlier failures are idle and forgotten
-	h.mustLogin(t, ipA)
-}
-
-// The four free failures plus the one that locks are the only wrong
-// passwords checked, however many requests race for the same address.
-func TestLogin_ThrottleConcurrent(t *testing.T) {
-	h := newHarness(t)
-	const n = 200
-	errs := make(chan error, n)
-	ready := make(chan struct{})
-	var wg sync.WaitGroup
-	for range n {
-		wg.Go(func() {
-			<-ready
-			_, err := h.login("wrong", ipA)
-			errs <- err
-		})
+	if got := h.count(t, `SELECT id FROM teacher WHERE email = 'first@example.test'`); int64(got) != id1 {
+		t.Errorf("returned id %d, first admin row id %d", id1, got)
 	}
-	close(ready)
-	wg.Wait()
-	close(errs)
-
-	var wrong, throttled int
-	for err := range errs {
-		var te *adminauth.ThrottledError
-		switch {
-		case errors.Is(err, adminauth.ErrWrongPassword):
-			wrong++
-		case errors.As(err, &te):
-			throttled++
-		default:
-			t.Fatalf("Login = %v, want ErrWrongPassword or *ThrottledError", err)
+	for _, email := range []string{"first@example.test", "second@example.test"} {
+		if n := h.count(t, `SELECT COUNT(*) FROM teacher WHERE email = ? AND allowed = 1`, email); n != 1 {
+			t.Errorf("%s: %d allowed rows, want 1", email, n)
 		}
 	}
-	if wrong != 5 || throttled != n-5 {
-		t.Fatalf("%d wrong-password and %d throttled results, want 5 and %d", wrong, throttled, n-5)
+}
+
+func TestSignIn_AdminAndAllowedTeacher(t *testing.T) {
+	h := newHarness(t)
+	teacherID := sqlitetest.Teacher(t, h.db, teacherEmail)
+	adminID := int64(h.count(t, `SELECT id FROM teacher WHERE email = ?`, adminEmail))
+
+	for _, c := range []struct {
+		email string
+		id    int64
+		admin bool
+	}{{adminEmail, adminID, true}, {teacherEmail, teacherID, false}} {
+		tok := mustSignIn(t, h.svc, verified(c.email))
+		if len(tok) != 43 {
+			t.Errorf("%s: token length %d, want 43", c.email, len(tok))
+		}
+		sess, ok := session(t, h.svc, tok)
+		if !ok {
+			t.Fatalf("%s: session not found", c.email)
+		}
+		if sess.Teacher.ID != c.id || sess.Teacher.Email != c.email || sess.Teacher.Admin != c.admin {
+			t.Errorf("%s: teacher = %+v, want id %d admin %v", c.email, sess.Teacher, c.id, c.admin)
+		}
+		if !sess.ExpiresAt.Equal(start.Add(adminauth.SessionTTL)) {
+			t.Errorf("%s: ExpiresAt = %v", c.email, sess.ExpiresAt)
+		}
+		if len(sess.CSRFToken) != 43 {
+			t.Errorf("%s: CSRF token length %d, want 43", c.email, len(sess.CSRFToken))
+		}
+		if again := mustSignIn(t, h.svc, verified(c.email)); again == tok {
+			t.Errorf("%s: two sign-ins gave the same token", c.email)
+		}
 	}
 }
 
-func TestLogin_ThrottleIdleLockedEntryForgotten(t *testing.T) {
+func TestSignIn_Refused(t *testing.T) {
 	h := newHarness(t)
-	for range 5 {
-		h.fail(t, ipA)
+	removed := sqlitetest.Teacher(t, h.db, "removed@example.test")
+	if _, err := h.db.Exec(`UPDATE teacher SET allowed = 0 WHERE id = ?`, removed); err != nil {
+		t.Fatal(err)
 	}
-	h.advance(time.Hour)
-	h.fail(t, ipA) // counts as the first failure again: no lock
-	h.mustLogin(t, ipA)
+	for name, id := range map[string]adminauth.Identity{
+		"unlisted":       verified("stranger@example.test"),
+		"unverified":     {Email: adminEmail, EmailVerified: false},
+		"removed":        verified("removed@example.test"),
+		"not an address": verified("not an email"),
+	} {
+		if _, err := h.svc.SignIn(context.Background(), id); !errors.Is(err, adminauth.ErrNotAllowed) {
+			t.Errorf("%s: err = %v, want ErrNotAllowed", name, err)
+		}
+	}
+	if n := h.count(t, `SELECT COUNT(*) FROM admin_session`); n != 0 {
+		t.Errorf("admin_session rows = %d, want 0", n)
+	}
 }
 
-func TestLogin_ThrottleKeys(t *testing.T) {
+func TestSignIn_EmailCaseInsensitive(t *testing.T) {
 	h := newHarness(t)
-	for range 5 {
-		h.fail(t, ipA)
+	tok := mustSignIn(t, h.svc, verified("ADMIN@Example.Test"))
+	if sess, ok := session(t, h.svc, tok); !ok || sess.Teacher.Email != adminEmail {
+		t.Fatalf("session = %+v ok=%v", sess, ok)
 	}
-	h.requireLocked(t, ipA, password, 30*time.Second)
-	h.mustLogin(t, netip.MustParseAddr("198.51.100.11"))
-
-	v6a := netip.MustParseAddr("2001:db8:1:2::1")
-	v6b := netip.MustParseAddr("2001:db8:1:2:ffff::9")
-	v6other := netip.MustParseAddr("2001:db8:1:3::1")
-	for range 5 {
-		h.fail(t, v6a)
+	if n := h.count(t, `SELECT COUNT(*) FROM teacher WHERE email = ?`, adminEmail); n != 1 {
+		t.Errorf("stored admin rows = %d, want 1", n)
 	}
-	h.requireLocked(t, v6b, password, 30*time.Second)
-	h.mustLogin(t, v6other)
-
-	var unknown netip.Addr
-	for range 5 {
-		h.fail(t, unknown)
-	}
-	h.requireLocked(t, unknown, password, 30*time.Second)
 }
 
-func TestThrottle_Bounded(t *testing.T) {
+func TestSignIn_UpdatesNameAndLastLogin(t *testing.T) {
 	h := newHarness(t)
-	for i := range 5000 {
-		ip := netip.AddrFrom4([4]byte{10, byte(i >> 16), byte(i >> 8), byte(i)})
-		h.fail(t, ip)
-		h.advance(time.Millisecond)
+	ctx := context.Background()
+	stored := func() (string, int64) {
+		t.Helper()
+		var (
+			name string
+			last sql.NullInt64
+		)
+		if err := h.db.QueryRow(`SELECT name, last_login_at FROM teacher WHERE email = ?`, adminEmail).Scan(&name, &last); err != nil {
+			t.Fatal(err)
+		}
+		return name, last.Int64
 	}
-	if n := adminauth.ThrottleSize(h.svc); n > 4096 {
-		t.Fatalf("throttle holds %d keys, want ≤ 4096", n)
+	if _, last := stored(); last != 0 {
+		t.Fatalf("last_login_at before sign-in = %d", last)
 	}
-	// The newest keys survive pruning; the oldest were dropped.
-	newest := netip.AddrFrom4([4]byte{10, 0, byte(4999 >> 8), byte(4999 & 0xff)})
-	for range 4 {
-		h.fail(t, newest)
+
+	tok := mustSignIn(t, h.svc, adminauth.Identity{Email: adminEmail, EmailVerified: true, Name: "  Ada Admin "})
+	if name, last := stored(); name != "Ada Admin" || last != start.UnixMilli() {
+		t.Errorf("after first sign-in: %q %d", name, last)
 	}
-	h.requireLocked(t, newest, password, 30*time.Second)
+	sess, _ := session(t, h.svc, tok)
+	if sess.Teacher.Name != "Ada Admin" || !sess.Teacher.LastLoginAt.Equal(start) {
+		t.Errorf("session teacher = %+v", sess.Teacher)
+	}
+
+	for _, blank := range []string{"", "   "} {
+		h.advance(time.Minute)
+		mustSignIn(t, h.svc, adminauth.Identity{Email: adminEmail, EmailVerified: true, Name: blank})
+		if name, last := stored(); name != "Ada Admin" || last != h.clock.UnixMilli() {
+			t.Errorf("blank name %q: %q %d", blank, name, last)
+		}
+	}
+
+	if _, err := h.svc.SignIn(ctx, adminauth.Identity{Email: adminEmail, EmailVerified: true, Name: strings.Repeat("é", 300)}); err != nil {
+		t.Fatal(err)
+	}
+	if name, _ := stored(); utf8.RuneCountInString(name) != 200 || name != strings.Repeat("é", 200) {
+		t.Errorf("long name stored as %d runes", utf8.RuneCountInString(name))
+	}
 }
 
 func TestSession_ExpiryAndLogout(t *testing.T) {
 	h := newHarness(t)
-	tok := h.mustLogin(t, ipA)
+	tok := mustSignIn(t, h.svc, verified(adminEmail))
 
 	h.advance(adminauth.SessionTTL - time.Millisecond)
-	if !h.valid(t, tok) {
+	if _, ok := session(t, h.svc, tok); !ok {
 		t.Fatal("session invalid before now+12h")
 	}
 	h.advance(time.Millisecond)
-	if h.valid(t, tok) {
+	if _, ok := session(t, h.svc, tok); ok {
 		t.Fatal("session still valid at now+12h")
 	}
 
-	tok2 := h.mustLogin(t, ipA)
-	var rows int
-	if err := h.db.QueryRow(`SELECT COUNT(*) FROM admin_session`).Scan(&rows); err != nil {
-		t.Fatal(err)
+	tok2 := mustSignIn(t, h.svc, verified(adminEmail))
+	if rows := h.count(t, `SELECT COUNT(*) FROM admin_session`); rows != 1 {
+		t.Errorf("admin_session rows = %d, want 1 (expired rows deleted at sign-in)", rows)
 	}
-	if rows != 1 {
-		t.Errorf("admin_session rows = %d, want 1 (expired rows deleted at login)", rows)
-	}
+	tok3 := mustSignIn(t, h.svc, verified(adminEmail))
 
 	if err := h.svc.Logout(context.Background(), tok2); err != nil {
 		t.Fatalf("Logout: %v", err)
 	}
-	if h.valid(t, tok2) {
+	if _, ok := session(t, h.svc, tok2); ok {
 		t.Fatal("session valid after Logout")
+	}
+	if _, ok := session(t, h.svc, tok3); !ok {
+		t.Fatal("Logout ended another session")
 	}
 	if err := h.svc.Logout(context.Background(), "unknown"); err != nil {
 		t.Fatalf("Logout(unknown) = %v, want nil", err)
+	}
+}
+
+func TestSession_AdminFollowsConfiguredEmails(t *testing.T) {
+	h := newHarness(t)
+	a := h.service(t, "a@example.test")
+	tokA := mustSignIn(t, a, verified("a@example.test"))
+	if sess, _ := session(t, a, tokA); !sess.Teacher.Admin {
+		t.Fatal("a is not admin under {a}")
+	}
+
+	b := h.service(t, "b@example.test")
+	sess, ok := session(t, b, tokA)
+	if !ok || sess.Teacher.Admin {
+		t.Fatalf("a's session under {b}: ok=%v admin=%v, want valid and not admin", ok, sess.Teacher.Admin)
+	}
+	tokB := mustSignIn(t, b, verified("b@example.test"))
+	if sess, ok := session(t, b, tokB); !ok || !sess.Teacher.Admin {
+		t.Fatalf("b under {b}: ok=%v admin=%v", ok, sess.Teacher.Admin)
+	}
+}
+
+func TestSession_SurvivesNewService(t *testing.T) {
+	h := newHarness(t)
+	tok := mustSignIn(t, h.svc, verified(adminEmail))
+	if sess, ok := session(t, h.service(t, adminEmail), tok); !ok || sess.Teacher.Email != adminEmail {
+		t.Fatalf("session in a new service: ok=%v %+v", ok, sess)
+	}
+}
+
+func TestSession_RemovedTeacherIsSignedOut(t *testing.T) {
+	h := newHarness(t)
+	id := sqlitetest.Teacher(t, h.db, teacherEmail)
+	tok := mustSignIn(t, h.svc, verified(teacherEmail))
+	adminTok := mustSignIn(t, h.svc, verified(adminEmail))
+	if _, err := h.db.Exec(`UPDATE teacher SET allowed = 0 WHERE id = ?`, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := session(t, h.svc, tok); ok {
+		t.Fatal("removed teacher's session still valid")
+	}
+	if _, ok := session(t, h.svc, adminTok); !ok {
+		t.Fatal("another teacher's session ended")
 	}
 }

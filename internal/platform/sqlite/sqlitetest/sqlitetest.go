@@ -19,3 +19,18 @@ func Open(t testing.TB) *sql.DB {
 	t.Cleanup(func() { db.Close() })
 	return db
 }
+
+// Teacher puts email (already lower case) on the teacher list and returns
+// its id.
+func Teacher(t testing.TB, db *sql.DB, email string) int64 {
+	t.Helper()
+	res, err := db.Exec(`INSERT INTO teacher (email, created_at) VALUES (?, 0)`, email)
+	if err != nil {
+		t.Fatalf("sqlitetest: add teacher: %v", err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		t.Fatalf("sqlitetest: add teacher: %v", err)
+	}
+	return id
+}

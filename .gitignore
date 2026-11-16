@@ -1,4 +1,6 @@
 /data/
 /go-exam
 /loadtest
+/oidcfake
 /e2e/out/
+/.env

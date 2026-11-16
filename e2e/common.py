@@ -5,6 +5,7 @@ import struct
 import zipfile
 import zlib
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from playwright.sync_api import BrowserContext, Page, expect
 
@@ -71,12 +72,49 @@ def build_fixture_zip(dir, title="Geometry check", show_result="review", monitor
     return path, key
 
 
-def teacher_login(page: Page, base_url: str, password: str) -> None:
+NOT_ALLOWED = "This Google account is not allowed. Ask your go-exam admin to add it."
+
+
+def add_sign_in_args(parser) -> None:
+    parser.add_argument("--admin-email", required=True, help="an email in the server's GOEXAM_ADMIN_EMAILS")
+    parser.add_argument("--oidc-url", required=True, help="base URL of the fake OpenID provider the server uses")
+
+
+def require_cross_site(base_url: str, oidc_url: str) -> None:
+    """Exit unless the app and the provider are on different hostnames."""
+    if urlsplit(base_url).hostname == urlsplit(oidc_url).hostname:
+        raise SystemExit(
+            "run the app on localhost and the fake provider on 127.0.0.1: the sign-in"
+            " callback must cross sites as it does with Google"
+        )
+
+
+def _sign_in_at_provider(page: Page, base_url: str, email: str, name: str) -> None:
     page.goto(f"{base_url}/admin/login")
-    form = page.locator("#login-form")
-    form.locator("input[name=password]").fill(password)
+    page.locator("#google-sign-in").click()
+    form = page.locator("#fake-signin")
+    form.locator("input[name=email]").fill(email)
+    form.locator("input[name=name]").fill(name)
     form.locator("button[type=submit]").click()
+
+
+def teacher_login(page: Page, base_url: str, email: str, name: str = "Test Teacher") -> None:
+    """Sign in through the fake provider; lands on the exams page."""
+    _sign_in_at_provider(page, base_url, email, name)
     expect(page).to_have_url(re.compile(r"/admin/exams$"))
+    expect(page.locator("#signed-in-as")).to_have_text(email)
+
+
+def refused_login(page: Page, base_url: str, email: str) -> None:
+    """Sign in through the fake provider as an account the app refuses."""
+    _sign_in_at_provider(page, base_url, email, "Refused Teacher")
+    expect(page).to_have_url(re.compile(r"/admin/login\?error=not_allowed$"))
+    expect(page.locator("[role=alert]")).to_have_text(NOT_ALLOWED)
+
+
+def foreign_requests(urls, base_url: str, oidc_url: str) -> list[str]:
+    """The URLs that start with neither base_url nor oidc_url."""
+    return [u for u in urls if not u.startswith(base_url) and not u.startswith(oidc_url)]
 
 
 def import_exam(page: Page, zip_path) -> int:

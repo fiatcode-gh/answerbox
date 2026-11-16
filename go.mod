@@ -3,12 +3,15 @@ module github.com/fiatcode-gh/go-exam
 go 1.26.4
 
 require (
+	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/yuin/goldmark v1.8.7
+	golang.org/x/oauth2 v0.38.0
 	modernc.org/sqlite v1.62.0
 )
 
 require (
 	github.com/dustin/go-humanize v1.1.0 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.9 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/ncruces/go-strftime v1.1.0 // indirect

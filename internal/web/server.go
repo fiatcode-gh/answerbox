@@ -22,6 +22,7 @@ type Deps struct {
 	Exams    *exam.Service
 	Attempts *attempt.Service
 	Admin    *adminauth.Service
+	OIDC     *adminauth.Provider
 	ClientIP clientip.Resolver
 	Location *time.Location
 	Logger   *slog.Logger
@@ -37,8 +38,8 @@ type server struct {
 // NewHandler parses templates, indexes static assets and returns the
 // complete application handler with its middleware.
 func NewHandler(d Deps) (http.Handler, error) {
-	if d.DB == nil || d.Exams == nil || d.Attempts == nil || d.Admin == nil || d.Location == nil || d.Logger == nil {
-		return nil, errors.New("web: Deps.DB, Exams, Attempts, Admin, Location and Logger are required")
+	if d.DB == nil || d.Exams == nil || d.Attempts == nil || d.Admin == nil || d.OIDC == nil || d.Location == nil || d.Logger == nil {
+		return nil, errors.New("web: Deps.DB, Exams, Attempts, Admin, OIDC, Location and Logger are required")
 	}
 	s, err := newServer(d)
 	if err != nil {

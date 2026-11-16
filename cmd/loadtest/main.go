@@ -3,8 +3,9 @@
 // answers all questions at once with the others, submits and checks the
 // score, and the teacher's CSV export is verified against the expected scores.
 //
-// Opening the generated exam closes whatever exam is open, so the target must
-// be a local server unless -allow-remote is given.
+// Opening the generated exam closes the teacher's own open exam and is
+// refused while another teacher's exam is open, so the target must be a local
+// server unless -allow-remote is given.
 package main
 
 import (
@@ -26,10 +27,13 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/fiatcode-gh/go-exam/internal/oidcfake"
 )
 
 const (
 	adminCookieName   = "goexam_admin"
+	signinCookieName  = "goexam_signin"
 	attemptCookieName = "goexam_attempt"
 	optionsPerQ       = 4
 )
@@ -43,7 +47,7 @@ var (
 
 type config struct {
 	baseURL   string
-	password  string
+	email     string
 	students  int
 	questions int
 	timeout   time.Duration
@@ -53,7 +57,7 @@ func main() {
 	var cfg config
 	var allowRemote bool
 	flag.StringVar(&cfg.baseURL, "base-url", "http://localhost:18080", "go-exam server base URL")
-	flag.StringVar(&cfg.password, "admin-password", os.Getenv("GOEXAM_ADMIN_PASSWORD"), "teacher password (default: $GOEXAM_ADMIN_PASSWORD)")
+	flag.StringVar(&cfg.email, "teacher-email", "admin@example.test", "email the fake OpenID provider signs in; it must be an admin email or on the teacher list")
 	flag.IntVar(&cfg.students, "students", 100, "number of simulated students")
 	flag.IntVar(&cfg.questions, "questions", 40, "number of questions in the generated exam")
 	flag.DurationVar(&cfg.timeout, "timeout", 2*time.Minute, "deadline for the whole run")
@@ -84,8 +88,8 @@ func checkConfig(cfg config, allowRemote bool) error {
 	default:
 		return fmt.Errorf("refusing non-local host %q: opening the load-test exam closes the open exam (use -allow-remote)", host)
 	}
-	if cfg.password == "" {
-		return errors.New("no admin password: set -admin-password or GOEXAM_ADMIN_PASSWORD")
+	if cfg.email == "" {
+		return errors.New("-teacher-email must not be empty")
 	}
 	if cfg.students < 1 || cfg.questions < 1 {
 		return errors.New("-students and -questions must be at least 1")
@@ -215,16 +219,59 @@ func run(ctx context.Context, cfg config) bool {
 	return t.errors == 0 && t.mismatches == 0
 }
 
-func setup(ctx context.Context, c *client, cfg config) (admin string, examID int, err error) {
-	resp, _, err := c.postForm(ctx, "/admin/login", "", url.Values{"password": {cfg.password}})
+// signIn signs the teacher in through the local fake OpenID provider and
+// returns the admin session cookie ("name=value").
+func signIn(ctx context.Context, c *client, cfg config) (adminCookie string, err error) {
+	resp, _, err := c.do(ctx, http.MethodGet, "/admin/auth/start", "", "", nil)
 	if err != nil {
-		return "", 0, fmt.Errorf("login: %w", err)
+		return "", fmt.Errorf("sign-in start: %w", err)
 	}
-	if err := expectRedirect(resp, "/admin/exams"); err != nil {
-		return "", 0, fmt.Errorf("login: %w", err)
+	if resp.StatusCode != http.StatusSeeOther {
+		return "", fmt.Errorf("sign-in start: status %d, want 303", resp.StatusCode)
 	}
-	if admin = cookieFrom(resp, adminCookieName); admin == "" {
-		return "", 0, errors.New("login: no admin cookie")
+	signin := cookieFrom(resp, signinCookieName)
+	if signin == "" {
+		return "", errors.New("sign-in start: no sign-in cookie")
+	}
+	location := resp.Header.Get("Location")
+	authURL, err := url.Parse(location)
+	if err != nil {
+		return "", fmt.Errorf("sign-in start: bad Location: %w", err)
+	}
+	switch host := authURL.Hostname(); host {
+	case "localhost", "127.0.0.1", "::1":
+	default:
+		return "", fmt.Errorf("sign-in goes to %s: the load test only signs in through the local fake provider (cmd/oidcfake)", host)
+	}
+
+	callback, err := oidcfake.Approve(ctx, c.http, location, oidcfake.Identity{Email: cfg.email, Name: "Load Test"})
+	if err != nil {
+		return "", fmt.Errorf("sign-in: %w", err)
+	}
+	cbURL, err := url.Parse(callback)
+	if err != nil {
+		return "", fmt.Errorf("sign-in callback: bad URL: %w", err)
+	}
+	resp, _, err = c.do(ctx, http.MethodGet, cbURL.RequestURI(), signin, "", nil)
+	if err != nil {
+		return "", fmt.Errorf("sign-in callback: %w", err)
+	}
+	if resp.StatusCode == http.StatusSeeOther && strings.Contains(resp.Header.Get("Location"), "error=not_allowed") {
+		return "", errors.New("sign-in refused: the server does not list -teacher-email")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("sign-in callback: status %d, Location %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	if adminCookie = cookieFrom(resp, adminCookieName); adminCookie == "" {
+		return "", errors.New("sign-in callback: no admin cookie")
+	}
+	return adminCookie, nil
+}
+
+func setup(ctx context.Context, c *client, cfg config) (admin string, examID int, err error) {
+	admin, err = signIn(ctx, c, cfg)
+	if err != nil {
+		return "", 0, err
 	}
 
 	resp, body, err := c.do(ctx, http.MethodGet, "/admin/exams", admin, "", nil)

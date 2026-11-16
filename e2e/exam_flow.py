@@ -4,7 +4,7 @@
 # ///
 """End-to-end browser run of go-exam (teacher and students) against a fresh instance.
 
-uv run e2e/exam_flow.py --base-url URL --admin-password PW --out DIR
+uv run e2e/exam_flow.py --base-url URL --admin-email EMAIL --oidc-url URL --out DIR
 """
 
 import argparse
@@ -20,7 +20,18 @@ from pathlib import Path
 
 from playwright.sync_api import BrowserContext, Page, expect, sync_playwright
 
-from common import build_fixture_zip, import_and_open, import_exam, open_exam, teacher_login, watch
+from common import (
+    add_sign_in_args,
+    build_fixture_zip,
+    foreign_requests,
+    import_and_open,
+    import_exam,
+    open_exam,
+    refused_login,
+    require_cross_site,
+    teacher_login,
+    watch,
+)
 
 DESKTOP = {"viewport": {"width": 1280, "height": 800}}
 TIMER = re.compile(r"^\d\d:\d\d$")
@@ -136,8 +147,9 @@ def download_csv(page: Page) -> list[list[str]]:
 
 
 class Run:
-    def __init__(self, base_url: str, out: Path):
+    def __init__(self, base_url: str, oidc_url: str, out: Path):
         self.base_url = base_url
+        self.oidc_url = oidc_url
         self.out = out
         self.steps: list[dict] = []
         self.screenshots: list[str] = []
@@ -160,12 +172,10 @@ class Run:
         self.screenshots.append(name)
 
     def expected_status_errors(self) -> set[str]:
-        # Chromium logs every non-2xx document load as a console error. Steps 1
-        # and 13 provoke exactly these two on purpose (a wrong password answers
-        # 401, an invalid resume code 422); nothing else may appear.
+        # Chromium logs every non-2xx document load as a console error. Step 13
+        # provokes exactly this one on purpose (an invalid resume code answers
+        # 422); nothing else may appear.
         return {
-            f"{self.base_url}/admin/login: Failed to load resource: "
-            "the server responded with a status of 401 (Unauthorized)",
             f"{self.base_url}/resume: Failed to load resource: "
             "the server responded with a status of 422 (Unprocessable Entity)",
         }
@@ -179,14 +189,14 @@ class Run:
             "steps": self.steps,
             "screenshots": self.screenshots,
             "requests_total": len(requests),
-            "external_requests": [u for u in requests if not u.startswith(self.base_url)],
+            "external_requests": foreign_requests(requests, self.base_url, self.oidc_url),
             "console_errors": [e for e in console if e not in expected],
             "expected_status_errors": [e for e in console if e in expected],
             "page_errors": [e for log in self.logs for e in log["page_errors"]],
         }
 
 
-def flow(run: Run, password: str) -> None:
+def flow(run: Run, email: str) -> None:
     base_url = run.base_url
     step = run.step
     with sync_playwright() as p, tempfile.TemporaryDirectory() as tmp:
@@ -203,13 +213,11 @@ def flow(run: Run, password: str) -> None:
         geometry_dir.mkdir()
         geometry_zip, key = build_fixture_zip(geometry_dir, title="Geometry check", show_result="review")
 
-        with step("1 teacher login: redirect, wrong password, right password"):
+        with step("1 teacher sign-in: redirect, refused account, admin signs in"):
             teacher.goto(base_url + "/admin/exams")
             expect(teacher).to_have_url(re.compile(r"/admin/login$"))
-            teacher.locator("#login-form input[name=password]").fill(password + "-wrong")
-            teacher.locator("#login-form button[type=submit]").click()
-            expect(teacher.locator("[role=alert]")).to_have_text("Wrong password.")
-            teacher_login(teacher, base_url, password)
+            refused_login(teacher, base_url, "stranger@example.test")
+            teacher_login(teacher, base_url, email)
             if teacher.get_by_text("No exams yet.").count() != 1:
                 raise AssertionError("not a fresh instance: the exams page does not say 'No exams yet.'")
 
@@ -408,7 +416,7 @@ def flow(run: Run, password: str) -> None:
 
         with step("19 teacher pages fit a phone without horizontal page overflow"):
             teacher_phone = new_context(**phone).new_page()
-            teacher_login(teacher_phone, base_url, password)
+            teacher_login(teacher_phone, base_url, email)
             expect(teacher_phone.locator("#exams")).to_be_visible()
             no_page_overflow(teacher_phone)
             run.shot(teacher_phone, "phone-admin-exams.png")
@@ -458,7 +466,7 @@ def flow(run: Run, password: str) -> None:
         if report["requests_total"] == 0:
             problems.append("no requests were recorded")
         if sorted(report["expected_status_errors"]) != sorted(run.expected_status_errors()):
-            problems.append(f"expected 401/422 messages once each, got {report['expected_status_errors']}")
+            problems.append(f"expected the 422 message once, got {report['expected_status_errors']}")
         if problems:
             raise AssertionError("\n  ".join(["problems found:"] + problems))
 
@@ -466,14 +474,16 @@ def flow(run: Run, password: str) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", required=True)
-    parser.add_argument("--admin-password", required=True)
+    add_sign_in_args(parser)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
-    run = Run(args.base_url.rstrip("/"), args.out)
+    base_url, oidc_url = args.base_url.rstrip("/"), args.oidc_url.rstrip("/")
+    require_cross_site(base_url, oidc_url)
+    run = Run(base_url, oidc_url, args.out)
     code = 0
     try:
-        flow(run, args.admin_password)
+        flow(run, args.admin_email)
     except StepFailed as err:
         print(err, file=sys.stderr)
         code = 1

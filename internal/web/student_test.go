@@ -22,11 +22,11 @@ const unknownToken = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
 func (env *testEnv) openExam(t *testing.T, text string) int64 {
 	t.Helper()
-	id, err := env.exams.Import(context.Background(), []byte(text))
+	id, err := env.exams.Import(context.Background(), env.owner, []byte(text))
 	if err != nil {
 		t.Fatalf("Import: %v", err)
 	}
-	if err := env.exams.Open(context.Background(), id); err != nil {
+	if err := env.exams.Open(context.Background(), env.owner, id); err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 	return id

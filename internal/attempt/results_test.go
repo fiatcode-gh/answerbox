@@ -145,13 +145,13 @@ func TestDelete_LastAttemptUnfreezesExam(t *testing.T) {
 	text := examText("none", examfile.ShowScore, 2, 2)
 	id := h.openExam(t, text)
 	h.start(t, "Ayu")
-	err := h.exams.Replace(context.Background(), id, []byte(text))
+	err := h.exams.Replace(context.Background(), h.owner, id, []byte(text))
 	wantErr(t, "Replace with an attempt", err, exam.ErrFrozen)
 
 	if err := h.svc.Delete(context.Background(), id, h.only(t, id).ID); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
-	if err := h.exams.Replace(context.Background(), id, []byte(examText("none", examfile.ShowScore, 3, 2))); err != nil {
+	if err := h.exams.Replace(context.Background(), h.owner, id, []byte(examText("none", examfile.ShowScore, 3, 2))); err != nil {
 		t.Fatalf("Replace after deleting the only attempt: %v", err)
 	}
 }

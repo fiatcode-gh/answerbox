@@ -2,7 +2,7 @@
 
 go-exam is a small, self-hosted web app for classroom multiple-choice exams. Students type only their name and take the currently open exam within a one-hour limit; the teacher imports exams from text files, opens and closes them, and reviews the results.
 
-It is not a learning platform: there are no student or teacher accounts (the teacher signs in with one shared admin password), and only one exam is open at a time.
+It is not a learning platform. Teachers sign in with their Google account, and only emails on the app's teacher list may sign in. Each teacher sees only their own exams and results; admins (the emails in `GOEXAM_ADMIN_EMAILS`) also see every exam and manage the teacher list. Students still type only their name. For now, one exam is open at a time across all teachers.
 
 ## Configuration
 
@@ -10,13 +10,27 @@ All configuration comes from environment variables.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `GOEXAM_ADMIN_PASSWORD` | none (required) | Teacher password; must be at least 12 characters. |
+| `GOEXAM_GOOGLE_CLIENT_ID` | none (required) | OAuth client ID of the Google Cloud "Web application" client. |
+| `GOEXAM_GOOGLE_CLIENT_SECRET` | none (required) | Client secret of that OAuth client. |
+| `GOEXAM_ADMIN_EMAILS` | none (required) | Comma-separated Google account emails of the admins. The first one receives the exams that existed before teacher accounts. |
+| `GOEXAM_PUBLIC_URL` | none (required) | Public address of the app, scheme and host without a path, for example `https://exam.example.org`; `https` unless the host is localhost. |
+| `GOEXAM_OIDC_ISSUER` | `https://accounts.google.com` | OpenID provider; `https` unless the host is localhost. Set it only for another provider or the local fake used in tests. |
 | `GOEXAM_DATA_DIR` | `./data` (image: `/data`) | Directory holding the database and uploaded images. |
 | `GOEXAM_LISTEN_ADDR` | `:8080` | Address the HTTP server listens on. |
-| `GOEXAM_TRUSTED_PROXIES` | empty (trust nobody) | Comma-separated CIDRs or IPs whose `X-Forwarded-For` is trusted. |
+| `GOEXAM_TRUSTED_PROXIES` | empty (trust nobody) | Comma-separated CIDRs or IPs whose `X-Forwarded-For` is trusted for the client address in the request log. |
 | `GOEXAM_TIME_ZONE` | `UTC` | IANA time zone used to display times (time zone data is built in). |
 
-The app refuses to start when `GOEXAM_ADMIN_PASSWORD` is missing or shorter than 12 characters. Every start signs all teachers out, so to rotate the password, change it and restart.
+The app refuses to start without the four required settings. [`.env.example`](.env.example) lists every setting with a one-line explanation; the optional ones stay commented out, because an empty value in an env file overrides the default (for example the image's `/data`). Teacher sessions last 12 hours and survive restarts. The admin role follows `GOEXAM_ADMIN_EMAILS` at every request; an email taken out of it stays an ordinary teacher until an admin removes it on the Teachers page. Recovery is an environment change plus a restart: there is no password.
+
+## Google sign-in
+
+1. In Google Cloud, create an OAuth client of type "Web application".
+2. Add the authorised redirect URI `<GOEXAM_PUBLIC_URL>/admin/auth/callback`, for example `https://exam.example.org/admin/auth/callback`.
+3. The app asks for the `openid`, `email` and `profile` scopes.
+4. Put the client ID and secret in `GOEXAM_GOOGLE_CLIENT_ID` and `GOEXAM_GOOGLE_CLIENT_SECRET`.
+5. The first admin signs in at `/admin` and adds teachers on the Teachers page.
+
+A Google account can sign in only when its email is verified and on the teacher list.
 
 ## Run with a container
 
@@ -26,7 +40,7 @@ The image is published as `ghcr.io/fiatcode-gh/go-exam`. It contains a single st
 podman build -t localhost/go-exam:dev -f Containerfile .
 podman volume create go-exam-data
 podman run -d --name go-exam -p 8080:8080 \
-  -e GOEXAM_ADMIN_PASSWORD='change-me-please' \
+  --env-file .env \
   -v go-exam-data:/data \
   ghcr.io/fiatcode-gh/go-exam:latest   # or localhost/go-exam:dev
 ```
@@ -37,7 +51,8 @@ Open `http://localhost:8080/` for students and `http://localhost:8080/admin` for
 
 - The app speaks plain HTTP; let the proxy terminate TLS and forward to port 8080.
 - Cookies are always `Secure`, so students and the teacher must reach the app over HTTPS (browsers also accept `http://localhost` for local use).
-- Set `GOEXAM_TRUSTED_PROXIES` to the proxy's network (for example `172.18.0.0/16`) so login throttling sees real client addresses instead of the proxy's.
+- Set `GOEXAM_TRUSTED_PROXIES` to the proxy's network (for example `172.18.0.0/16`) so the request log shows real client addresses instead of the proxy's.
+- The server needs outbound HTTPS to Google to sign teachers in. Students are not affected when Google cannot be reached.
 
 ## Health check
 
@@ -103,11 +118,23 @@ go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
 go test ./...
 go test -race ./...
 podman build -t localhost/go-exam:dev -f Containerfile .
-GOEXAM_ADMIN_PASSWORD=dev-password-123 GOEXAM_DATA_DIR=./data go run ./cmd/go-exam   # serves on :8080
 
-# Against the running instance above (the browser runs expect a fresh data directory):
-go run ./cmd/loadtest -base-url http://localhost:8080 -admin-password dev-password-123
-uv run e2e/student_ui.py --base-url http://localhost:8080 --admin-password dev-password-123 --out e2e/out/student-ui
-uv run e2e/exam_flow.py --base-url http://localhost:8080 --admin-password dev-password-123 --out e2e/out/exam-flow
-uv run e2e/monitor.py --base-url http://localhost:8080 --admin-password dev-password-123 --out e2e/out/monitor
+# Run with your own settings from .env (never printed):
+( set -a; . ./.env; set +a; exec go run ./cmd/go-exam )
+
+# Or run against the fake OpenID provider (tests, load test, browser scripts).
+# The app must be reached as localhost and the provider as 127.0.0.1.
+go run ./cmd/oidcfake                                   # serves on 127.0.0.1:9096
+GOEXAM_GOOGLE_CLIENT_ID=dev-client GOEXAM_GOOGLE_CLIENT_SECRET=dev-secret \
+GOEXAM_ADMIN_EMAILS=admin@example.test GOEXAM_PUBLIC_URL=http://localhost:8080 \
+GOEXAM_OIDC_ISSUER=http://127.0.0.1:9096 GOEXAM_DATA_DIR=./data go run ./cmd/go-exam
+
+go run ./cmd/loadtest -base-url http://localhost:8080 -teacher-email admin@example.test
+# Each browser script expects a fresh data directory:
+uv run e2e/student_ui.py --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/student-ui
+uv run e2e/exam_flow.py  --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/exam-flow
+uv run e2e/monitor.py    --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/monitor
+uv run e2e/teachers.py   --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/teachers
 ```
+
+The fake provider signs in any identity and is not part of the container image.

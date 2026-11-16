@@ -4,21 +4,27 @@ import (
 	"context"
 	"crypto/subtle"
 	"errors"
-	"math"
 	"mime"
 	"net/http"
-	"strconv"
+	"strings"
 
 	"github.com/fiatcode-gh/go-exam/internal/adminauth"
+	"github.com/fiatcode-gh/go-exam/internal/exam"
 )
 
 const (
 	adminCookieName = "goexam_admin"
 	adminCookiePath = "/admin"
 
-	// loginBodyLimit caps POST /admin/login; adminBodyLimit caps other admin
-	// POSTs so a 10 MiB upload plus form overhead fits.
-	loginBodyLimit = 4 << 10
+	// The sign-in cookie carries one flow's secrets from the start route to
+	// the callback. It is SameSite=Lax because the callback is a cross-site
+	// redirect from the provider.
+	signinCookieName   = "goexam_signin"
+	signinCookiePath   = "/admin/auth"
+	signinCookieMaxAge = 600
+
+	// adminBodyLimit caps teacher-area POSTs so a 10 MiB upload plus form
+	// overhead fits.
 	adminBodyLimit = 11 << 20
 
 	csrfExpiredMessage = "This form has expired. Go back, reload the page and try again."
@@ -26,10 +32,12 @@ const (
 
 type adminSessionKey struct{}
 
-// adminPage is embedded in the data of every signed-in admin page; the admin
-// header reads the CSRF token for its logout form from it.
+// adminPage is embedded in the data of every signed-in teacher page; the
+// header reads the CSRF token for its logout form and the signed-in teacher
+// from it.
 type adminPage struct {
 	CSRFToken string
+	Me        adminauth.Teacher
 }
 
 func sessionFrom(ctx context.Context) adminauth.Session {
@@ -38,21 +46,31 @@ func sessionFrom(ctx context.Context) adminauth.Session {
 }
 
 func adminPageFor(r *http.Request) adminPage {
-	return adminPage{CSRFToken: sessionFrom(r.Context()).CSRFToken}
+	sess := sessionFrom(r.Context())
+	return adminPage{CSRFToken: sess.CSRFToken, Me: sess.Teacher}
 }
 
-// mountAdmin registers the login routes and mounts every other /admin/ route
-// behind requireAdmin, so no admin route can be registered unprotected.
+// actorFrom returns the signed-in teacher as the actor of exam catalog calls.
+func actorFrom(r *http.Request) exam.Actor {
+	sess := sessionFrom(r.Context())
+	return exam.Actor{TeacherID: sess.Teacher.ID, Admin: sess.Teacher.Admin}
+}
+
+// mountAdmin registers the sign-in routes and mounts every other /admin/
+// route behind requireTeacher, so no teacher route can be registered
+// unprotected.
 func (s *server) mountAdmin(mux *http.ServeMux) {
 	mux.HandleFunc("GET /admin/login", s.loginPage)
-	mux.HandleFunc("POST /admin/login", s.login)
+	mux.HandleFunc("GET /admin/auth/start", s.signInStart)
+	mux.HandleFunc("GET /admin/auth/callback", s.signInCallback)
 
 	admin := http.NewServeMux()
 	admin.HandleFunc("POST /admin/logout", s.logout)
 	s.mountTeacherExams(admin)
 	s.mountTeacherResults(admin)
+	s.mountTeacherAccounts(admin)
 	admin.HandleFunc("/admin/", s.notFound)
-	mux.Handle("/admin/", s.requireAdmin(admin))
+	mux.Handle("/admin/", s.requireTeacher(admin))
 }
 
 func newAdminCookie(token string) *http.Cookie {
@@ -73,6 +91,42 @@ func expireAdminCookie(w http.ResponseWriter) {
 	http.SetCookie(w, c)
 }
 
+func newSigninCookie(value string) *http.Cookie {
+	return &http.Cookie{
+		Name:     signinCookieName,
+		Value:    value,
+		Path:     signinCookiePath,
+		MaxAge:   signinCookieMaxAge,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	}
+}
+
+func expireSigninCookie(w http.ResponseWriter) {
+	c := newSigninCookie("")
+	c.MaxAge = -1
+	http.SetCookie(w, c)
+}
+
+// signinFlow reads the flow secrets from the request's sign-in cookie.
+func signinFlow(r *http.Request) (adminauth.Flow, bool) {
+	c, err := r.Cookie(signinCookieName)
+	if err != nil {
+		return adminauth.Flow{}, false
+	}
+	parts := strings.Split(c.Value, ".")
+	if len(parts) != 3 {
+		return adminauth.Flow{}, false
+	}
+	for _, p := range parts {
+		if !validToken(p) {
+			return adminauth.Flow{}, false
+		}
+	}
+	return adminauth.Flow{State: parts[0], Nonce: parts[1], Verifier: parts[2]}, true
+}
+
 // adminSession returns the session named by the request's admin cookie.
 // sent reports whether the request carried the cookie at all.
 func (s *server) adminSession(r *http.Request) (sess adminauth.Session, ok, sent bool, err error) {
@@ -84,12 +138,13 @@ func (s *server) adminSession(r *http.Request) (sess adminauth.Session, ok, sent
 	return sess, ok, true, err
 }
 
-// requireAdmin admits only requests with a valid admin session; state-changing
-// requests must also carry the session's CSRF token in a body of at most
-// adminBodyLimit bytes. Once that body is read, the request gets a fresh
-// requestTimeout budget: a slow upload is bounded by the server's read
-// timeout instead, and must not use up the time left for the database work.
-func (s *server) requireAdmin(next http.Handler) http.Handler {
+// requireTeacher admits only requests with a valid session of a signed-in
+// teacher; state-changing requests must also carry the session's CSRF token
+// in a body of at most adminBodyLimit bytes. Once that body is read, the
+// request gets a fresh requestTimeout budget: a slow upload is bounded by the
+// server's read timeout instead, and must not use up the time left for the
+// database work.
+func (s *server) requireTeacher(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sess, ok, sent, err := s.adminSession(r)
 		if err != nil {
@@ -149,6 +204,17 @@ func parseAdminForm(r *http.Request) int {
 	return 0
 }
 
+// Sign-in outcomes shown on the login page, keyed by the ?error= word.
+const (
+	signInNotAllowed = "not_allowed"
+	signInFailed     = "failed"
+)
+
+var signInAlerts = map[string]string{
+	signInNotAllowed: "This Google account is not allowed. Ask your go-exam admin to add it.",
+	signInFailed:     "Sign-in did not complete. Try again.",
+}
+
 type loginData struct {
 	Alert string
 }
@@ -163,31 +229,75 @@ func (s *server) loginPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/exams", http.StatusSeeOther)
 		return
 	}
-	s.page(w, r, http.StatusOK, "admin_login.html", loginData{})
+	s.page(w, r, http.StatusOK, "admin_login.html", loginData{Alert: signInAlerts[r.URL.Query().Get("error")]})
 }
 
-func (s *server) login(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, loginBodyLimit)
-	if err := r.ParseForm(); err != nil {
-		s.errorPage(w, r, http.StatusBadRequest)
+// signInStart sends the browser to the provider. It is a link target, not a
+// form action: the page policy's form-action 'self' would block a form
+// submission that redirects to another origin.
+func (s *server) signInStart(w http.ResponseWriter, r *http.Request) {
+	flow, authURL, err := s.deps.OIDC.Begin(r.Context())
+	if err != nil {
+		reason, detail := "start", ""
+		var fe *adminauth.FlowError
+		if errors.As(err, &fe) {
+			reason, detail = fe.Reason, fe.Detail
+		}
+		s.refuseSignIn(w, r, signInFailed, reason, detail)
 		return
 	}
-	token, err := s.deps.Admin.Login(r.Context(), r.PostFormValue("password"), s.deps.ClientIP.ClientIP(r))
-	var throttled *adminauth.ThrottledError
-	switch {
-	case err == nil:
-		http.SetCookie(w, newAdminCookie(token))
-		http.Redirect(w, r, "/admin/exams", http.StatusSeeOther)
-	case errors.Is(err, adminauth.ErrWrongPassword):
-		s.page(w, r, http.StatusUnauthorized, "admin_login.html", loginData{Alert: "Wrong password."})
-	case errors.As(err, &throttled):
-		secs := strconv.Itoa(int(math.Ceil(throttled.RetryAfter.Seconds())))
-		w.Header().Set("Retry-After", secs)
-		s.page(w, r, http.StatusTooManyRequests, "admin_login.html",
-			loginData{Alert: "Too many attempts. Try again in " + secs + " seconds."})
-	default:
-		s.serverError(w, r, err)
+	http.SetCookie(w, newSigninCookie(flow.State+"."+flow.Nonce+"."+flow.Verifier))
+	http.Redirect(w, r, authURL, http.StatusSeeOther)
+}
+
+// signInCallback finishes a sign-in. Success answers 200 with a page that
+// moves on to /admin/exams by itself: the session cookie is SameSite=Strict,
+// and a browser withholds it on a redirect chain that started at the
+// provider's site.
+func (s *server) signInCallback(w http.ResponseWriter, r *http.Request) {
+	flow, ok := signinFlow(r)
+	expireSigninCookie(w)
+	if !ok {
+		s.refuseSignIn(w, r, signInFailed, "no_flow", "")
+		return
 	}
+	q := r.URL.Query()
+	if q.Get("error") != "" {
+		s.refuseSignIn(w, r, signInFailed, "provider_error", "")
+		return
+	}
+	id, err := s.deps.OIDC.Complete(r.Context(), flow, q.Get("state"), q.Get("code"))
+	var fe *adminauth.FlowError
+	switch {
+	case errors.As(err, &fe):
+		s.refuseSignIn(w, r, signInFailed, fe.Reason, fe.Detail)
+		return
+	case err != nil:
+		s.serverError(w, r, err)
+		return
+	}
+	token, err := s.deps.Admin.SignIn(r.Context(), id)
+	switch {
+	case errors.Is(err, adminauth.ErrNotAllowed):
+		s.refuseSignIn(w, r, signInNotAllowed, "not_allowed", "")
+		return
+	case err != nil:
+		s.serverError(w, r, err)
+		return
+	}
+	http.SetCookie(w, newAdminCookie(token))
+	s.page(w, r, http.StatusOK, "admin_signed_in.html", nil)
+}
+
+// refuseSignIn logs the fixed reason (never an email, code, state, token or
+// error text) and sends the browser back to the login page with outcome.
+func (s *server) refuseSignIn(w http.ResponseWriter, r *http.Request, outcome, reason, detail string) {
+	attrs := []any{"reason", reason}
+	if detail != "" {
+		attrs = append(attrs, "detail", detail)
+	}
+	s.log.Warn("sign-in refused", attrs...)
+	http.Redirect(w, r, "/admin/login?error="+outcome, http.StatusSeeOther)
 }
 
 func (s *server) logout(w http.ResponseWriter, r *http.Request) {

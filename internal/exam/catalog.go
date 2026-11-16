@@ -8,34 +8,60 @@ import (
 	"time"
 )
 
-// Open opens examID and closes any other open exam. Opening an open exam is
-// a no-op.
-func (s *Service) Open(ctx context.Context, examID int64) error {
+// Open opens examID for actor and closes the acting teacher's other open
+// exam. An exam outside the actor's scope is ErrNotFound, checked first so a
+// foreign exam reveals nothing. When another teacher's exam is open the call
+// is refused with ErrOtherTeacherOpen and nothing changes; this holds for
+// admins too. Opening an open exam is a no-op.
+func (s *Service) Open(ctx context.Context, actor Actor, examID int64) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `UPDATE exam SET is_open = 0 WHERE is_open = 1 AND id <> ?`, examID); err != nil {
-		return err
+	var found int
+	err = tx.QueryRowContext(ctx, `SELECT 1 FROM exam WHERE id = ? AND `+inScope, scoped(examID, actor)...).Scan(&found)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
 	}
-	res, err := tx.ExecContext(ctx, `UPDATE exam SET is_open = 1 WHERE id = ?`, examID)
 	if err != nil {
 		return err
 	}
-	if err := requireRow(res); err != nil {
+	var openOwner sql.NullInt64
+	err = tx.QueryRowContext(ctx, `SELECT owner_id FROM exam WHERE is_open = 1 AND id <> ?`, examID).Scan(&openOwner)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+	case err != nil:
+		return err
+	case !openOwner.Valid || openOwner.Int64 != actor.TeacherID:
+		return ErrOtherTeacherOpen
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE exam SET is_open = 0 WHERE is_open = 1 AND id <> ?`, examID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE exam SET is_open = 1 WHERE id = ?`, examID); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
-// Close closes examID. Attempts are not touched.
-func (s *Service) Close(ctx context.Context, examID int64) error {
-	res, err := s.db.ExecContext(ctx, `UPDATE exam SET is_open = 0 WHERE id = ?`, examID)
+// Close closes examID for actor. Attempts are not touched.
+func (s *Service) Close(ctx context.Context, actor Actor, examID int64) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE exam SET is_open = 0 WHERE id = ? AND `+inScope, scoped(examID, actor)...)
 	if err != nil {
 		return err
 	}
 	return requireRow(res)
+}
+
+// AssignUnowned gives every exam without an owner to ownerID and returns how
+// many it assigned. Exams that have an owner are never moved.
+func (s *Service) AssignUnowned(ctx context.Context, ownerID int64) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `UPDATE exam SET owner_id = ? WHERE owner_id IS NULL`, ownerID)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }
 
 func requireRow(res sql.Result) error {
@@ -49,22 +75,27 @@ func requireRow(res sql.Result) error {
 	return nil
 }
 
+// examColumns reads an exam row. The owner columns are COALESCEd because an
+// exam from before migration 0004 has no owner until startup assigns one.
 const examColumns = `SELECT id, title, shuffle, show_result, monitor, is_open, created_at,
 	(SELECT COUNT(*) FROM question WHERE exam_id = exam.id),
-	(SELECT COUNT(*) FROM attempt WHERE exam_id = exam.id)
+	(SELECT COUNT(*) FROM attempt WHERE exam_id = exam.id),
+	COALESCE(exam.owner_id, 0),
+	COALESCE((SELECT email FROM teacher WHERE id = exam.owner_id), '')
 	FROM exam`
 
 func scanExam(row interface{ Scan(...any) error }) (Exam, error) {
 	var e Exam
 	var created int64
-	err := row.Scan(&e.ID, &e.Title, &e.Shuffle, &e.ShowResult, &e.Monitor, &e.Open, &created, &e.QuestionCount, &e.AttemptCount)
+	err := row.Scan(&e.ID, &e.Title, &e.Shuffle, &e.ShowResult, &e.Monitor, &e.Open, &created,
+		&e.QuestionCount, &e.AttemptCount, &e.OwnerID, &e.OwnerEmail)
 	e.CreatedAt = time.UnixMilli(created).UTC()
 	return e, err
 }
 
-// List returns all exams, newest first.
-func (s *Service) List(ctx context.Context) ([]Exam, error) {
-	rows, err := s.db.QueryContext(ctx, examColumns+` ORDER BY created_at DESC, id DESC`)
+// List returns the exams in actor's scope, newest first.
+func (s *Service) List(ctx context.Context, actor Actor) ([]Exam, error) {
+	rows, err := s.db.QueryContext(ctx, examColumns+` WHERE `+inScope+` ORDER BY created_at DESC, id DESC`, scopeArgs(actor)...)
 	if err != nil {
 		return nil, err
 	}
@@ -80,9 +111,9 @@ func (s *Service) List(ctx context.Context) ([]Exam, error) {
 	return out, rows.Err()
 }
 
-// Get returns one exam.
-func (s *Service) Get(ctx context.Context, examID int64) (Exam, error) {
-	e, err := scanExam(s.db.QueryRowContext(ctx, examColumns+` WHERE id = ?`, examID))
+// Get returns one exam in actor's scope.
+func (s *Service) Get(ctx context.Context, actor Actor, examID int64) (Exam, error) {
+	e, err := scanExam(s.db.QueryRowContext(ctx, examColumns+` WHERE id = ? AND `+inScope, scoped(examID, actor)...))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Exam{}, ErrNotFound
 	}
@@ -102,6 +133,8 @@ func (s *Service) Current(ctx context.Context) (Exam, bool, error) {
 }
 
 // Questions returns the exam's questions in original order, with the key.
+// Teacher-side callers resolve the exam through Get first, so the actor's
+// scope has already been applied.
 func (s *Service) Questions(ctx context.Context, examID int64) ([]Question, error) {
 	return LoadQuestions(ctx, s.db, examID)
 }

@@ -2,3 +2,4 @@
 .flow/
 data/
 e2e/out/
+.env

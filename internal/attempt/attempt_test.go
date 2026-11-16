@@ -28,6 +28,7 @@ type harness struct {
 	exams *exam.Service
 	svc   *attempt.Service
 	clock time.Time
+	owner exam.Actor
 }
 
 func newHarness(t *testing.T) *harness {
@@ -41,6 +42,7 @@ func newHarness(t *testing.T) *harness {
 	h := &harness{db: db, clock: t0}
 	now := func() time.Time { return h.clock }
 	h.exams = exam.NewService(db, media, now, rand.NewChaCha8([32]byte{9}))
+	h.owner = exam.Actor{TeacherID: sqlitetest.Teacher(t, db, "owner@example.test")}
 	h.svc = attempt.NewService(db, now, rand.NewChaCha8([32]byte{4, 2}))
 	return h
 }
@@ -65,7 +67,7 @@ func examText(shuffle string, show examfile.ShowResult, n, m int) string {
 
 func (h *harness) importExam(t *testing.T, text string) int64 {
 	t.Helper()
-	id, err := h.exams.Import(context.Background(), []byte(text))
+	id, err := h.exams.Import(context.Background(), h.owner, []byte(text))
 	if err != nil {
 		t.Fatalf("Import: %v", err)
 	}
@@ -75,7 +77,7 @@ func (h *harness) importExam(t *testing.T, text string) int64 {
 func (h *harness) openExam(t *testing.T, text string) int64 {
 	t.Helper()
 	id := h.importExam(t, text)
-	if err := h.exams.Open(context.Background(), id); err != nil {
+	if err := h.exams.Open(context.Background(), h.owner, id); err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 	return id
@@ -212,12 +214,12 @@ func TestStart_RequiresOpenExam(t *testing.T) {
 	_, err = h.svc.Start(context.Background(), "Ayu")
 	wantErr(t, "Start with a closed exam", err, attempt.ErrNoOpenExam)
 
-	if err := h.exams.Open(context.Background(), id); err != nil {
+	if err := h.exams.Open(context.Background(), h.owner, id); err != nil {
 		t.Fatal(err)
 	}
 	token := h.start(t, "Ayu")
 
-	if err := h.exams.Close(context.Background(), id); err != nil {
+	if err := h.exams.Close(context.Background(), h.owner, id); err != nil {
 		t.Fatal(err)
 	}
 	_, err = h.svc.Start(context.Background(), "Budi")

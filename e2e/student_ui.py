@@ -4,7 +4,7 @@
 # ///
 """Browser smoke for the student exam page (exam.js) in real Chromium.
 
-uv run e2e/student_ui.py --base-url URL --admin-password PW --out DIR
+uv run e2e/student_ui.py --base-url URL --admin-email EMAIL --oidc-url URL --out DIR
 """
 
 import argparse
@@ -18,7 +18,15 @@ from pathlib import Path
 
 from playwright.sync_api import Page, expect, sync_playwright
 
-from common import build_fixture_zip, import_and_open, teacher_login, watch
+from common import (
+    add_sign_in_args,
+    build_fixture_zip,
+    foreign_requests,
+    import_and_open,
+    require_cross_site,
+    teacher_login,
+    watch,
+)
 
 DESKTOP = {"viewport": {"width": 1280, "height": 800}}
 
@@ -72,7 +80,7 @@ def page_state(page: Page) -> list[tuple[str, str | None]]:
     )
 
 
-def run(base_url: str, password: str, out: Path) -> None:
+def run(base_url: str, email: str, oidc_url: str, out: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
     logs = []
     with sync_playwright() as p, tempfile.TemporaryDirectory() as tmp:
@@ -87,7 +95,7 @@ def run(base_url: str, password: str, out: Path) -> None:
         with step("1 teacher imports and opens the exam"):
             teacher = new_context(**DESKTOP).new_page()
             zip_path, _ = build_fixture_zip(tmp)
-            teacher_login(teacher, base_url, password)
+            teacher_login(teacher, base_url, email)
             import_and_open(teacher, zip_path)
 
         s1_context = new_context(**phone)
@@ -243,7 +251,7 @@ def run(base_url: str, password: str, out: Path) -> None:
                     if not e.endswith("Failed to load resource: net::ERR_INTERNET_DISCONNECTED") and e != refused
                 ]
                 problems += [f"page error: {e}" for e in log["page_errors"]]
-                problems += [f"foreign request: {u}" for u in log["requests"] if not u.startswith(base_url)]
+                problems += [f"foreign request: {u}" for u in foreign_requests(log["requests"], base_url, oidc_url)]
             if problems:
                 raise AssertionError("\n  ".join(["problems found:"] + problems))
 
@@ -253,11 +261,13 @@ def run(base_url: str, password: str, out: Path) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", required=True)
-    parser.add_argument("--admin-password", required=True)
+    add_sign_in_args(parser)
     parser.add_argument("--out", type=Path, default=Path(__file__).parent / "out")
     args = parser.parse_args()
+    base_url, oidc_url = args.base_url.rstrip("/"), args.oidc_url.rstrip("/")
+    require_cross_site(base_url, oidc_url)
     try:
-        run(args.base_url.rstrip("/"), args.admin_password, args.out)
+        run(base_url, args.admin_email, oidc_url, args.out)
     except StepFailed as err:
         print(err, file=sys.stderr)
         return 1

@@ -1,0 +1,41 @@
+{{define "title"}}Teachers · go-exam{{end}}
+
+{{define "header"}}{{template "admin_header" .}}{{end}}
+
+{{define "main"}}
+<main class="container admin teachers-page">
+  <h1>Teachers</h1>
+  {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
+  <form id="add-teacher-form" method="post" action="/admin/teachers">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <label for="add-teacher-email">Email address of the teacher's Google account</label>
+    <input type="email" id="add-teacher-email" name="email" value="{{.AddEmail}}" maxlength="254" autocomplete="off" required>
+    <button type="submit">Add teacher</button>
+  </form>
+  <div class="overflow-auto">
+    <table id="teachers">
+      <thead>
+        <tr>
+          <th scope="col">Email</th>
+          <th scope="col">Name</th>
+          <th scope="col">Last sign-in</th>
+          <th scope="col">Exams</th>
+          <th scope="col">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Teachers}}
+        <tr data-teacher-id="{{.ID}}">
+          <td>{{.Email}}{{if .Admin}} <span class="badge badge-muted">Admin</span>{{end}}</td>
+          <td>{{.Name}}</td>
+          <td>{{.LastLogin}}</td>
+          <td class="numeric">{{.Exams}}</td>
+          <td class="row-actions">{{if not .Admin}}<form method="post" action="/admin/teachers/{{.ID}}/remove"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit" class="secondary">Remove</button></form>{{end}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  <p class="zone-note">Times are shown in {{.Zone}}. Admins are set in GOEXAM_ADMIN_EMAILS.</p>
+</main>
+{{end}}

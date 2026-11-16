@@ -12,13 +12,14 @@ import (
 )
 
 // Import validates an uploaded exam file, stores its images and inserts it
-// closed. Invalid uploads return *examfile.Error and store nothing.
-func (s *Service) Import(ctx context.Context, data []byte) (int64, error) {
+// closed, owned by actor (also when actor is an admin). Invalid uploads
+// return *examfile.Error and store nothing.
+func (s *Service) Import(ctx context.Context, actor Actor, data []byte) (int64, error) {
 	ex, key, err := s.prepare(data)
 	if err != nil {
 		return 0, err
 	}
-	id, err := s.insertExam(ctx, ex, key)
+	id, err := s.insertExam(ctx, actor.TeacherID, ex, key)
 	if err != nil {
 		s.media.RemoveAll(key)
 		return 0, err
@@ -26,15 +27,15 @@ func (s *Service) Import(ctx context.Context, data []byte) (int64, error) {
 	return id, nil
 }
 
-func (s *Service) insertExam(ctx context.Context, ex examfile.Exam, key string) (int64, error) {
+func (s *Service) insertExam(ctx context.Context, ownerID int64, ex examfile.Exam, key string) (int64, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
 	defer tx.Rollback()
 	res, err := tx.ExecContext(ctx,
-		`INSERT INTO exam (title, shuffle, show_result, monitor, is_open, media_key, created_at) VALUES (?, ?, ?, ?, 0, ?, ?)`,
-		ex.Title, string(ex.Shuffle), string(ex.ShowResult), ex.Monitor, key, s.now().UnixMilli())
+		`INSERT INTO exam (title, shuffle, show_result, monitor, is_open, media_key, created_at, owner_id) VALUES (?, ?, ?, ?, 0, ?, ?, ?)`,
+		ex.Title, string(ex.Shuffle), string(ex.ShowResult), ex.Monitor, key, s.now().UnixMilli(), ownerID)
 	if err != nil {
 		return 0, fmt.Errorf("exam: insert: %w", err)
 	}
@@ -51,14 +52,14 @@ func (s *Service) insertExam(ctx context.Context, ex examfile.Exam, key string) 
 	return id, nil
 }
 
-// Replace swaps the content, title and header settings of an exam that has
-// no attempts. ID, open state and creation time are kept.
-func (s *Service) Replace(ctx context.Context, examID int64, data []byte) error {
+// Replace swaps the content, title and header settings of an exam in actor's
+// scope that has no attempts. ID, owner, open state and creation time are kept.
+func (s *Service) Replace(ctx context.Context, actor Actor, examID int64, data []byte) error {
 	ex, key, err := s.prepare(data)
 	if err != nil {
 		return err
 	}
-	oldKey, err := s.replaceExam(ctx, examID, ex, key)
+	oldKey, err := s.replaceExam(ctx, actor, examID, ex, key)
 	if err != nil {
 		s.media.RemoveAll(key)
 		return err
@@ -68,7 +69,7 @@ func (s *Service) Replace(ctx context.Context, examID int64, data []byte) error 
 	return nil
 }
 
-func (s *Service) replaceExam(ctx context.Context, examID int64, ex examfile.Exam, key string) (string, error) {
+func (s *Service) replaceExam(ctx context.Context, actor Actor, examID int64, ex examfile.Exam, key string) (string, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return "", err
@@ -77,8 +78,8 @@ func (s *Service) replaceExam(ctx context.Context, examID int64, ex examfile.Exa
 	var oldKey string
 	var frozen bool
 	err = tx.QueryRowContext(ctx,
-		`SELECT media_key, EXISTS(SELECT 1 FROM attempt WHERE exam_id = exam.id) FROM exam WHERE id = ?`,
-		examID).Scan(&oldKey, &frozen)
+		`SELECT media_key, EXISTS(SELECT 1 FROM attempt WHERE exam_id = exam.id) FROM exam WHERE id = ? AND `+inScope,
+		scoped(examID, actor)...).Scan(&oldKey, &frozen)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", ErrNotFound
 	}

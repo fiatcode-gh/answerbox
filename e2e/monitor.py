@@ -4,7 +4,7 @@
 # ///
 """Browser check for the anti-cheat monitor in real Chromium.
 
-uv run e2e/monitor.py --base-url URL --admin-password PW --out DIR
+uv run e2e/monitor.py --base-url URL --admin-email EMAIL --oidc-url URL --out DIR
 """
 
 import argparse
@@ -19,7 +19,15 @@ from urllib.parse import parse_qs
 from playwright.sync_api import Page, expect, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-from common import build_fixture_zip, import_and_open, teacher_login, watch
+from common import (
+    add_sign_in_args,
+    build_fixture_zip,
+    foreign_requests,
+    import_and_open,
+    require_cross_site,
+    teacher_login,
+    watch,
+)
 
 DESKTOP = {"viewport": {"width": 1280, "height": 800}}
 BANNER = "Your teacher has been notified."
@@ -191,7 +199,7 @@ def event_texts(teacher: Page, base_url: str, exam_id: int, name: str) -> list[s
     return [t.strip() for t in teacher.locator("#events tr.event td:nth-child(2)").all_inner_texts()]
 
 
-def run(base_url: str, password: str, out: Path) -> None:
+def run(base_url: str, email: str, oidc_url: str, out: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
     logs = []
     with sync_playwright() as p, tempfile.TemporaryDirectory() as tmp:
@@ -206,7 +214,7 @@ def run(base_url: str, password: str, out: Path) -> None:
         with step("1 teacher imports and opens a default (monitor on) exam"):
             (Path(tmp) / "on").mkdir()
             zip_on, key = build_fixture_zip(Path(tmp) / "on", title="Monitor on")
-            teacher_login(teacher, base_url, password)
+            teacher_login(teacher, base_url, email)
             on_id = import_and_open(teacher, zip_on)
             teacher.goto(f"{base_url}/admin/exams/{on_id}")
             expect(teacher.locator("dl.settings")).to_contain_text(re.compile(r"Monitor\s*On"))
@@ -405,7 +413,7 @@ def run(base_url: str, password: str, out: Path) -> None:
                     if not e.endswith("the server responded with a status of 503 (Service Unavailable)")
                 ]
                 problems += [f"page error: {e}" for e in log["page_errors"]]
-                problems += [f"foreign request: {u}" for u in log["requests"] if not u.startswith(base_url)]
+                problems += [f"foreign request: {u}" for u in foreign_requests(log["requests"], base_url, oidc_url)]
             if problems:
                 raise AssertionError("\n  ".join(["problems found:"] + problems))
 
@@ -415,11 +423,13 @@ def run(base_url: str, password: str, out: Path) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", required=True)
-    parser.add_argument("--admin-password", required=True)
+    add_sign_in_args(parser)
     parser.add_argument("--out", type=Path, default=Path(__file__).parent / "out" / "monitor")
     args = parser.parse_args()
+    base_url, oidc_url = args.base_url.rstrip("/"), args.oidc_url.rstrip("/")
+    require_cross_site(base_url, oidc_url)
     try:
-        run(args.base_url.rstrip("/"), args.admin_password, args.out)
+        run(base_url, args.admin_email, oidc_url, args.out)
     except StepFailed as err:
         print(err, file=sys.stderr)
         return 1

@@ -15,9 +15,28 @@ import (
 )
 
 var (
-	ErrNotFound = errors.New("exam: not found")
-	ErrFrozen   = errors.New("exam: content is frozen because attempts exist")
+	ErrNotFound         = errors.New("exam: not found")
+	ErrFrozen           = errors.New("exam: content is frozen because attempts exist")
+	ErrOtherTeacherOpen = errors.New("exam: another teacher's exam is open")
 )
+
+// Actor is the signed-in teacher a catalog call acts for. An admin may act
+// on every exam; anyone else only on exams they own.
+type Actor struct {
+	TeacherID int64
+	Admin     bool
+}
+
+// inScope is the one ownership condition: the exam row is visible to the
+// actor bound by scopeArgs. An exam outside it is reported as ErrNotFound.
+const inScope = `(? OR exam.owner_id = ?)`
+
+func scopeArgs(actor Actor) []any { return []any{actor.Admin, actor.TeacherID} }
+
+// scoped returns the arguments for `id = ? AND ` + inScope.
+func scoped(examID int64, actor Actor) []any {
+	return append([]any{examID}, scopeArgs(actor)...)
+}
 
 // Exam is a catalog entry with derived counts.
 type Exam struct {
@@ -30,6 +49,8 @@ type Exam struct {
 	CreatedAt     time.Time
 	QuestionCount int
 	AttemptCount  int
+	OwnerID       int64
+	OwnerEmail    string
 }
 
 // Question is a stored question in original file order, with its answer key.
