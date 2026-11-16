@@ -54,6 +54,10 @@ Open `http://localhost:8080/` for students and `http://localhost:8080/admin` for
 - Set `GOEXAM_TRUSTED_PROXIES` to the proxy's network (for example `172.18.0.0/16`) so the request log shows real client addresses instead of the proxy's.
 - The server needs outbound HTTPS to Google to sign teachers in. Students are not affected when Google cannot be reached.
 
+## Browser support
+
+Tested in Chromium on desktop and in Chrome on a real Android phone. Safari (iPhone, iPad, Mac) is not tested.
+
 ## Health check
 
 `GET /healthz` returns `200` with body `ok` when the server and database are available, and `503` otherwise.
