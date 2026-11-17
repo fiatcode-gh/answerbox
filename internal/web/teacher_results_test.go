@@ -575,7 +575,7 @@ func TestAttempt_DetailPage(t *testing.T) {
 
 	path := fmt.Sprintf("%s/%d", attemptsPath(id), aid)
 	body := getOK(t, env, path, cookie)
-	for _, want := range []string{"Ayu", "In progress", "1 / 3", "2026-11-14 09:30"} {
+	for _, want := range []string{"Ayu", "In progress", "1 / 3", "2026-11-14 09:30", "Revision 1", fmt.Sprintf(`href="/admin/exams/%d/revisions/1"`, id)} {
 		if !strings.Contains(body, want) {
 			t.Errorf("summary lacks %q", want)
 		}
@@ -616,6 +616,52 @@ func TestAttempt_DetailPage(t *testing.T) {
 	requireNotFound(t, env, "GET", fmt.Sprintf("%s/%d", attemptsPath(other), aid), cookie)
 	requireNotFound(t, env, "GET", fmt.Sprintf("%s/%d", attemptsPath(id), aid+1), cookie)
 	requireNotFound(t, env, "GET", attemptsPath(id)+"/x", cookie)
+}
+
+var attemptRevisionRe = regexp.MustCompile(`<dd id="attempt-revision">(.*?)</dd>`)
+
+// attemptRevisionCell returns the content of the attempt page's revision cell.
+func attemptRevisionCell(t *testing.T, body string) string {
+	t.Helper()
+	m := attemptRevisionRe.FindStringSubmatch(body)
+	if m == nil {
+		t.Fatalf("attempt page has no #attempt-revision:\n%s", body)
+	}
+	return m[1]
+}
+
+func TestAttempt_RevisionAfterReplace(t *testing.T) {
+	env := newTestEnv(t)
+	cookie, _, _ := env.signIn(t)
+	ctx := t.Context()
+	id, err := env.exams.Import(ctx, env.owner, []byte(examText("none", "score", 1, 2)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := env.exams.Replace(ctx, env.owner, id, []byte(examText("none", "score", 2, 2))); err != nil {
+		t.Fatal(err)
+	}
+	if err := env.exams.Open(ctx, env.owner, id); err != nil {
+		t.Fatal(err)
+	}
+	_, aid := env.startAttempt(t, id, "Ayu")
+
+	body := getOK(t, env, attemptPath(id, aid), cookie)
+	want := fmt.Sprintf(`<a href="/admin/exams/%d/revisions/2">Revision 2</a>`, id)
+	if got := attemptRevisionCell(t, body); got != want {
+		t.Errorf("revision cell = %q, want %q", got, want)
+	}
+}
+
+func TestAttempt_NoRevision(t *testing.T) {
+	env := newTestEnv(t)
+	cookie, _, _ := env.signIn(t)
+	id := env.examWithoutRevision(t, "HANDZZ", true)
+	_, aid := env.startAttempt(t, id, "Ayu")
+
+	if got := attemptRevisionCell(t, getOK(t, env, attemptPath(id, aid), cookie)); got != "—" {
+		t.Errorf("revision cell = %q, want —", got)
+	}
 }
 
 func TestAttempt_Delete(t *testing.T) {

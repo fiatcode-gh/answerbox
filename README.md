@@ -1,6 +1,6 @@
 # go-exam
 
-go-exam is a small, self-hosted web app for classroom multiple-choice exams. Students type the exam's code and their name, or open a link that carries the code, and take that exam within its time limit, the exam's own length (60 minutes unless the exam file says otherwise); the teacher imports exams from text files, opens and closes them by hand or on a schedule, and reviews the results.
+go-exam is a small, self-hosted web app for classroom multiple-choice exams. Students type the exam's code and their name, or open a link that carries the code, and take that exam within its time limit, the exam's own length (60 minutes unless the exam file says otherwise); the teacher imports exams from text files, opens and closes them by hand or on a schedule, and reviews the results. Teachers can also see every change to an exam as a numbered revision, download an exam as a file and copy an exam.
 
 It is not a learning platform. Teachers sign in with their Google account, and only emails on the app's teacher list may sign in. Each teacher sees only their own exams and results; admins (the emails in `GOEXAM_ADMIN_EMAILS`) also see every exam and manage the teacher list. Students have no accounts. Several exams can be open at the same time.
 
@@ -34,7 +34,7 @@ A Google account can sign in only when its email is verified and on the teacher 
 
 ## Exam codes
 
-- Every exam gets a 6-character code when it is imported: capital letters and digits without look-alikes (no I, L, O, U, 0, 1). The code never changes, also when the questions are replaced, and no other exam ever gets it.
+- Every exam gets a 6-character code when it is imported: capital letters and digits without look-alikes (no I, L, O, U, 0, 1). The code never changes, also when the questions are replaced and across revisions, and no other exam ever gets it. A copy of an exam gets a new code.
 - The exam page shows the code large, for a projector, and the student link `<GOEXAM_PUBLIC_URL>/?code=XXXXXX`. The exams list shows each exam's code.
 - Students open the app and type the code and their name. Any case works, and spaces and a dash are ignored. With the link, the name is all they type.
 - A code works only while its exam is open. Otherwise the student reads "No open exam has that code. Check it with your teacher.", the same sentence for a mistyped code, for a closed exam and for an exam whose close time has passed.
@@ -52,6 +52,17 @@ A Google account can sign in only when its email is verified and on the teacher 
 - The close time stops new starts only. Attempts in progress keep their full length.
 - Open and Close remove the schedule and leave the exam open or closed. Saving a schedule on an exam opened with the button hands it to the schedule.
 - Times are typed and shown in `GOEXAM_TIME_ZONE`.
+
+## Revisions, download and copy
+
+- Importing an exam makes its revision 1; each Replace makes the next one. A revision records its number, the time, the teacher and a summary: `Imported`, `Replaced from file` or `Copied from <title> (<code>), revision <N>`.
+- History, on the exam page, lists the revisions newest first. Any revision opens read-only with its settings, questions, correct options and images.
+- Once an exam has an attempt it is frozen: no Replace and no new revision. To change it, copy it.
+- Each attempt records the revision it started on; the attempt page shows it as a link to that revision. The results list and the CSV do not show it.
+- Download gives the current revision as `exam-<CODE>.md`, or `exam-<CODE>.zip` when the exam has images, also for a frozen exam. The file is in a standard layout: all four settings lines, questions numbered from 1, the correct option marked ` *`; the words of questions and options stay as typed. Importing it gives an equal exam.
+- Copy exam makes a new closed exam with a new code and the same title, owned by whoever pressed Copy, starting at revision 1. Attempts, schedule and the open state are not copied.
+- Exams imported before this version get revision 1 `Imported` the first time the new version starts, dated at their import, and their existing attempts are put on it. Their text is rebuilt from the stored pages, so a special character may come back with a backslash (for example `2\*3`), which shows the same; their images are named by content hash in a download. An exam whose text cannot be rebuilt exactly (it uses a list, link, quote, heading or raw HTML, bold-and-italic text written as `**_x_**` or `__*x*__`, or a paragraph ending in a no-break space) keeps working but has no history, download or copy; the exam page says so and the server log names the exam and the question at every start.
+- Rolling back to the previous version: everything keeps working except Replace on an exam that has a revision, which is refused and changes nothing.
 
 ## Run with a container
 
@@ -88,7 +99,7 @@ Tested in Chromium on desktop and in Chrome on a real Android phone. Safari (iPh
 Everything lives under the data directory:
 
 - `go-exam.db` — the SQLite database (WAL mode, so `go-exam.db-wal` and `go-exam.db-shm` may sit next to it);
-- `media/` — images imported with exams.
+- `media/` — images imported with exams, kept for every revision: Replace no longer removes the old images, so this folder grows with each Replace.
 
 To back up while the app is running, take an online copy of the database and copy the media directory:
 
@@ -131,7 +142,7 @@ Rules:
 - Options start with `- `. Each question needs at least two.
 - Mark exactly one option per question as correct with a trailing `*`.
 - Text supports bold (`**bold**`), italics (`*italics*`), inline `` `code` ``, line breaks, fenced code blocks (```` ``` ````) and images (`![description](file.png)`).
-- To use images, upload a `.zip` containing the text file and the image files (PNG, JPEG, GIF or WebP).
+- To use images, upload a `.zip` containing the text file and the image files (PNG, JPEG, GIF or WebP). File names inside the zip must be valid UTF-8, which every current zip tool writes.
 - Uploads are limited to 10 MB and must finish within 60 seconds, which needs an upload speed of about 1.4 Mbit/s for a 10 MB file.
 
 ## Development
@@ -161,8 +172,12 @@ uv run e2e/exam_flow.py  --base-url http://localhost:8080 --admin-email admin@ex
 uv run e2e/monitor.py    --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/monitor
 uv run e2e/teachers.py   --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/teachers
 uv run e2e/exam_codes.py --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/exam-codes
+uv run e2e/revisions.py  --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/revisions
 # The server must run with GOEXAM_TIME_ZONE=Asia/Jakarta; the run waits about two minutes on the real clock:
 uv run e2e/scheduled_exams.py --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --time-zone Asia/Jakarta --out e2e/out/scheduled-exams
+
+# Check that every exam in a database copy can be given its revision 1 (read-only; use a copy taken with sqlite3 ".backup"):
+go run ./cmd/rebuildcheck -db /path/to/copy.db
 ```
 
 The fake provider signs in any identity and is not part of the container image.

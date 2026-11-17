@@ -112,6 +112,7 @@ type Detail struct {
 	Summary
 	Questions []DetailQuestion
 	Events    []Event // monitor events in time order
+	Revision  int     // the exam revision the attempt was started on; 0 when the exam had none
 }
 
 // DetailQuestion is a question in original file order.

@@ -54,7 +54,7 @@ func Parse(u Upload, mediaBase string) (Exam, error) {
 		}
 		ex.Questions = append(ex.Questions, parsed)
 	}
-	ex.Images = r.images
+	ex.Images, ex.ImagePaths, ex.Dir = r.images, r.paths, u.Dir
 	return ex, nil
 }
 
@@ -68,11 +68,15 @@ func scan(lines []string) (Exam, []*rawQuestion, error) {
 	if i == len(lines) {
 		return ex, nil, errorf(`line 1: expected "# Title" as the first line`)
 	}
+	// titleRe's \S is ASCII-only, so a title of Unicode spaces such as "\v"
+	// matches but trims to nothing; it is rejected like a missing title.
 	m := titleRe.FindStringSubmatch(lines[i])
-	if m == nil {
+	if m != nil {
+		ex.Title = strings.TrimSpace(m[1])
+	}
+	if ex.Title == "" {
 		return ex, nil, errorf(`line %d: expected "# Title" as the first line`, i+1)
 	}
-	ex.Title = strings.TrimSpace(m[1])
 	if utf8.RuneCountInString(ex.Title) > MaxTitleRunes {
 		return ex, nil, errorf("line %d: title is longer than %d characters", i+1, MaxTitleRunes)
 	}
@@ -83,6 +87,9 @@ func scan(lines []string) (Exam, []*rawQuestion, error) {
 	inFence, fenceLine := false, 0
 	for i++; i < len(lines); i++ {
 		line, n := lines[i], i+1
+		// Lines are classified by their right-trimmed form, the form block.text
+		// leaves at the end of a block, so "-\f" cannot hide an option there.
+		trimmed := strings.TrimRightFunc(line, unicode.IsSpace)
 
 		if len(questions) == 0 {
 			if isBlank(line) {
@@ -94,7 +101,7 @@ func scan(lines []string) (Exam, []*rawQuestion, error) {
 				}
 				continue
 			}
-			if !questionRe.MatchString(line) {
+			if !questionRe.MatchString(trimmed) {
 				return ex, nil, errorf(`line %d: expected "shuffle:", "show_result:", "monitor:", "duration:" or question 1`, n)
 			}
 		}
@@ -110,7 +117,7 @@ func scan(lines []string) (Exam, []*rawQuestion, error) {
 			}
 			continue
 		}
-		if m := questionRe.FindStringSubmatch(line); m != nil {
+		if m := matchQuestion(line, trimmed); m != nil {
 			num, _ := strconv.Atoi(m[1])
 			if want := len(questions) + 1; num != want {
 				return ex, nil, errorf("line %d: expected question %d, found question %d", n, want, num)
@@ -123,10 +130,10 @@ func scan(lines []string) (Exam, []*rawQuestion, error) {
 			cur = &q.block
 			continue
 		}
-		if m := optionRe.FindStringSubmatch(line); m != nil {
+		if m := optionRe.FindStringSubmatch(trimmed); m != nil {
 			q := questions[len(questions)-1]
 			o := &rawOption{block: block{line: n}}
-			o.first, o.correct = splitMarker(strings.TrimRightFunc(m[1], unicode.IsSpace))
+			o.first, o.correct = splitMarker(m[1])
 			q.options = append(q.options, o)
 			cur = &o.block
 			continue
@@ -140,6 +147,16 @@ func scan(lines []string) (Exam, []*rawQuestion, error) {
 		return ex, nil, errorf("exam has no questions")
 	}
 	return ex, questions, nil
+}
+
+// matchQuestion matches questionRe against trimmed, the right-trimmed line,
+// taking the first-line text from line itself when it matches too so that
+// trailing whitespace before continuation lines is kept as written.
+func matchQuestion(line, trimmed string) []string {
+	if m := questionRe.FindStringSubmatch(line); m != nil {
+		return m
+	}
+	return questionRe.FindStringSubmatch(trimmed)
 }
 
 func setHeader(ex *Exam, seen map[string]bool, key, raw string, n int) error {
@@ -237,13 +254,13 @@ func validate(r *renderer, k int, q *rawQuestion) (Question, error) {
 		return Question{}, errorf("question %d (line %d) has more than one correct option", k, q.line)
 	}
 
-	out := Question{Options: make([]Option, len(q.options))}
+	out := Question{Source: body, Options: make([]Option, len(q.options))}
 	var err error
 	if out.BodyHTML, err = r.render(body, k); err != nil {
 		return Question{}, err
 	}
 	for m, o := range q.options {
-		out.Options[m].Correct = o.correct
+		out.Options[m].Source, out.Options[m].Correct = texts[m], o.correct
 		if out.Options[m].BodyHTML, err = r.render(texts[m], k); err != nil {
 			return Question{}, err
 		}

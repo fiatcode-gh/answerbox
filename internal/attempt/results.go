@@ -101,21 +101,22 @@ func (s *Service) Detail(ctx context.Context, examID, attemptID int64) (Detail, 
 	if err != nil {
 		return Detail{}, err
 	}
+	var seed int64
+	var mode examfile.Shuffle
+	var revision int
+	err = tx.QueryRowContext(ctx, `SELECT a.shuffle_seed, e.shuffle, COALESCE(a.revision, 0) FROM attempt a
+		JOIN exam e ON e.id = a.exam_id WHERE a.id = ?`, attemptID).Scan(&seed, &mode, &revision)
+	if err != nil {
+		return Detail{}, err
+	}
 	if len(events) > 0 {
-		var seed int64
-		var mode examfile.Shuffle
-		err := tx.QueryRowContext(ctx, `SELECT a.shuffle_seed, e.shuffle FROM attempt a
-			JOIN exam e ON e.id = a.exam_id WHERE a.id = ?`, attemptID).Scan(&seed, &mode)
-		if err != nil {
-			return Detail{}, err
-		}
 		screen := screenNumbers(questions, mode, seed)
 		for i := range events {
 			events[i].Screen = screen[events[i].Question]
 		}
 	}
 
-	d := Detail{Summary: sum, Questions: make([]DetailQuestion, len(questions)), Events: events}
+	d := Detail{Summary: sum, Questions: make([]DetailQuestion, len(questions)), Events: events, Revision: revision}
 	for i, q := range questions {
 		pick, answered := picked[q.ID]
 		dq := DetailQuestion{Position: q.Position, BodyHTML: q.BodyHTML, Answered: answered}

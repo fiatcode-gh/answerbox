@@ -901,3 +901,181 @@ func TestSchedule_UnknownExam404(t *testing.T) {
 		}
 	}
 }
+
+// pathID returns the exam id of an exam detail path.
+func pathID(t *testing.T, detail string) int64 {
+	t.Helper()
+	id, err := strconv.ParseInt(strings.TrimPrefix(detail, "/admin/exams/"), 10, 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func TestDownload_Route(t *testing.T) {
+	env := newTestEnv(t)
+	cookie, csrf, _ := env.signIn(t)
+	ctx := context.Background()
+	text := importExam(t, env, cookie, csrf, "geometry.md", []byte(textExam))
+	zipped := importExam(t, env, cookie, csrf, "shapes.zip", zipOf(t, map[string][]byte{
+		"shapes/exam.md":     []byte(zipExam),
+		"shapes/img/tri.png": testPNG(t),
+	}))
+
+	for _, c := range []struct{ detail, ext, contentType string }{
+		{text, ".md", "text/markdown; charset=utf-8"},
+		{zipped, ".zip", "application/zip"},
+	} {
+		id := pathID(t, c.detail)
+		e, err := env.exams.Get(ctx, env.owner, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want, err := env.exams.Download(ctx, env.owner, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec := do(env.h, "GET", c.detail+"/download", cookie)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET %s/download = %d:\n%s", c.detail, rec.Code, rec.Body.String())
+		}
+		h := rec.Header()
+		for name, value := range map[string]string{
+			"Content-Type":           c.contentType,
+			"Content-Disposition":    `attachment; filename="exam-` + e.Code + c.ext + `"`,
+			"Cache-Control":          "no-store",
+			"X-Content-Type-Options": "nosniff",
+		} {
+			if got := h.Get(name); got != value {
+				t.Errorf("%s/download %s = %q, want %q", c.detail, name, got, value)
+			}
+		}
+		if !bytes.Equal(rec.Body.Bytes(), want.Data) {
+			t.Errorf("%s/download body differs from Exams.Download", c.detail)
+		}
+		if c.ext == ".zip" && !bytes.HasPrefix(rec.Body.Bytes(), []byte("PK")) {
+			t.Errorf("zip download does not start with PK")
+		}
+		link := `<a id="download-link" role="button" class="secondary" href="` + c.detail + `/download">Download</a>`
+		if body := getOK(t, env, c.detail, cookie); !strings.Contains(body, link) {
+			t.Errorf("exam page %s lacks %s", c.detail, link)
+		}
+	}
+
+	old := examPath(env.examWithoutRevision(t, "DWNKDZ", false))
+	if body := getOK(t, env, old, cookie); strings.Contains(body, `download-link`) {
+		t.Errorf("exam without a revision shows the download link")
+	}
+	rec := do(env.h, "GET", old+"/download", cookie)
+	alert := `<div role="alert" class="alert">` + html.EscapeString(noRevisionNotice) + `</div>`
+	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), alert) {
+		t.Errorf("GET %s/download = %d, want 409 with %s:\n%s", old, rec.Code, alert, rec.Body.String())
+	}
+
+	requireNotFound(t, env, "GET", "/admin/exams/999/download", cookie)
+	requireNotFound(t, env, "GET", "/admin/exams/x/download", cookie)
+}
+
+func (env *testEnv) examCount(t *testing.T) int {
+	t.Helper()
+	var n int
+	if err := env.db.QueryRow(`SELECT COUNT(*) FROM exam`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+func TestCopy_Flow(t *testing.T) {
+	env := newTestEnv(t)
+	cookie, csrf, _ := env.signIn(t)
+	ctx := context.Background()
+	detail := importExam(t, env, cookie, csrf, "geometry.md", []byte(textExam))
+	src, err := env.exams.Get(ctx, env.owner, pathID(t, detail))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	form := regexp.MustCompile(`(?s)<form id="copy-form" method="post" action="` + detail + `/copy">.*?</form>`).
+		FindString(getOK(t, env, detail, cookie))
+	if !strings.Contains(form, `name="csrf_token" value="`+csrf+`"`) || !strings.Contains(form, "Copy exam") {
+		t.Errorf("exam page copy form = %q, want one with the CSRF field", form)
+	}
+
+	n := env.examCount(t)
+	if rec := postForm(env.h, detail+"/copy", url.Values{}, cookie); rec.Code != http.StatusForbidden {
+		t.Errorf("POST %s/copy without token = %d, want 403", detail, rec.Code)
+	}
+	if got := env.examCount(t); got != n {
+		t.Errorf("exams after a refused copy = %d, want %d", got, n)
+	}
+
+	rec := postForm(env.h, detail+"/copy", url.Values{"csrf_token": {csrf}}, cookie)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("POST %s/copy = %d:\n%s", detail, rec.Code, rec.Body.String())
+	}
+	copyPath := rec.Header().Get("Location")
+	copyID := pathID(t, copyPath)
+	if copyID == src.ID {
+		t.Fatalf("copy redirects to the source %s", copyPath)
+	}
+	c, err := env.exams.Get(ctx, env.owner, copyID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := getOK(t, env, copyPath, cookie)
+	for _, want := range []string{"<h1>" + html.EscapeString(src.Title) + "</h1>", ">Closed</span>", `<p id="exam-code" class="exam-code">` + c.Code + `</p>`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("copy page lacks %s", want)
+		}
+	}
+	if c.Code == src.Code {
+		t.Errorf("copy has the source's code %q", c.Code)
+	}
+	rows := revisionRows(getOK(t, env, copyPath+"/revisions", cookie))
+	want := fmt.Sprintf("Copied from %s (%s), revision 1", html.EscapeString(src.Title), src.Code)
+	if len(rows) != 1 || rows[0][0] != "1" || rows[0][4] != want {
+		t.Errorf("copy history = %q, want one row with %q", rows, want)
+	}
+
+	old := examPath(env.examWithoutRevision(t, "CPYKDZ", false))
+	if body := getOK(t, env, old, cookie); strings.Contains(body, `copy-form`) {
+		t.Errorf("exam without a revision shows the copy form")
+	}
+	rec = postForm(env.h, old+"/copy", url.Values{"csrf_token": {csrf}}, cookie)
+	alert := `<div role="alert" class="alert">` + html.EscapeString(noRevisionNotice) + `</div>`
+	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), alert) {
+		t.Errorf("POST %s/copy = %d, want 409 with %s:\n%s", old, rec.Code, alert, rec.Body.String())
+	}
+
+	for _, path := range []string{"/admin/exams/999/copy", "/admin/exams/x/copy"} {
+		if rec := postForm(env.h, path, url.Values{"csrf_token": {csrf}}, cookie); rec.Code != http.StatusNotFound {
+			t.Errorf("POST %s = %d, want 404", path, rec.Code)
+		}
+	}
+}
+
+func TestCopy_AdminOwnsCopyOfTeachersExam(t *testing.T) {
+	env := newTestEnv(t)
+	b := env.addTeacher(t, "b@example.test")
+	admin := env.adminTeacher(t)
+	id, _ := env.ownedExam(t, b.actor, "Beta", false)
+
+	rec := postForm(env.h, examPath(id)+"/copy", url.Values{"csrf_token": {admin.csrf}}, admin.cookie)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("admin copy = %d:\n%s", rec.Code, rec.Body.String())
+	}
+	copyID := pathID(t, rec.Header().Get("Location"))
+	rowOf := func(body string, id int64) string {
+		return regexp.MustCompile(fmt.Sprintf(`(?s)<tr data-exam-id="%d">.*?</tr>`, id)).FindString(body)
+	}
+	if row := rowOf(getOK(t, env, "/admin/exams", admin.cookie), copyID); !strings.Contains(row, `<td class="owner">`+testAdminEmail+`</td>`) {
+		t.Errorf("admin list row of the copy lacks owner %s:\n%s", testAdminEmail, row)
+	}
+	list := getOK(t, env, "/admin/exams", b.cookie)
+	if rowOf(list, copyID) != "" {
+		t.Errorf("teacher B's list shows the admin's copy %d", copyID)
+	}
+	if rowOf(list, id) == "" {
+		t.Errorf("teacher B's list lacks B's own exam %d", id)
+	}
+}

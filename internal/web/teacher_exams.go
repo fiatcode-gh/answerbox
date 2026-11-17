@@ -25,6 +25,8 @@ func (s *server) mountTeacherExams(admin *http.ServeMux) {
 	admin.HandleFunc("POST /admin/exams/{id}/open", s.setExamOpen(s.deps.Exams.Open))
 	admin.HandleFunc("POST /admin/exams/{id}/close", s.setExamOpen(s.deps.Exams.Close))
 	admin.HandleFunc("POST /admin/exams/{id}/schedule", s.setExamSchedule)
+	admin.HandleFunc("GET /admin/exams/{id}/download", s.downloadExam)
+	admin.HandleFunc("POST /admin/exams/{id}/copy", s.copyExam)
 }
 
 type examListData struct {
@@ -139,6 +141,8 @@ type examDetailData struct {
 	Questions      []exam.Question
 	Alert          string
 	FrozenNotice   string
+	// NoRevisionNotice is shown while the exam has no revision.
+	NoRevisionNotice string
 	// StudentLink is the address students open to enter this exam.
 	StudentLink string
 	// Opens and Closes are the schedule times as text, empty when not set.
@@ -168,6 +172,8 @@ func examID(r *http.Request) (int64, bool) {
 
 const frozenNotice = "This exam has attempts, so its questions are frozen."
 
+const noRevisionNotice = "This exam has no revision yet: its stored text could not be turned back into exam text. It works as before, but it has no history and cannot be downloaded or copied."
+
 // renderExamDetail renders the exam page. typed holds the schedule form
 // values as the teacher entered them; nil fills the form from the exam.
 func (s *server) renderExamDetail(w http.ResponseWriter, r *http.Request, status int, id int64, alert string, typed *scheduleInput) {
@@ -190,18 +196,19 @@ func (s *server) renderExamDetail(w http.ResponseWriter, r *http.Request, status
 		input = *typed
 	}
 	s.page(w, r, status, "admin_exam.html", examDetailData{
-		adminPage:      adminPageFor(r),
-		Exam:           e,
-		ShuffleText:    shuffleText[e.Shuffle],
-		ShowResultText: showResultText[e.ShowResult],
-		Questions:      questions,
-		Alert:          alert,
-		FrozenNotice:   frozenNotice,
-		StudentLink:    s.deps.PublicURL + "/?code=" + e.Code,
-		Opens:          s.scheduleTime(e.Schedule.OpensAt),
-		Closes:         s.scheduleTime(e.Schedule.ClosesAt),
-		Schedule:       input,
-		Zone:           s.deps.Location.String(),
+		adminPage:        adminPageFor(r),
+		Exam:             e,
+		ShuffleText:      shuffleText[e.Shuffle],
+		ShowResultText:   showResultText[e.ShowResult],
+		Questions:        questions,
+		Alert:            alert,
+		FrozenNotice:     frozenNotice,
+		NoRevisionNotice: noRevisionNotice,
+		StudentLink:      s.deps.PublicURL + "/?code=" + e.Code,
+		Opens:            s.scheduleTime(e.Schedule.OpensAt),
+		Closes:           s.scheduleTime(e.Schedule.ClosesAt),
+		Schedule:         input,
+		Zone:             s.deps.Location.String(),
 	})
 }
 
@@ -298,6 +305,49 @@ func (s *server) replaceExam(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 	default:
 		http.Redirect(w, r, examPath(id), http.StatusSeeOther)
+	}
+}
+
+// downloadExam sends the exam's current revision as a file to import again.
+func (s *server) downloadExam(w http.ResponseWriter, r *http.Request) {
+	id, ok := examID(r)
+	if !ok {
+		s.notFound(w, r)
+		return
+	}
+	f, err := s.deps.Exams.Download(r.Context(), actorFrom(r), id)
+	switch {
+	case errors.Is(err, exam.ErrNotFound):
+		s.notFound(w, r)
+	case errors.Is(err, exam.ErrNoRevision):
+		s.renderExamDetail(w, r, http.StatusConflict, id, noRevisionNotice, nil)
+	case err != nil:
+		s.serverError(w, r, err)
+	default:
+		w.Header().Set("Content-Type", f.ContentType)
+		w.Header().Set("Content-Disposition", `attachment; filename="`+f.Name+`"`)
+		w.Header().Set("Content-Length", strconv.Itoa(len(f.Data)))
+		w.Write(f.Data)
+	}
+}
+
+// copyExam makes a new exam from the current revision and opens its page.
+func (s *server) copyExam(w http.ResponseWriter, r *http.Request) {
+	id, ok := examID(r)
+	if !ok {
+		s.notFound(w, r)
+		return
+	}
+	newID, err := s.deps.Exams.Copy(r.Context(), actorFrom(r), id)
+	switch {
+	case errors.Is(err, exam.ErrNotFound):
+		s.notFound(w, r)
+	case errors.Is(err, exam.ErrNoRevision):
+		s.renderExamDetail(w, r, http.StatusConflict, id, noRevisionNotice, nil)
+	case err != nil:
+		s.serverError(w, r, err)
+	default:
+		http.Redirect(w, r, examPath(newID), http.StatusSeeOther)
 	}
 }
 

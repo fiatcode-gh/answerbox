@@ -68,6 +68,7 @@ func (s *server) mountAdmin(mux *http.ServeMux) {
 	admin.HandleFunc("POST /admin/logout", s.logout)
 	s.mountTeacherExams(admin)
 	s.mountTeacherResults(admin)
+	s.mountTeacherRevisions(admin)
 	s.mountTeacherAccounts(admin)
 	admin.HandleFunc("/admin/", s.notFound)
 	mux.Handle("/admin/", s.requireTeacher(admin))

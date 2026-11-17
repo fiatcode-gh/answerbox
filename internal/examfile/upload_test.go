@@ -112,6 +112,8 @@ func TestReadUpload_Rejections(t *testing.T) {
 		{"too many files", buildZip(t, tooMany...), "zip has more than 200 files"},
 		{"entry too large", buildZip(t, md, zipEntry{name: "img/big.bin", data: zeros(MaxZipEntryBytes + 1)}), `zip file "img/big.bin" is larger than 5 MB`},
 		{"total too large", buildZip(t, append([]zipEntry{md}, tooBig...)...), "zip contents are larger than 20 MB in total"},
+		{"non-UTF-8 file name", buildZip(t, md, zipEntry{name: "\xe9.png", data: []byte("x")}), "zip contains a file name that is not valid UTF-8"},
+		{"non-UTF-8 exam file name", buildZip(t, zipEntry{name: "\xe9/exam.md", data: []byte(examMD)}), "zip contains a file name that is not valid UTF-8"},
 		{"no exam text", buildZip(t, zipEntry{name: "a.png", data: []byte("x")}), "zip must contain exactly one .md or .txt exam file, found 0"},
 		{"two exam texts", buildZip(t, md, zipEntry{name: "b/notes.txt", data: []byte("x")}), "zip must contain exactly one .md or .txt exam file, found 2"},
 		{"text too large", []byte("# " + strings.Repeat("x", MaxTextBytes)), "exam text is larger than 1 MB"},

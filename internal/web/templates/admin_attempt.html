@@ -17,6 +17,8 @@
     <dd class="numeric">{{.Started}}</dd>
     <dt>Finished</dt>
     <dd class="numeric">{{.Finished}}</dd>
+    <dt>Exam content</dt>
+    <dd id="attempt-revision">{{if .Attempt.Revision}}<a href="/admin/exams/{{.Exam.ID}}/revisions/{{.Attempt.Revision}}">Revision {{.Attempt.Revision}}</a>{{else}}—{{end}}</dd>
   </dl>
   <p class="zone-note">Times are shown in {{.Zone}}. Questions and options are in the order of the exam file.</p>
 

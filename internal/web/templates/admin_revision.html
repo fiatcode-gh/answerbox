@@ -1,0 +1,29 @@
+{{define "title"}}Revision {{.Revision.Number}}: {{.Exam.Title}} · go-exam{{end}}
+
+{{define "header"}}{{template "admin_header" .}}{{end}}
+
+{{define "main"}}
+<main class="container admin revision-page" data-exam-id="{{.Exam.ID}}" data-revision="{{.Revision.Number}}">
+  <p class="back"><a href="/admin/exams/{{.Exam.ID}}/revisions">← History</a></p>
+  <h1>Revision {{.Revision.Number}}</h1>
+  <p class="zone-note">Saved {{.Saved}} ({{.Zone}}) by {{.Revision.TeacherEmail}}: {{.Revision.Summary}}</p>
+
+  <dl class="settings">
+    <dt>Title</dt>
+    <dd>{{.Revision.Title}}</dd>
+    <dt>Length</dt>
+    <dd>{{.Revision.DurationMinutes}} minutes</dd>
+    <dt>Shuffle</dt>
+    <dd>{{.ShuffleText}}</dd>
+    <dt>Result shown to students</dt>
+    <dd>{{.ShowResultText}}</dd>
+    <dt>Monitor</dt>
+    <dd>{{if .Revision.Monitor}}On{{else}}Off{{end}}</dd>
+    <dt>Questions</dt>
+    <dd>{{len .Revision.Questions}}</dd>
+  </dl>
+
+  <h2>Questions</h2>
+  {{template "preview_questions" .Revision.Questions}}
+</main>
+{{end}}

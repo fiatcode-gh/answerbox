@@ -60,14 +60,22 @@ type Exam struct {
 	DurationMinutes int  // DefaultDurationMinutes without a "duration:" header
 	Questions       []Question
 	Images          []Image // referenced images only, unique by Name
+	Dir             string  // Upload.Dir: folder of the text file inside the upload
+	// ImagePaths maps the cleaned upload path of every referenced image to
+	// its Image.Name; nil without images.
+	ImagePaths map[string]string
 }
 
+// Question.Source and Option.Source are the block text as written: the first
+// line plus the dedented continuation lines, without an option's "*" marker.
 type Question struct {
+	Source   string
 	BodyHTML template.HTML
 	Options  []Option
 }
 
 type Option struct {
+	Source   string
 	BodyHTML template.HTML
 	Correct  bool
 }

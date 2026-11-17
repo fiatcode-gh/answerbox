@@ -63,6 +63,9 @@ func run() error {
 	if err := assignExamCodes(context.Background(), exams, logger); err != nil {
 		return err
 	}
+	if err := backfillRevisions(context.Background(), exams, logger); err != nil {
+		return err
+	}
 	attempts := attempt.NewService(db, time.Now, rand.Reader)
 	handler, err := web.NewHandler(web.Deps{
 		DB:       db,
@@ -168,6 +171,24 @@ func assignExamCodes(ctx context.Context, exams *exam.Service, logger *slog.Logg
 	}
 	if n > 0 {
 		logger.Info("existing exams given a code", "count", n)
+	}
+	return nil
+}
+
+// backfillRevisions gives exams from before revisions their revision 1.
+// Exams that have one are never touched, so later starts change nothing. An
+// exam whose stored text cannot be rebuilt keeps working without a revision
+// and is reported at every start.
+func backfillRevisions(ctx context.Context, exams *exam.Service, logger *slog.Logger) error {
+	created, skipped, err := exams.BackfillRevisions(ctx)
+	if err != nil {
+		return fmt.Errorf("give existing exams a revision: %w", err)
+	}
+	if created > 0 {
+		logger.Info("existing exams given revision 1", "count", created)
+	}
+	for _, s := range skipped {
+		logger.Error("exam has no revision: its stored text could not be rebuilt", "exam_id", s.ExamID, "err", s.Err)
 	}
 	return nil
 }

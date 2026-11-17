@@ -97,6 +97,49 @@ func TestDetail_WrongExamOrUnknown(t *testing.T) {
 	h.detail(t, examB, attemptB)
 }
 
+// openExamWithoutRevision inserts an open exam of one question by hand, as
+// one stored before revisions existed, and returns its ID.
+func (h *harness) openExamWithoutRevision(t *testing.T, code string) int64 {
+	t.Helper()
+	res, err := h.db.Exec(`INSERT INTO exam (title, shuffle, show_result, is_open, media_key, created_at, owner_id, code)
+		VALUES ('Old', 'none', 'score', 1, ?, 0, ?, ?)`, "old-"+code, h.owner.TeacherID, code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err = h.db.Exec(`INSERT INTO question (exam_id, position, body_html) VALUES (?, 1, '<p>Old question</p>')`, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	qid, err := res.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.db.Exec(`INSERT INTO question_option (question_id, position, body_html, is_correct)
+		VALUES (?, 1, '<p>yes</p>', 1), (?, 2, '<p>no</p>', 0)`, qid, qid); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func TestDetail_Revision(t *testing.T) {
+	h := newHarness(t)
+	imported := h.openExam(t, examText("none", examfile.ShowScore, 2, 2))
+	h.startIn(t, imported, "Ayu")
+	if d := h.detail(t, imported, h.only(t, imported).ID); d.Revision != 1 || len(d.Events) != 0 {
+		t.Errorf("imported exam: Revision = %d with %d events, want 1 with none", d.Revision, len(d.Events))
+	}
+
+	old := h.openExamWithoutRevision(t, "HANDZZ")
+	h.startIn(t, old, "Budi")
+	if d := h.detail(t, old, h.only(t, old).ID); d.Revision != 0 {
+		t.Errorf("exam without a revision: Revision = %d, want 0", d.Revision)
+	}
+}
+
 func TestDelete_RemovesAttemptAndAnswers(t *testing.T) {
 	h := newHarness(t)
 	other := h.importExam(t, examText("none", examfile.ShowScore, 2, 2))

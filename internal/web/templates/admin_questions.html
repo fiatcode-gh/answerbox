@@ -1,0 +1,13 @@
+{{define "preview_questions"}}
+  {{range .}}
+  <section class="preview-question" id="q{{.Position}}">
+    <p class="eyebrow">Question {{.Position}}</p>
+    <div class="question-body">{{.BodyHTML}}</div>
+    <ol class="preview-options">
+      {{range .Options}}
+      <li data-correct="{{.Correct}}"><div class="option-body">{{.BodyHTML}}</div>{{if .Correct}}<span class="correct-mark">✓ Correct</span>{{end}}</li>
+      {{end}}
+    </ol>
+  </section>
+  {{end}}
+{{end}}

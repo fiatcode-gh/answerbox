@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -395,8 +396,8 @@ func TestUpgrade_Version5OpenExamKeeps60MinutesAndNoSchedule(t *testing.T) {
 	}
 
 	var version string
-	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != "6" {
-		t.Fatalf("user_version = %s, %v; want 6", version, err)
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != "7" {
+		t.Fatalf("user_version = %s, %v; want 7", version, err)
 	}
 	var (
 		open, minutes, noOpens, noCloses int
@@ -425,6 +426,204 @@ func TestUpgrade_Version5OpenExamKeeps60MinutesAndNoSchedule(t *testing.T) {
 	var length int64
 	if err := db.QueryRow(`SELECT deadline_at - started_at FROM attempt WHERE student_name = 'New student'`).Scan(&length); err != nil || length != 3600000 {
 		t.Errorf("deadline_at - started_at = %d, %v; want 3600000", length, err)
+	}
+}
+
+// attemptScores returns each attempt's score, counted as the results page
+// counts it (internal/attempt/results.go).
+func attemptScores(t *testing.T, db *sql.DB) []int {
+	t.Helper()
+	rows, err := db.Query(`SELECT (SELECT COUNT(*) FROM answer an JOIN question_option o ON o.id = an.option_id
+		WHERE an.attempt_id = a.id AND o.is_correct = 1) FROM attempt a ORDER BY a.id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var out []int
+	for rows.Next() {
+		var n int
+		if err := rows.Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		out = append(out, n)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+func TestUpgrade_Version6OlympiadShape(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "go-exam.db")
+	old := openOldDatabase(t, path, 6)
+	const createdAt = 1_763_340_000_000
+	for _, q := range []string{
+		`INSERT INTO teacher (id, email, created_at) VALUES (1,'first@example.test',0)`,
+		fmt.Sprintf(`INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id, code)
+			VALUES (1,'Olimpiade','questions_options','score',1,'k1',%d,1,1,'3VK583')`, createdAt),
+	} {
+		if _, err := old.Exec(q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	for q := 1; q <= 20; q++ {
+		if _, err := old.Exec(`INSERT INTO question (id, exam_id, position, body_html) VALUES (?, 1, ?, ?)`,
+			q, q, fmt.Sprintf("<p>Soal nomor %d: berapa %d + %d?</p>\n", q, q, q)); err != nil {
+			t.Fatal(err)
+		}
+		for m := 1; m <= 4; m++ {
+			if _, err := old.Exec(`INSERT INTO question_option (id, question_id, position, body_html, is_correct) VALUES (?, ?, ?, ?, ?)`,
+				(q-1)*4+m, q, m, fmt.Sprintf("<p>%d</p>\n", 2*q+m-1), m == 1); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	for i := range 51 {
+		res, err := old.Exec(`INSERT INTO attempt (exam_id, student_name, token_hash, shuffle_seed, status, started_at, deadline_at, finished_at)
+			VALUES (1, ?, ?, ?, 'submitted', 10, 20, 15)`, fmt.Sprintf("Student %d", i), []byte{byte(i)}, i)
+		if err != nil {
+			t.Fatalf("attempt %d: %v", i, err)
+		}
+		id, _ := res.LastInsertId()
+		for q := 1; q <= 20; q++ {
+			if _, err := old.Exec(`INSERT INTO answer (attempt_id, question_id, option_id) VALUES (?, ?, ?)`,
+				id, q, (q-1)*4+(i+q)%4+1); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if i%10 == 0 {
+			if _, err := old.Exec(`INSERT INTO attempt_event (attempt_id, kind, question, at) VALUES (?, 'copy', 1, 12)`, id); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	before, scores := dumpRows(t, old), attemptScores(t, old)
+	old.Close()
+
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	exams := newExams(t, db)
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	if _, err := newAdmin(ctx, db, exams, []string{"first@example.test"}, logger); err != nil {
+		t.Fatal(err)
+	}
+	if err := assignExamCodes(ctx, exams, logger); err != nil {
+		t.Fatalf("assignExamCodes: %v", err)
+	}
+	if err := backfillRevisions(ctx, exams, logger); err != nil {
+		t.Fatalf("backfillRevisions: %v", err)
+	}
+
+	var version string
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != "7" {
+		t.Fatalf("user_version = %s, %v; want 7", version, err)
+	}
+	if after := dumpRows(t, db); after != before {
+		t.Errorf("rows changed:\n%s\nwant\n%s", after, before)
+	}
+	if after := attemptScores(t, db); !slices.Equal(after, scores) {
+		t.Errorf("scores = %v, want %v", after, scores)
+	}
+	revs, err := exams.Revisions(ctx, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(revs) != 1 || revs[0].Number != 1 || !revs[0].CreatedAt.Equal(time.UnixMilli(createdAt)) ||
+		revs[0].TeacherEmail != "first@example.test" || revs[0].Summary != "Imported" {
+		t.Fatalf("revisions = %+v, want revision 1 Imported by the owner at the exam's creation", revs)
+	}
+	var unassigned int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM attempt WHERE revision IS NOT 1`).Scan(&unassigned); err != nil || unassigned != 0 {
+		t.Errorf("attempts without revision 1 = %d, %v; want 0", unassigned, err)
+	}
+	rev, err := exams.Revision(ctx, 1, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live, err := exams.Questions(ctx, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rev.Questions) != 20 || len(live) != 20 {
+		t.Fatalf("revision has %d questions, live %d; want 20", len(rev.Questions), len(live))
+	}
+	for i, q := range rev.Questions {
+		if q.BodyHTML != live[i].BodyHTML || len(q.Options) != len(live[i].Options) {
+			t.Fatalf("question %d = %q with %d options, want %q with %d", i+1, q.BodyHTML, len(q.Options), live[i].BodyHTML, len(live[i].Options))
+		}
+		for j, o := range q.Options {
+			if o.BodyHTML != live[i].Options[j].BodyHTML || o.Correct != live[i].Options[j].Correct {
+				t.Errorf("question %d option %d = %+v, want %+v", i+1, j+1, o, live[i].Options[j])
+			}
+		}
+	}
+	const given = "existing exams given revision 1"
+	if !strings.Contains(logs.String(), given) || !strings.Contains(logs.String(), "count=1") ||
+		strings.Contains(strings.ToLower(logs.String()), "example.test") {
+		t.Errorf("log = %q, want %q with count=1 and no email", logs.String(), given)
+	}
+
+	logs.Reset()
+	if err := backfillRevisions(ctx, exams, logger); err != nil {
+		t.Fatalf("second backfillRevisions: %v", err)
+	}
+	if logs.Len() != 0 {
+		t.Errorf("second call logged %q, want nothing", logs.String())
+	}
+
+	clock := time.UnixMilli(1_800_000_000_000)
+	students := attempt.NewService(db, func() time.Time { return clock }, rand.Reader)
+	if _, err := students.Start(ctx, "3VK583", "New student"); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	var revision, length int64
+	if err := db.QueryRow(`SELECT revision, deadline_at - started_at FROM attempt WHERE student_name = 'New student'`).
+		Scan(&revision, &length); err != nil || revision != 1 || length != 3600000 {
+		t.Errorf("new attempt: revision %d, deadline_at - started_at = %d, %v; want 1, 3600000", revision, length, err)
+	}
+}
+
+func TestBackfillRevisions_LogsUnconvertible(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "go-exam.db")
+	old := openOldDatabase(t, path, 6)
+	for _, q := range []string{
+		`INSERT INTO teacher (id, email, created_at) VALUES (1,'first@example.test',0)`,
+		`INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id, code) VALUES (1,'Live','none','score',1,'k1',5,1,1,'3VK583')`,
+		`INSERT INTO question (id, exam_id, position, body_html) VALUES (1,1,1,'q1')`,
+		`INSERT INTO question_option (id, question_id, position, body_html, is_correct) VALUES (1,1,1,'o1',1),(2,1,2,'o2',0)`,
+	} {
+		if _, err := old.Exec(q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	old.Close()
+
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	exams := newExams(t, db)
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	if err := backfillRevisions(ctx, exams, logger); err != nil {
+		t.Fatalf("backfillRevisions: %v", err)
+	}
+	const unconverted = "exam has no revision: its stored text could not be rebuilt"
+	if !strings.Contains(logs.String(), unconverted) || !strings.Contains(logs.String(), "exam_id=1") ||
+		!strings.Contains(logs.String(), "level=ERROR") || strings.Contains(logs.String(), "Live") ||
+		strings.Contains(logs.String(), "example.test") {
+		t.Errorf("log = %q, want the error line for exam_id=1 without title or email", logs.String())
+	}
+	e, err := exams.Get(ctx, exam.Actor{TeacherID: 1}, 1)
+	if err != nil || e.Title != "Live" || e.Revision != 0 {
+		t.Errorf("Get = %+v, %v; want the exam without a revision", e, err)
 	}
 }
 

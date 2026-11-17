@@ -13,6 +13,7 @@ import (
 var (
 	errUnreadableZip = &Error{Msg: "zip file could not be read"}
 	errUnsafeZipPath = &Error{Msg: "zip contains an unsafe file path"}
+	errNonUTF8Name   = &Error{Msg: "zip contains a file name that is not valid UTF-8"}
 )
 
 // ReadUpload validates an uploaded file and returns its exam text and,
@@ -49,6 +50,10 @@ func readZip(data []byte) (Upload, error) {
 	for _, f := range zr.File {
 		if skipZipEntry(f) {
 			continue
+		}
+		// A name that is not UTF-8 would not survive the revision's JSON.
+		if !utf8.ValidString(f.Name) {
+			return Upload{}, errNonUTF8Name
 		}
 		entries = append(entries, f)
 	}

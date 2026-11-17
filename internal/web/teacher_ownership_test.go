@@ -19,7 +19,7 @@ import (
 type examRoute struct{ Method, Path string }
 
 // examRoutes returns every adminRoutes entry under /admin/exams/1. It fails
-// when fewer than today's eleven remain, so a route cannot drop out silently.
+// when fewer than today's fifteen remain, so a route cannot drop out silently.
 func examRoutes(t *testing.T) []examRoute {
 	t.Helper()
 	var out []examRoute
@@ -28,8 +28,8 @@ func examRoutes(t *testing.T) []examRoute {
 			out = append(out, examRoute(r))
 		}
 	}
-	if len(out) < 11 {
-		t.Fatalf("adminRoutes has %d exam routes, want at least 11", len(out))
+	if len(out) < 15 {
+		t.Fatalf("adminRoutes has %d exam routes, want at least 15", len(out))
 	}
 	return out
 }

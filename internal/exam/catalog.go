@@ -58,7 +58,8 @@ const examColumns = `SELECT id, title, shuffle, show_result, monitor, is_open, c
 	COALESCE(exam.owner_id, 0),
 	COALESCE((SELECT email FROM teacher WHERE id = exam.owner_id), ''),
 	COALESCE(exam.code, ''),
-	duration_minutes, opens_at, closes_at
+	duration_minutes, opens_at, closes_at,
+	(SELECT COALESCE(MAX(number), 0) FROM exam_revision WHERE exam_id = exam.id)
 	FROM exam`
 
 // scanExam reads one examColumns row; Open is decided for the moment now.
@@ -68,7 +69,7 @@ func scanExam(row interface{ Scan(...any) error }, now time.Time) (Exam, error) 
 	var buttonOpen bool
 	var opensAt, closesAt sql.NullInt64
 	err := row.Scan(&e.ID, &e.Title, &e.Shuffle, &e.ShowResult, &e.Monitor, &buttonOpen, &created,
-		&e.QuestionCount, &e.AttemptCount, &e.OwnerID, &e.OwnerEmail, &e.Code, &e.DurationMinutes, &opensAt, &closesAt)
+		&e.QuestionCount, &e.AttemptCount, &e.OwnerID, &e.OwnerEmail, &e.Code, &e.DurationMinutes, &opensAt, &closesAt, &e.Revision)
 	e.CreatedAt = time.UnixMilli(created).UTC()
 	e.Schedule = Schedule{OpensAt: fromMillis(opensAt), ClosesAt: fromMillis(closesAt)}
 	e.Open = AvailabilityAt(buttonOpen, e.Schedule, now) == OpenNow

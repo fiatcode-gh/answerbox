@@ -276,7 +276,7 @@ func TestImport_StoresExamAndImages(t *testing.T) {
 	want := exam.Exam{
 		ID: id, Title: "Geometry", Shuffle: examfile.ShuffleNone, ShowResult: examfile.ShowReview,
 		Monitor: true, Open: false, DurationMinutes: 60, CreatedAt: fixedNow, QuestionCount: 2, AttemptCount: 0,
-		OwnerID: h.owner.TeacherID, OwnerEmail: "owner@example.test", Code: h.storedCode(t, id),
+		OwnerID: h.owner.TeacherID, OwnerEmail: "owner@example.test", Code: h.storedCode(t, id), Revision: 1,
 	}
 	if !ex.CreatedAt.Equal(fixedNow) {
 		t.Errorf("CreatedAt = %v, want %v", ex.CreatedAt, fixedNow)
@@ -359,6 +359,27 @@ func TestImport_FailureStoresNothing(t *testing.T) {
 	}
 }
 
+// A zip file name that is not valid UTF-8 would lose its bytes in the
+// revision's JSON, so the download would no longer import.
+func TestImport_NonUTF8FileNameStoresNoRevision(t *testing.T) {
+	h := newHarness(t)
+	_, err := h.svc.Import(context.Background(), h.owner, buildZip(t,
+		zipEntry{"exam.md", []byte("# T\n\n1. Q ![x](%E9.png)\n- a *\n- b\n")},
+		zipEntry{"\xe9.png", pngBytes(t, color.RGBA{0, 0, 255, 255})},
+	))
+	assertExamfileError(t, err)
+	var revisions int
+	if err := h.db.QueryRow(`SELECT COUNT(*) FROM exam_revision`).Scan(&revisions); err != nil {
+		t.Fatal(err)
+	}
+	if revisions != 0 {
+		t.Errorf("exam_revision rows = %d, want 0", revisions)
+	}
+	if entries := h.mediaEntries(t); len(entries) != 0 {
+		t.Errorf("media entries = %v, want none", entries)
+	}
+}
+
 func TestImport_HostileZipWritesOnlyUnderMediaKey(t *testing.T) {
 	h := newHarness(t)
 	img := pngBytes(t, color.RGBA{0, 0, 255, 255})
@@ -396,7 +417,7 @@ func imageExam(t *testing.T, title string, c color.Color) ([]byte, []byte) {
 func TestReplace_BeforeAttempts(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()
-	oldZip, _ := imageExam(t, "Old", color.Black)
+	oldZip, oldImg := imageExam(t, "Old", color.Black)
 	id := h.mustImport(t, oldZip)
 	if err := h.svc.Open(ctx, h.owner, id); err != nil {
 		t.Fatal(err)
@@ -427,8 +448,10 @@ func TestReplace_BeforeAttempts(t *testing.T) {
 		!reflect.DeepEqual(qs[0].opts, []flatOption{{"<p>x</p>\n", false}, {"<p>y</p>\n", true}, {"<p>z</p>\n", false}}) {
 		t.Errorf("questions after Replace = %+v", qs)
 	}
-	if entries := h.mediaEntries(t); !slices.Equal(entries, []string{newKey + "/", newKey + "/" + imageName(newImg)}) {
-		t.Errorf("media entries = %v, want only the new folder", entries)
+	wantEntries := []string{oldKey + "/", oldKey + "/" + imageName(oldImg), newKey + "/", newKey + "/" + imageName(newImg)}
+	slices.Sort(wantEntries)
+	if entries := h.mediaEntries(t); !slices.Equal(entries, wantEntries) {
+		t.Errorf("media entries = %v, want the old and the new folder", entries)
 	}
 }
 

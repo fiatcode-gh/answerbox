@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -65,6 +66,13 @@ func openVersion4(t *testing.T, path string) *sql.DB {
 func openVersion5(t *testing.T, path string) *sql.DB {
 	t.Helper()
 	return openBuilt(t, path, 5)
+}
+
+// openVersion6 creates a database file at path as the schedule release left
+// it (migrations 0001 to 0006, user_version 6) and returns a raw handle.
+func openVersion6(t *testing.T, path string) *sql.DB {
+	t.Helper()
+	return openBuilt(t, path, 6)
 }
 
 // openBuilt applies the first version migrations by hand to a new file at
@@ -137,16 +145,16 @@ func TestOpen_MigratesOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	if got := pragma(t, db, "user_version"); got != "6" {
-		t.Errorf("user_version = %s, want 6", got)
+	if got := pragma(t, db, "user_version"); got != "7" {
+		t.Errorf("user_version = %s, want 7", got)
 	}
 	mustExec(t, db, ownerTeacher)
 	mustExec(t, db, `INSERT INTO exam (title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES ('t','none','score','k1',0,1,'AAAAAA')`)
 	db.Close()
 
 	db = openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "6" {
-		t.Errorf("user_version after reopen = %s, want 6", got)
+	if got := pragma(t, db, "user_version"); got != "7" {
+		t.Errorf("user_version after reopen = %s, want 7", got)
 	}
 	var title string
 	if err := db.QueryRow(`SELECT title FROM exam`).Scan(&title); err != nil || title != "t" {
@@ -178,8 +186,8 @@ func TestMigrate_0002KeepsVersion1Data(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "6" {
-		t.Fatalf("user_version = %s, want 6", got)
+	if got := pragma(t, db, "user_version"); got != "7" {
+		t.Fatalf("user_version = %s, want 7", got)
 	}
 	var (
 		title, name, code string
@@ -224,8 +232,8 @@ func TestMigrate_0003KeepsVersion2Data(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "6" {
-		t.Fatalf("user_version = %s, want 6", got)
+	if got := pragma(t, db, "user_version"); got != "7" {
+		t.Fatalf("user_version = %s, want 7", got)
 	}
 	var (
 		title, name, code, kind  string
@@ -287,8 +295,8 @@ func TestMigrate_0004KeepsExamsAndRequiresOwner(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "6" {
-		t.Fatalf("user_version = %s, want 6", got)
+	if got := pragma(t, db, "user_version"); got != "7" {
+		t.Fatalf("user_version = %s, want 7", got)
 	}
 	var (
 		title, student string
@@ -349,8 +357,8 @@ func TestMigrate_0005KeepsExamsAndAddsCodes(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "6" {
-		t.Fatalf("user_version = %s, want 6", got)
+	if got := pragma(t, db, "user_version"); got != "7" {
+		t.Fatalf("user_version = %s, want 7", got)
 	}
 	var (
 		title, student string
@@ -408,8 +416,8 @@ func TestMigrate_0006KeepsExamsAt60MinutesWithoutSchedule(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "6" {
-		t.Fatalf("user_version = %s, want 6", got)
+	if got := pragma(t, db, "user_version"); got != "7" {
+		t.Fatalf("user_version = %s, want 7", got)
 	}
 	for id, wantOpen := range map[int64]int{1: 1, 2: 0} {
 		var open, minutes, noOpens, noCloses int
@@ -586,4 +594,398 @@ func TestSchema_FreezeTriggers(t *testing.T) {
 	mustExec(t, db, `DELETE FROM question_option WHERE id = 2`)
 	mustExec(t, db, `DELETE FROM question WHERE id = 2`)
 	runUnfrozen()
+}
+
+// tableColumns returns the columns of every table in db, by table name.
+func tableColumns(t *testing.T, db *sql.DB) map[string][]string {
+	t.Helper()
+	rows, err := db.Query(`SELECT m.name, c.name FROM sqlite_master m JOIN pragma_table_info(m.name) c
+		WHERE m.type = 'table' AND m.name NOT LIKE 'sqlite_%' ORDER BY m.name, c.cid`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	columns := map[string][]string{}
+	for rows.Next() {
+		var table, column string
+		if err := rows.Scan(&table, &column); err != nil {
+			t.Fatal(err)
+		}
+		columns[table] = append(columns[table], column)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return columns
+}
+
+// dumpRows renders every row of the given tables and columns, in a fixed
+// order, so two dumps of the same data are equal.
+func dumpRows(t *testing.T, db *sql.DB, columns map[string][]string) string {
+	t.Helper()
+	tables := make([]string, 0, len(columns))
+	for table := range columns {
+		tables = append(tables, table)
+	}
+	slices.Sort(tables)
+	var b strings.Builder
+	for _, table := range tables {
+		list := strings.Join(columns[table], ", ")
+		rows, err := db.Query(fmt.Sprintf(`SELECT %s FROM %s ORDER BY %s`, list, table, list))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for rows.Next() {
+			values := make([]any, len(columns[table]))
+			targets := make([]any, len(values))
+			for i := range values {
+				targets[i] = &values[i]
+			}
+			if err := rows.Scan(targets...); err != nil {
+				t.Fatal(err)
+			}
+			fmt.Fprintf(&b, "%s %v\n", table, values)
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
+		rows.Close()
+	}
+	return b.String()
+}
+
+// addRevision stores the next revision of examID with the exam's current
+// content settings, as the edit path will.
+func addRevision(db *sql.DB, examID, number int64) error {
+	_, err := db.Exec(`INSERT INTO exam_revision
+		(exam_id, number, created_at, teacher_id, summary, title, shuffle, show_result, monitor, duration_minutes, media_key, content)
+		SELECT id, ?, 0, owner_id, 'edit', title, shuffle, show_result, monitor, duration_minutes, media_key, '{}' FROM exam WHERE id = ?`,
+		number, examID)
+	return err
+}
+
+// insertAttempt starts an attempt on examID without naming a revision and
+// returns its id.
+func insertAttempt(t *testing.T, db *sql.DB, examID int64) int64 {
+	t.Helper()
+	res, err := db.Exec(`INSERT INTO attempt (exam_id, student_name, token_hash, shuffle_seed, started_at, deadline_at)
+		VALUES (?, 's', randomblob(16), 0, 0, 0)`, examID)
+	if err != nil {
+		t.Fatalf("insert attempt on exam %d: %v", examID, err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+// attemptRevision reads attempt id's revision; NULL reads as 0.
+func attemptRevision(t *testing.T, db *sql.DB, id int64) int64 {
+	t.Helper()
+	var rev sql.NullInt64
+	if err := db.QueryRow(`SELECT revision FROM attempt WHERE id = ?`, id).Scan(&rev); err != nil {
+		t.Fatal(err)
+	}
+	return rev.Int64
+}
+
+// TestMigrate_0007KeepsVersion6Data opens a database as the schedule release
+// left it and checks that the revision migration keeps every row as it was,
+// adds no revision and leaves every attempt without one until the startup
+// backfill.
+func TestMigrate_0007KeepsVersion6Data(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "go-exam.db")
+	old := openVersion6(t, path)
+	mustExec(t, old, ownerTeacher)
+	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id, code, duration_minutes) VALUES (1,'Live','questions','review',1,'k1',5,1,1,'3VK583',45)`)
+	mustExec(t, old, `INSERT INTO question (id, exam_id, position, body_html) VALUES (1,1,1,'q1'),(2,1,2,'q2')`)
+	mustExec(t, old, `INSERT INTO question_option (id, question_id, position, body_html, is_correct) VALUES (1,1,1,'o1',1),(2,1,2,'o2',0),(3,2,1,'o3',0),(4,2,2,'o4',1)`)
+	for id := 1; id <= 3; id++ {
+		mustExec(t, old, `INSERT INTO attempt (id, exam_id, student_name, token_hash, shuffle_seed, status, started_at, deadline_at, finished_at)
+			VALUES (?, 1, ?, ?, ?, 'submitted', 10, 20, 15)`, id, fmt.Sprintf("s%d", id), []byte{byte(id)}, id*7)
+		mustExec(t, old, `INSERT INTO answer (attempt_id, question_id, option_id) VALUES (?, 1, ?), (?, 2, 4)`, id, 1+id%2, id)
+	}
+	mustExec(t, old, `INSERT INTO attempt_event (id, attempt_id, kind, question, at) VALUES (1, 2, 'copy', 1, 12)`)
+	columns := tableColumns(t, old)
+	before := dumpRows(t, old, columns)
+	old.Close()
+
+	db := openFile(t, path)
+	if got := pragma(t, db, "user_version"); got != "7" {
+		t.Fatalf("user_version = %s, want 7", got)
+	}
+	if after := dumpRows(t, db, columns); after != before {
+		t.Errorf("rows changed by the migration:\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+	var revisions, withRevision int
+	if err := db.QueryRow(`SELECT (SELECT COUNT(*) FROM exam_revision), (SELECT COUNT(*) FROM attempt WHERE revision IS NOT NULL)`).
+		Scan(&revisions, &withRevision); err != nil {
+		t.Fatal(err)
+	}
+	if revisions != 0 || withRevision != 0 {
+		t.Errorf("after migration: %d revisions, %d attempts with a revision; want 0, 0", revisions, withRevision)
+	}
+	_, err := db.Exec(`INSERT INTO question_option (question_id, position, body_html, is_correct) VALUES (1,3,'o5',0)`)
+	wantErr(t, "insert option on an exam with attempts", err, "exam is frozen")
+	if id := insertAttempt(t, db, 1); attemptRevision(t, db, id) != 0 {
+		t.Errorf("new attempt revision = %d, want NULL", attemptRevision(t, db, id))
+	}
+}
+
+func TestSchema_RevisionAppendOnlyAndSequence(t *testing.T) {
+	db := sqlitetest.Open(t)
+	mustExec(t, db, ownerTeacher)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES (1,'a','none','score','k1',0,1,'AAAAAA')`)
+	const outOfSequence = "revision number is out of sequence"
+
+	if err := addRevision(db, 1, 1); err != nil {
+		t.Fatalf("revision 1: %v", err)
+	}
+	wantErr(t, "revision 3 before 2", addRevision(db, 1, 3), outOfSequence)
+	if err := addRevision(db, 1, 2); err != nil {
+		t.Fatalf("revision 2: %v", err)
+	}
+	wantErr(t, "repeated revision 2", addRevision(db, 1, 2), outOfSequence)
+	_, err := db.Exec(`INSERT OR REPLACE INTO exam_revision
+		(exam_id, number, created_at, teacher_id, summary, title, shuffle, show_result, monitor, duration_minutes, media_key, content)
+		VALUES (1, 2, 0, 1, 'again', 'a', 'none', 'score', 1, 60, 'k1', '{}')`)
+	wantErr(t, "INSERT OR REPLACE of revision 2", err, outOfSequence)
+
+	const appendOnly = "revisions are append-only"
+	_, err = db.Exec(`UPDATE exam_revision SET summary = 'changed' WHERE exam_id = 1 AND number = 1`)
+	wantErr(t, "update revision", err, appendOnly)
+	_, err = db.Exec(`DELETE FROM exam_revision WHERE exam_id = 1 AND number = 2`)
+	wantErr(t, "delete revision", err, appendOnly)
+
+	_, err = db.Exec(`INSERT INTO exam_revision
+		(exam_id, number, created_at, teacher_id, summary, title, shuffle, show_result, monitor, duration_minutes, media_key, content)
+		VALUES (1, 3, 0, 1, 'bad', 'a', 'none', 'score', 1, 60, 'k1', '{')`)
+	wantErr(t, "revision with invalid JSON content", err, "CHECK")
+
+	_, err = db.Exec(`DELETE FROM exam WHERE id = 1`)
+	wantErr(t, "delete exam with revisions", err, "FOREIGN KEY")
+
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM exam_revision WHERE exam_id = 1`).Scan(&n); err != nil || n != 2 {
+		t.Fatalf("revisions = %d, %v; want 2", n, err)
+	}
+}
+
+func TestSchema_RevisionFreeze(t *testing.T) {
+	db := sqlitetest.Open(t)
+	mustExec(t, db, ownerTeacher)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES (1,'a','none','score','k1',0,1,'AAAAAA')`)
+	attempt := insertAttempt(t, db, 1)
+
+	// Revision 1 on an exam that already has attempts is the startup backfill.
+	if err := addRevision(db, 1, 1); err != nil {
+		t.Fatalf("revision 1 with an attempt: %v", err)
+	}
+	wantErr(t, "revision 2 with an attempt", addRevision(db, 1, 2), "exam is frozen")
+	if err := addRevision(db, 1, 3); err == nil ||
+		!strings.Contains(err.Error(), "exam is frozen") && !strings.Contains(err.Error(), "revision number is out of sequence") {
+		t.Errorf("revision 3 out of sequence with an attempt: err = %v, want the frozen or out-of-sequence error", err)
+	}
+
+	mustExec(t, db, `DELETE FROM attempt WHERE id = ?`, attempt)
+	if err := addRevision(db, 1, 2); err != nil {
+		t.Fatalf("revision 2 after the attempt is gone: %v", err)
+	}
+}
+
+func TestSchema_ExamContentMatchesRevision(t *testing.T) {
+	db := sqlitetest.Open(t)
+	mustExec(t, db, ownerTeacher)
+	mustExec(t, db, `INSERT INTO teacher (id, email, created_at) VALUES (2, 'other@example.test', 0)`)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES (1,'a','none','score','k1',0,1,'AAAAAA')`)
+	mustExec(t, db, `UPDATE exam SET title = 'b' WHERE id = 1`)
+
+	if err := addRevision(db, 1, 1); err != nil {
+		t.Fatal(err)
+	}
+	const mismatch = "exam content must match its latest revision"
+	for _, set := range []string{
+		`title = 'c'`,
+		`shuffle = 'questions'`,
+		`show_result = 'review'`,
+		`monitor = 0`,
+		`duration_minutes = 30`,
+		`media_key = 'k2'`,
+	} {
+		_, err := db.Exec(`UPDATE exam SET ` + set + ` WHERE id = 1`)
+		wantErr(t, "update "+set, err, mismatch)
+	}
+	mustExec(t, db, `UPDATE exam SET title = 'b', shuffle = 'none', show_result = 'score', monitor = 1, duration_minutes = 60, media_key = 'k1' WHERE id = 1`)
+	mustExec(t, db, `UPDATE exam SET is_open = 1 WHERE id = 1`)
+	mustExec(t, db, `UPDATE exam SET is_open = 0, opens_at = 100, closes_at = 200 WHERE id = 1`)
+	mustExec(t, db, `UPDATE exam SET owner_id = 2 WHERE id = 1`)
+
+	mustExec(t, db, `INSERT INTO exam_revision
+		(exam_id, number, created_at, teacher_id, summary, title, shuffle, show_result, monitor, duration_minutes, media_key, content)
+		VALUES (1, 2, 0, 2, 'new settings', 'c', 'questions', 'review', 0, 30, 'k2', '{}')`)
+	mustExec(t, db, `UPDATE exam SET title = 'c', shuffle = 'questions', show_result = 'review', monitor = 0, duration_minutes = 30, media_key = 'k2' WHERE id = 1`)
+}
+
+func TestSchema_AttemptRevision(t *testing.T) {
+	db := sqlitetest.Open(t)
+	mustExec(t, db, ownerTeacher)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES (1,'a','none','score','k1',0,1,'AAAAAA')`)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES (2,'b','none','score','k2',0,1,'BBBBBB')`)
+
+	unrevised := insertAttempt(t, db, 1)
+	if got := attemptRevision(t, db, unrevised); got != 0 {
+		t.Errorf("attempt on an exam without revision: revision = %d, want NULL", got)
+	}
+
+	for n := int64(1); n <= 2; n++ {
+		if err := addRevision(db, 2, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	res, err := db.Exec(`INSERT INTO attempt (exam_id, student_name, token_hash, shuffle_seed, started_at, deadline_at) VALUES (2, 's', x'AB', 0, 0, 0)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lastID, err := res.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var current int64
+	if err := db.QueryRow(`SELECT id FROM attempt WHERE token_hash = x'AB'`).Scan(&current); err != nil {
+		t.Fatal(err)
+	}
+	if lastID != current {
+		t.Errorf("LastInsertId = %d, want the attempt id %d", lastID, current)
+	}
+	if got := attemptRevision(t, db, current); got != 2 {
+		t.Errorf("attempt without revision on an exam at revision 2: revision = %d, want 2", got)
+	}
+
+	const explicit = `INSERT INTO attempt (exam_id, student_name, token_hash, shuffle_seed, started_at, deadline_at, revision) VALUES (2, 's', randomblob(16), 0, 0, 0, ?)`
+	_, err = db.Exec(explicit, 1)
+	wantErr(t, "attempt on an old revision", err, "attempt revision must be the exam's current revision")
+	mustExec(t, db, explicit, 2)
+
+	const fixed = "attempt revision is fixed"
+	_, err = db.Exec(`UPDATE attempt SET revision = 1 WHERE id = ?`, current)
+	wantErr(t, "change a set revision", err, fixed)
+	_, err = db.Exec(`UPDATE attempt SET revision = NULL WHERE id = ?`, current)
+	wantErr(t, "clear a set revision", err, fixed)
+	mustExec(t, db, `UPDATE attempt SET student_name = 'renamed' WHERE id = ?`, current)
+	mustExec(t, db, `UPDATE attempt SET status = 'submitted', finished_at = 1, resume_code = NULL WHERE id = ?`, current)
+
+	if err := addRevision(db, 1, 1); err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.Exec(`UPDATE attempt SET revision = 2 WHERE id = ?`, unrevised)
+	wantErr(t, "fill a revision other than the current one", err, fixed)
+	mustExec(t, db, `UPDATE attempt SET revision = 1 WHERE id = ?`, unrevised)
+	if got := attemptRevision(t, db, unrevised); got != 1 {
+		t.Errorf("filled revision = %d, want 1", got)
+	}
+}
+
+// TestSchema_PreviousBinaryStatements runs the statements of the release
+// before revisions (a2135f3) against the current schema: a rollback to that
+// binary keeps working, except for replacing an exam that has a revision.
+func TestSchema_PreviousBinaryStatements(t *testing.T) {
+	db := sqlitetest.Open(t)
+	mustExec(t, db, ownerTeacher)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES (1,'a','none','score','k1',0,1,'AAAAAA')`)
+	mustExec(t, db, `INSERT INTO question (id, exam_id, position, body_html) VALUES (1,1,1,'q1')`)
+	mustExec(t, db, `INSERT INTO question_option (id, question_id, position, body_html, is_correct) VALUES (1,1,1,'o1',1),(2,1,2,'o2',0)`)
+	if err := addRevision(db, 1, 1); err != nil {
+		t.Fatal(err)
+	}
+	const inScope = `(? OR exam.owner_id = ?)`
+
+	mustExec(t, db, `UPDATE exam SET is_open = 1, opens_at = NULL, closes_at = NULL WHERE id = ? AND `+inScope, 1, false, 1)
+
+	const start = `INSERT INTO attempt
+		(exam_id, student_name, token_hash, resume_code, shuffle_seed, started_at, deadline_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`
+	res, err := db.Exec(start, 1, "Ayu", []byte{1}, "ABCDEFGH", 7, 10, 20)
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	ayu, err := res.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := attemptRevision(t, db, ayu); got != 1 {
+		t.Errorf("started attempt revision = %d, want 1", got)
+	}
+	const upsert = `INSERT INTO answer (attempt_id, question_id, option_id) VALUES (?, ?, ?)
+		ON CONFLICT (attempt_id, question_id) DO UPDATE SET option_id = excluded.option_id`
+	mustExec(t, db, upsert, ayu, 1, 1)
+	mustExec(t, db, upsert, ayu, 1, 2)
+	mustExec(t, db, `UPDATE attempt SET token_hash = ?, resume_code = ? WHERE id = ?`, []byte{2}, "HGFEDCBA", ayu)
+	mustExec(t, db, `UPDATE attempt SET status = ?, finished_at = ?, resume_code = NULL WHERE id = ?`, "submitted", 15, ayu)
+	mustExec(t, db, start, 1, "Budi", []byte{3}, "JKMNPQRS", 8, 10, 20)
+	res, err = db.Exec(`UPDATE attempt SET status = 'timed_out', finished_at = deadline_at, resume_code = NULL
+	WHERE status = 'in_progress' AND deadline_at + ? < ?`, 5, 100)
+	if err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		t.Errorf("sweep timed out %d attempts, want 1", n)
+	}
+
+	mustExec(t, db, `UPDATE exam SET is_open = 0, opens_at = NULL, closes_at = NULL WHERE id = ? AND `+inScope, 1, false, 1)
+	mustExec(t, db, `UPDATE exam SET is_open = 0, opens_at = ?, closes_at = ? WHERE id = ? AND `+inScope, 100, 200, 1, false, 1)
+
+	res, err = db.Exec(`INSERT INTO exam (title, shuffle, show_result, monitor, duration_minutes, is_open, media_key, created_at, owner_id, code) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+		"Imported", "none", "score", true, 60, "k2", 0, 1, "BBBBBB")
+	if err != nil {
+		t.Fatalf("import exam: %v", err)
+	}
+	imported, err := res.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err = db.Exec(`INSERT INTO question (exam_id, position, body_html) VALUES (?, ?, ?)`, imported, 1, "q")
+	if err != nil {
+		t.Fatalf("import question: %v", err)
+	}
+	qid, err := res.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustExec(t, db, `INSERT INTO question_option (question_id, position, body_html, is_correct) VALUES (?, ?, ?, ?)`, qid, 1, "o", true)
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM exam_revision WHERE exam_id = ?`, imported).Scan(&n); err != nil || n != 0 {
+		t.Errorf("revisions of the imported exam = %d, %v; want 0", n, err)
+	}
+	res, err = db.Exec(start, imported, "Citra", []byte{4}, "TVWXYZ23", 9, 10, 20)
+	if err != nil {
+		t.Fatalf("start on the imported exam: %v", err)
+	}
+	citra, err := res.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := attemptRevision(t, db, citra); got != 0 {
+		t.Errorf("attempt on the imported exam: revision = %d, want NULL", got)
+	}
+
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES (3,'r','none','score','k3',0,1,'CCCCCC')`)
+	mustExec(t, db, `INSERT INTO question (id, exam_id, position, body_html) VALUES (3,3,1,'q3')`)
+	if err := addRevision(db, 3, 1); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustExec(t, tx, `DELETE FROM question WHERE exam_id = ?`, 3)
+	_, err = tx.Exec(`UPDATE exam SET title = ?, shuffle = ?, show_result = ?, monitor = ?, duration_minutes = ?, media_key = ? WHERE id = ?`,
+		"r", "none", "score", true, 60, "k4", 3)
+	wantErr(t, "replace an exam with a revision", err, "exam content must match its latest revision")
+	if err := tx.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM question WHERE exam_id = 3`).Scan(&n); err != nil || n != 1 {
+		t.Errorf("questions after the refused replace = %d, %v; want 1", n, err)
+	}
 }

@@ -997,3 +997,51 @@ func TestStart_ButtonOverridesSchedule(t *testing.T) {
 	_, err := h.svc.Start(ctx, h.code(t, inside), "Budi")
 	wantErr(t, "Start after Close inside the window", err, attempt.ErrNoOpenExam)
 }
+
+func TestStart_RecordsCurrentRevision(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	a := h.importExam(t, examText("none", examfile.ShowScore, 1, 2))
+	if err := h.exams.Replace(ctx, h.owner, a, []byte(examText("questions", examfile.ShowScore, 2, 2))); err != nil {
+		t.Fatalf("Replace: %v", err)
+	}
+	b := h.importExam(t, examText("none", examfile.ShowScore, 1, 2))
+	for _, id := range []int64{a, b} {
+		if err := h.exams.Open(ctx, h.owner, id); err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+	}
+	tokenA := h.startIn(t, a, "Ani")
+	tokenB := h.startIn(t, b, "Budi")
+
+	revisions := func() map[int64]int {
+		t.Helper()
+		rows, err := h.db.Query(`SELECT exam_id, revision FROM attempt`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		got := map[int64]int{}
+		for rows.Next() {
+			var examID int64
+			var rev int
+			if err := rows.Scan(&examID, &rev); err != nil {
+				t.Fatal(err)
+			}
+			got[examID] = rev
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	want := map[int64]int{a: 2, b: 1}
+	if got := revisions(); !reflect.DeepEqual(got, want) {
+		t.Errorf("attempt revisions = %v, want %v", got, want)
+	}
+	h.submit(t, tokenA)
+	h.submit(t, tokenB)
+	if got := revisions(); !reflect.DeepEqual(got, want) {
+		t.Errorf("attempt revisions after submit = %v, want %v", got, want)
+	}
+}

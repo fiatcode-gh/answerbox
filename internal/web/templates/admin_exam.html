@@ -24,7 +24,16 @@
     </form>
     {{end}}
     <a role="button" class="secondary" href="/admin/exams/{{.Exam.ID}}/attempts">Results</a>
+    <a id="history-link" role="button" class="secondary" href="/admin/exams/{{.Exam.ID}}/revisions">History</a>
+    {{if .Exam.Revision}}<a id="download-link" role="button" class="secondary" href="/admin/exams/{{.Exam.ID}}/download">Download</a>{{end}}
+    {{if .Exam.Revision}}
+    <form id="copy-form" method="post" action="/admin/exams/{{.Exam.ID}}/copy">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button type="submit" class="secondary">Copy exam</button>
+    </form>
+    {{end}}
   </div>
+  {{if not .Exam.Revision}}<p id="no-revision" class="frozen-notice">{{.NoRevisionNotice}}</p>{{end}}
 
   <section class="join">
     <h2>Exam code</h2>
@@ -79,16 +88,6 @@
   </section>
 
   <h2>Preview</h2>
-  {{range .Questions}}
-  <section class="preview-question" id="q{{.Position}}">
-    <p class="eyebrow">Question {{.Position}}</p>
-    <div class="question-body">{{.BodyHTML}}</div>
-    <ol class="preview-options">
-      {{range .Options}}
-      <li data-correct="{{.Correct}}"><div class="option-body">{{.BodyHTML}}</div>{{if .Correct}}<span class="correct-mark">✓ Correct</span>{{end}}</li>
-      {{end}}
-    </ol>
-  </section>
-  {{end}}
+  {{template "preview_questions" .Questions}}
 </main>
 {{end}}

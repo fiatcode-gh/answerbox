@@ -46,7 +46,7 @@ def _png(width: int, height: int) -> bytes:
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(bytes(rows))) + chunk(b"IEND", b"")
 
 
-def build_fixture_zip(dir, title="Geometry check", show_result="review", monitor=None, duration=None):
+def build_fixture_zip(dir, title="Geometry check", show_result="review", monitor=None, duration=None, image_size=(160, 120)):
     """Write a 6-question exam zip (exam.md + triangle.png) into dir.
 
     Returns (zip path, {question text: correct option text}).
@@ -70,7 +70,7 @@ def build_fixture_zip(dir, title="Geometry check", show_result="review", monitor
     path = Path(dir) / "exam.zip"
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("exam.md", "\n".join(lines))
-        z.writestr("triangle.png", _png(160, 120))
+        z.writestr("triangle.png", _png(*image_size))
     return path, key
 
 

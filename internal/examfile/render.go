@@ -33,6 +33,7 @@ type renderer struct {
 	mediaBase string
 	images    []Image
 	seen      map[string]bool
+	paths     map[string]string // cleaned upload path → Image.Name; nil until an image resolves
 }
 
 func newRenderer(u Upload, mediaBase string) *renderer {
@@ -94,6 +95,10 @@ func (r *renderer) resolveImage(ref string, question int) (string, error) {
 	}
 	sum := sha256.Sum256(data)
 	name := hex.EncodeToString(sum[:])[:32] + ext
+	if r.paths == nil {
+		r.paths = map[string]string{}
+	}
+	r.paths[p] = name
 	if !r.seen[name] {
 		r.seen[name] = true
 		r.images = append(r.images, Image{Name: name, Data: data})

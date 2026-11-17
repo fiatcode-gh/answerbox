@@ -1,5 +1,6 @@
 // Package exam owns the exam catalog: importing and replacing exam files,
-// opening and closing exams, and the image files stored for them.
+// opening and closing exams, the image files stored for them and the
+// numbered, append-only revisions that record every change of content.
 package exam
 
 import (
@@ -15,8 +16,9 @@ import (
 )
 
 var (
-	ErrNotFound = errors.New("exam: not found")
-	ErrFrozen   = errors.New("exam: content is frozen because attempts exist")
+	ErrNotFound   = errors.New("exam: not found")
+	ErrFrozen     = errors.New("exam: content is frozen because attempts exist")
+	ErrNoRevision = errors.New("exam: has no revision yet")
 )
 
 // Actor is the signed-in teacher a catalog call acts for. An admin may act
@@ -59,6 +61,24 @@ type Exam struct {
 	AttemptCount  int
 	OwnerID       int64
 	OwnerEmail    string
+	// Revision is the number of the current revision; 0 when the exam has
+	// none yet.
+	Revision int
+}
+
+// Revision is one stored revision of an exam's content. Questions is nil in
+// the list Revisions returns; question and option IDs are always 0.
+type Revision struct {
+	Number          int
+	CreatedAt       time.Time
+	TeacherEmail    string
+	Summary         string
+	Title           string
+	Shuffle         examfile.Shuffle
+	ShowResult      examfile.ShowResult
+	Monitor         bool
+	DurationMinutes int
+	Questions       []Question
 }
 
 // Question is a stored question in original file order, with its answer key.
