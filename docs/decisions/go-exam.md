@@ -74,9 +74,8 @@ A self-hosted web app for classroom multiple-choice exams. Students type an exam
 - Clock times on teacher pages have no seconds, so several flags in one minute show the same time; they are still listed in order.
 - At the very top of the exam page, before the bar is stuck, the monitor banner briefly covers the first question's heading and the top of the navigator for its 5 s.
 - A student name that is one unbroken word wider than about 220 px still makes the attempts table scroll sideways.
-- On an admin's exams list at 1280 px, a scheduled exam's row is about 50 px too wide, so the Actions column scrolls inside the table. A plain teacher's list fits.
 - Browser proof covers desktop Chromium and, for the monitor, Chrome on a real Android phone (2026-11-16). Safari is not tested; there is no Apple device to test on.
-- On Android a long-press is flagged and its menu blocked, but Chrome still selects the word and offers a "Tap to see search results" sheet.
+- With the monitor on, question and option text cannot be selected, so on Android a long-press opens neither a selection nor Chrome's search sheet (checked on a real phone, 2026-11-17); it is still flagged. With the monitor off, text selects as usual.
 - An email taken out of `GOEXAM_ADMIN_EMAILS` stays an ordinary teacher until an admin removes it on the Teachers page.
 - Removed teachers are not shown on the Teachers page; their exams stay on the admin's exams list with their email as owner.
 - The allow-list is keyed by email, not by Google's account id, so a re-issued address would inherit access.

@@ -348,6 +348,11 @@ table th {
   margin-bottom: 0;
 }
 
+/* An email has no spaces; let it break so the admin list fits. */
+td.owner {
+  overflow-wrap: anywhere;
+}
+
 /* The actions wrap between buttons and links, never inside one. */
 .row-actions button,
 .row-actions a {
@@ -984,6 +989,14 @@ main.landing {
   border: 1px solid var(--ge-rule);
   border-radius: var(--ge-radius);
   background: var(--ge-surface);
+}
+
+/* With the monitor on, a long-press must not select text or open Chrome's
+   search sheet on Android; tapping an option still works. */
+main[data-monitor="on"] .exam-questions {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .question-head {
