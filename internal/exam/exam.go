@@ -21,6 +21,7 @@ var (
 	ErrFrozen     = errors.New("exam: content is frozen because attempts exist")
 	ErrNoRevision = errors.New("exam: has no revision yet")
 	ErrStale      = errors.New("exam: changed since the form was opened")
+	ErrArchived   = errors.New("exam: archived, cannot be opened or scheduled")
 )
 
 // Actor is the signed-in teacher a catalog call acts for. An admin may act
@@ -66,7 +67,13 @@ type Exam struct {
 	// Revision is the number of the current revision; 0 when the exam has
 	// none yet.
 	Revision int
+	// ArchivedAt is when the exam was archived; zero when it is not
+	// archived. An archived exam is closed and has no schedule.
+	ArchivedAt time.Time
 }
+
+// Archived reports whether the exam is archived.
+func (e Exam) Archived() bool { return !e.ArchivedAt.IsZero() }
 
 // Revision is one stored revision of an exam's content. Questions is nil in
 // the list Revisions returns; question and option IDs are always 0.

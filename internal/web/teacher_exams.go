@@ -22,11 +22,13 @@ func (s *server) mountTeacherExams(admin *http.ServeMux) {
 	admin.HandleFunc("POST /admin/exams", s.importExam)
 	admin.HandleFunc("GET /admin/exams/{id}", s.examDetail)
 	admin.HandleFunc("POST /admin/exams/{id}/replace", s.replaceExam)
-	admin.HandleFunc("POST /admin/exams/{id}/open", s.setExamOpen(s.deps.Exams.Open))
-	admin.HandleFunc("POST /admin/exams/{id}/close", s.setExamOpen(s.deps.Exams.Close))
+	admin.HandleFunc("POST /admin/exams/{id}/open", s.examAction(s.deps.Exams.Open, examListPath))
+	admin.HandleFunc("POST /admin/exams/{id}/close", s.examAction(s.deps.Exams.Close, examListPath))
 	admin.HandleFunc("POST /admin/exams/{id}/schedule", s.setExamSchedule)
 	admin.HandleFunc("GET /admin/exams/{id}/download", s.downloadExam)
 	admin.HandleFunc("POST /admin/exams/{id}/copy", s.copyExam)
+	admin.HandleFunc("POST /admin/exams/{id}/archive", s.examAction(s.deps.Exams.Archive, examPath))
+	admin.HandleFunc("POST /admin/exams/{id}/unarchive", s.examAction(s.deps.Exams.Unarchive, examPath))
 }
 
 type examListData struct {
@@ -36,6 +38,10 @@ type examListData struct {
 	Zone  string
 	// Scheduled is whether a listed exam has a schedule.
 	Scheduled bool
+	// ShowArchived is whether the list includes archived exams.
+	ShowArchived bool
+	// HiddenArchived counts the archived exams in scope the list leaves out.
+	HiddenArchived int
 }
 
 // examRow is an exam of the list with its schedule times as text.
@@ -54,9 +60,14 @@ func (s *server) renderExamList(w http.ResponseWriter, r *http.Request, status i
 		s.serverError(w, r, err)
 		return
 	}
-	data := examListData{adminPage: adminPageFor(r), Exams: make([]examRow, len(exams)), Alert: alert, Zone: s.deps.Location.String()}
-	for i, e := range exams {
-		data.Exams[i] = examRow{Exam: e, Opens: s.scheduleTime(e.Schedule.OpensAt), Closes: s.scheduleTime(e.Schedule.ClosesAt)}
+	data := examListData{adminPage: adminPageFor(r), Alert: alert, Zone: s.deps.Location.String()}
+	data.ShowArchived = r.URL.Query().Get("archived") == "1"
+	for _, e := range exams {
+		if e.Archived() && !data.ShowArchived {
+			data.HiddenArchived++
+			continue
+		}
+		data.Exams = append(data.Exams, examRow{Exam: e, Opens: s.scheduleTime(e.Schedule.OpensAt), Closes: s.scheduleTime(e.Schedule.ClosesAt)})
 		data.Scheduled = data.Scheduled || e.Schedule.Set()
 	}
 	s.page(w, r, status, "admin_exams.html", data)
@@ -121,6 +132,11 @@ func examPath(id int64) string {
 	return "/admin/exams/" + strconv.FormatInt(id, 10)
 }
 
+// examListPath is the exams list; id is ignored.
+func examListPath(int64) string {
+	return "/admin/exams"
+}
+
 var shuffleText = map[examfile.Shuffle]string{
 	examfile.ShuffleNone:             "No shuffling",
 	examfile.ShuffleQuestions:        "Questions shuffled",
@@ -150,6 +166,8 @@ type examDetailData struct {
 	// Schedule holds the values of the schedule form's inputs.
 	Schedule scheduleInput
 	Zone     string
+	// ArchivedOn is the archive date as text, empty when not archived.
+	ArchivedOn string
 }
 
 // scheduleInput is the schedule form's two datetime-local values.
@@ -174,6 +192,8 @@ const frozenNotice = "This exam has attempts, so its questions are frozen."
 
 const noRevisionNotice = "This exam has no revision yet: its stored text could not be turned back into exam text. It works as before, but it has no history and cannot be downloaded or copied."
 
+const archivedNotice = "This exam is archived. Unarchive it to open or schedule it."
+
 // renderExamDetail renders the exam page. typed holds the schedule form
 // values as the teacher entered them; nil fills the form from the exam.
 func (s *server) renderExamDetail(w http.ResponseWriter, r *http.Request, status int, id int64, alert string, typed *scheduleInput) {
@@ -190,6 +210,10 @@ func (s *server) renderExamDetail(w http.ResponseWriter, r *http.Request, status
 	if err != nil {
 		s.serverError(w, r, err)
 		return
+	}
+	archivedOn := ""
+	if e.Archived() {
+		archivedOn = e.ArchivedAt.In(s.deps.Location).Format(dateLayout)
 	}
 	input := scheduleInput{Opens: s.scheduleInputValue(e.Schedule.OpensAt), Closes: s.scheduleInputValue(e.Schedule.ClosesAt)}
 	if typed != nil {
@@ -209,6 +233,7 @@ func (s *server) renderExamDetail(w http.ResponseWriter, r *http.Request, status
 		Closes:           s.scheduleTime(e.Schedule.ClosesAt),
 		Schedule:         input,
 		Zone:             s.deps.Location.String(),
+		ArchivedOn:       archivedOn,
 	})
 }
 
@@ -274,6 +299,8 @@ func (s *server) setExamSchedule(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, exam.ErrNotFound):
 		s.notFound(w, r)
+	case errors.Is(err, exam.ErrArchived):
+		s.renderExamDetail(w, r, http.StatusConflict, id, archivedNotice, nil)
 	case err != nil:
 		s.serverError(w, r, err)
 	default:
@@ -351,9 +378,10 @@ func (s *server) copyExam(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// setExamOpen returns the handler for the open or close action: it applies
-// change to the exam for the signed-in teacher and returns to the list.
-func (s *server) setExamOpen(change func(context.Context, exam.Actor, int64) error) http.HandlerFunc {
+// examAction returns the handler of a one-press exam action (open, close,
+// archive, unarchive): it applies change for the signed-in teacher and
+// redirects to next(id).
+func (s *server) examAction(change func(context.Context, exam.Actor, int64) error, next func(id int64) string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, ok := examID(r)
 		if !ok {
@@ -364,10 +392,12 @@ func (s *server) setExamOpen(change func(context.Context, exam.Actor, int64) err
 		switch {
 		case errors.Is(err, exam.ErrNotFound):
 			s.notFound(w, r)
+		case errors.Is(err, exam.ErrArchived):
+			s.renderExamDetail(w, r, http.StatusConflict, id, archivedNotice, nil)
 		case err != nil:
 			s.serverError(w, r, err)
 		default:
-			http.Redirect(w, r, "/admin/exams", http.StatusSeeOther)
+			http.Redirect(w, r, next(id), http.StatusSeeOther)
 		}
 	}
 }

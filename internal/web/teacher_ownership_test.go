@@ -19,7 +19,7 @@ import (
 type examRoute struct{ Method, Path string }
 
 // examRoutes returns every adminRoutes entry under /admin/exams/1. It fails
-// when fewer than today's twenty-four remain, so a route cannot drop out
+// when fewer than today's twenty-six remain, so a route cannot drop out
 // silently.
 func examRoutes(t *testing.T) []examRoute {
 	t.Helper()
@@ -29,8 +29,8 @@ func examRoutes(t *testing.T) []examRoute {
 			out = append(out, examRoute(r))
 		}
 	}
-	if len(out) < 24 {
-		t.Fatalf("adminRoutes has %d exam routes, want at least 24", len(out))
+	if len(out) < 26 {
+		t.Fatalf("adminRoutes has %d exam routes, want at least 26", len(out))
 	}
 	return out
 }
@@ -120,7 +120,7 @@ func TestOwnership_ForeignExamIs404OnEveryRoute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if e.Title != "Algebra" || e.Open || e.Schedule.Set() {
+	if e.Title != "Algebra" || e.Open || e.Schedule.Set() || e.Archived() {
 		t.Errorf("A's exam changed: %+v", e)
 	}
 	rows := env.list(t, id)

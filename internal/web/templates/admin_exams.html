@@ -51,6 +51,7 @@ fmt.Println(2 + 3)
       </ul>
     </details>
   </section>
+  {{if .ShowArchived}}<p class="list-filter"><a id="hide-archived" href="/admin/exams">Hide archived</a></p>{{else if and .Exams .HiddenArchived}}<p class="list-filter"><a id="show-archived" href="/admin/exams?archived=1">Show archived</a></p>{{end}}
   {{if .Exams}}
   <div class="overflow-auto">
     <table id="exams">
@@ -71,16 +72,18 @@ fmt.Println(2 + 3)
           <td>{{.Title}}</td>
           <td class="code">{{.Code}}</td>
           {{if $.Me.Admin}}<td class="owner">{{.OwnerEmail}}</td>{{end}}
-          <td>{{if .Open}}<span class="badge badge-ok">Open</span>{{else}}<span class="badge badge-muted">Closed</span>{{end}}{{with .Opens}}<small class="schedule">Opens {{.}}</small>{{end}}{{with .Closes}}<small class="schedule">Closes {{.}}</small>{{end}}</td>
+          <td>{{if .Archived}}<span class="badge badge-muted">Archived</span>{{else if .Open}}<span class="badge badge-ok">Open</span>{{else}}<span class="badge badge-muted">Closed</span>{{end}}{{with .Opens}}<small class="schedule">Opens {{.}}</small>{{end}}{{with .Closes}}<small class="schedule">Closes {{.}}</small>{{end}}</td>
           <td class="numeric">{{.QuestionCount}}</td>
           <td class="numeric">{{.AttemptCount}}</td>
-          <td class="row-actions">{{if or .Schedule.Set (not .Open)}}<form method="post" action="/admin/exams/{{.ID}}/open"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit">Open</button></form>{{end}}{{if or .Schedule.Set .Open}}<form method="post" action="/admin/exams/{{.ID}}/close"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit" class="secondary">Close</button></form>{{end}} <a href="/admin/exams/{{.ID}}">View</a> <a href="/admin/exams/{{.ID}}/attempts">Results</a></td>
+          <td class="row-actions">{{if and (not .Archived) (or .Schedule.Set (not .Open))}}<form method="post" action="/admin/exams/{{.ID}}/open"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit">Open</button></form>{{end}}{{if or .Schedule.Set .Open}}<form method="post" action="/admin/exams/{{.ID}}/close"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit" class="secondary">Close</button></form>{{end}} <a href="/admin/exams/{{.ID}}">View</a> <a href="/admin/exams/{{.ID}}/attempts">Results</a></td>
         </tr>
         {{end}}
       </tbody>
     </table>
   </div>
   {{if .Scheduled}}<p class="zone-note">Times are shown in {{.Zone}}.</p>{{end}}
+  {{else if .HiddenArchived}}
+  <p id="all-archived" class="empty">All exams are archived. <a id="show-archived" href="/admin/exams?archived=1">Show archived</a></p>
   {{else}}
   <p class="empty">No exams yet. Import one above.</p>
   {{end}}

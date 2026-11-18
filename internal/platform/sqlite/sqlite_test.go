@@ -75,6 +75,13 @@ func openVersion6(t *testing.T, path string) *sql.DB {
 	return openBuilt(t, path, 6)
 }
 
+// openVersion7 creates a database file at path as the editor release left
+// it (migrations 0001 to 0007, user_version 7) and returns a raw handle.
+func openVersion7(t *testing.T, path string) *sql.DB {
+	t.Helper()
+	return openBuilt(t, path, 7)
+}
+
 // openBuilt applies the first version migrations by hand to a new file at
 // path, sets user_version and returns a raw handle.
 func openBuilt(t *testing.T, path string, version int) *sql.DB {
@@ -145,16 +152,16 @@ func TestOpen_MigratesOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	if got := pragma(t, db, "user_version"); got != "7" {
-		t.Errorf("user_version = %s, want 7", got)
+	if got := pragma(t, db, "user_version"); got != "8" {
+		t.Errorf("user_version = %s, want 8", got)
 	}
 	mustExec(t, db, ownerTeacher)
 	mustExec(t, db, `INSERT INTO exam (title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES ('t','none','score','k1',0,1,'AAAAAA')`)
 	db.Close()
 
 	db = openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "7" {
-		t.Errorf("user_version after reopen = %s, want 7", got)
+	if got := pragma(t, db, "user_version"); got != "8" {
+		t.Errorf("user_version after reopen = %s, want 8", got)
 	}
 	var title string
 	if err := db.QueryRow(`SELECT title FROM exam`).Scan(&title); err != nil || title != "t" {
@@ -186,8 +193,8 @@ func TestMigrate_0002KeepsVersion1Data(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "7" {
-		t.Fatalf("user_version = %s, want 7", got)
+	if got := pragma(t, db, "user_version"); got != "8" {
+		t.Fatalf("user_version = %s, want 8", got)
 	}
 	var (
 		title, name, code string
@@ -232,8 +239,8 @@ func TestMigrate_0003KeepsVersion2Data(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "7" {
-		t.Fatalf("user_version = %s, want 7", got)
+	if got := pragma(t, db, "user_version"); got != "8" {
+		t.Fatalf("user_version = %s, want 8", got)
 	}
 	var (
 		title, name, code, kind  string
@@ -295,8 +302,8 @@ func TestMigrate_0004KeepsExamsAndRequiresOwner(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "7" {
-		t.Fatalf("user_version = %s, want 7", got)
+	if got := pragma(t, db, "user_version"); got != "8" {
+		t.Fatalf("user_version = %s, want 8", got)
 	}
 	var (
 		title, student string
@@ -357,8 +364,8 @@ func TestMigrate_0005KeepsExamsAndAddsCodes(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "7" {
-		t.Fatalf("user_version = %s, want 7", got)
+	if got := pragma(t, db, "user_version"); got != "8" {
+		t.Fatalf("user_version = %s, want 8", got)
 	}
 	var (
 		title, student string
@@ -416,8 +423,8 @@ func TestMigrate_0006KeepsExamsAt60MinutesWithoutSchedule(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "7" {
-		t.Fatalf("user_version = %s, want 7", got)
+	if got := pragma(t, db, "user_version"); got != "8" {
+		t.Fatalf("user_version = %s, want 8", got)
 	}
 	for id, wantOpen := range map[int64]int{1: 1, 2: 0} {
 		var open, minutes, noOpens, noCloses int
@@ -712,8 +719,8 @@ func TestMigrate_0007KeepsVersion6Data(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "7" {
-		t.Fatalf("user_version = %s, want 7", got)
+	if got := pragma(t, db, "user_version"); got != "8" {
+		t.Fatalf("user_version = %s, want 8", got)
 	}
 	if after := dumpRows(t, db, columns); after != before {
 		t.Errorf("rows changed by the migration:\nbefore:\n%s\nafter:\n%s", before, after)
@@ -988,4 +995,127 @@ func TestSchema_PreviousBinaryStatements(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM question WHERE exam_id = 3`).Scan(&n); err != nil || n != 1 {
 		t.Errorf("questions after the refused replace = %d, %v; want 1", n, err)
 	}
+}
+
+// TestMigrate_0008KeepsVersion7Data opens a database as the editor release
+// left it and checks that the archive migration keeps every row as it was
+// and leaves every exam unarchived.
+func TestMigrate_0008KeepsVersion7Data(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "go-exam.db")
+	old := openVersion7(t, path)
+	mustExec(t, old, ownerTeacher)
+	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id, code) VALUES (1,'Live','questions','review',1,'k1',5,1,1,'3VK583')`)
+	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, owner_id, code, opens_at, closes_at) VALUES (2,'Scheduled','none','score',0,'k2',6,1,'KSC7RP',100,200)`)
+	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, owner_id, code) VALUES (3,'Closed','none','score',0,'k3',7,1,'4HGBZ9')`)
+	mustExec(t, old, `INSERT INTO question (id, exam_id, position, body_html) VALUES (1,1,1,'q1'),(2,1,2,'q2')`)
+	mustExec(t, old, `INSERT INTO question_option (id, question_id, position, body_html, is_correct) VALUES (1,1,1,'o1',1),(2,1,2,'o2',0),(3,2,1,'o3',0),(4,2,2,'o4',1)`)
+	for id := int64(1); id <= 3; id++ {
+		if err := addRevision(old, id, 1); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for id := 1; id <= 3; id++ {
+		mustExec(t, old, `INSERT INTO attempt (id, exam_id, student_name, token_hash, shuffle_seed, status, started_at, deadline_at, finished_at)
+			VALUES (?, 1, ?, ?, ?, 'submitted', 10, 20, 15)`, id, fmt.Sprintf("s%d", id), []byte{byte(id)}, id*7)
+		mustExec(t, old, `INSERT INTO answer (attempt_id, question_id, option_id) VALUES (?, 1, ?), (?, 2, 4)`, id, 1+id%2, id)
+	}
+	mustExec(t, old, `INSERT INTO attempt (id, exam_id, student_name, token_hash, resume_code, shuffle_seed, started_at, deadline_at)
+		VALUES (4, 1, 's4', x'04', 'ABCDEFGH', 28, 30, 40)`)
+	mustExec(t, old, `INSERT INTO attempt_event (id, attempt_id, kind, question, at) VALUES (1, 2, 'copy', 1, 12)`)
+	columns := tableColumns(t, old)
+	before := dumpRows(t, old, columns)
+	old.Close()
+
+	db := openFile(t, path)
+	if got := pragma(t, db, "user_version"); got != "8" {
+		t.Fatalf("user_version = %s, want 8", got)
+	}
+	if after := dumpRows(t, db, columns); after != before {
+		t.Errorf("rows changed by the migration:\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+	var archived, open int
+	var opens, closes sql.NullInt64
+	if err := db.QueryRow(`SELECT (SELECT COUNT(*) FROM exam WHERE archived_at IS NOT NULL),
+		(SELECT is_open FROM exam WHERE id = 1),
+		(SELECT opens_at FROM exam WHERE id = 2), (SELECT closes_at FROM exam WHERE id = 2)`).
+		Scan(&archived, &open, &opens, &closes); err != nil {
+		t.Fatal(err)
+	}
+	if archived != 0 || open != 1 || opens.Int64 != 100 || closes.Int64 != 200 {
+		t.Errorf("after migration: %d archived, exam 1 is_open %d, exam 2 times %v %v; want 0, 1, 100, 200", archived, open, opens, closes)
+	}
+	if id := insertAttempt(t, db, 1); attemptRevision(t, db, id) != 1 {
+		t.Errorf("new attempt revision = %d, want 1", attemptRevision(t, db, id))
+	}
+}
+
+// TestSchema_ArchiveChecks proves that an archived exam is closed and
+// unscheduled by the schema itself, also against the statements of the
+// release before archiving (5716eb8).
+func TestSchema_ArchiveChecks(t *testing.T) {
+	db := sqlitetest.Open(t)
+	mustExec(t, db, ownerTeacher)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, owner_id, code) VALUES (1,'closed','none','score',0,'k1',0,1,'AAAAAA')`)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, owner_id, code) VALUES (2,'open','none','score',1,'k2',0,1,'BBBBBB')`)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, owner_id, code, opens_at, closes_at) VALUES (3,'scheduled','none','score',0,'k3',0,1,'CCCCCC',100,200)`)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, owner_id, code) VALUES (4,'attempted','none','score',0,'k4',0,1,'DDDDDD')`)
+	insertAttempt(t, db, 4)
+
+	for _, id := range []int{2, 3} {
+		_, err := db.Exec(`UPDATE exam SET archived_at = 5 WHERE id = ?`, id)
+		wantErr(t, fmt.Sprintf("archived_at alone on exam %d", id), err, "CHECK")
+	}
+	_, err := db.Exec(`INSERT INTO exam (title, shuffle, show_result, is_open, media_key, created_at, owner_id, code, archived_at) VALUES ('x','none','score',1,'k5',0,1,'EEEEEE',5)`)
+	wantErr(t, "insert an open archived exam", err, "CHECK")
+
+	const archive = `UPDATE exam SET is_open = 0, opens_at = NULL, closes_at = NULL, archived_at = COALESCE(archived_at, ?) WHERE id = ?`
+	for id := 1; id <= 4; id++ {
+		mustExec(t, db, archive, 5, id)
+		mustExec(t, db, archive, 9, id)
+		var at int64
+		if err := db.QueryRow(`SELECT archived_at FROM exam WHERE id = ?`, id).Scan(&at); err != nil || at != 5 {
+			t.Errorf("exam %d archived_at = %d, %v; want 5", id, at, err)
+		}
+	}
+
+	type state struct {
+		isOpen            int
+		opensAt, closesAt sql.NullInt64
+		archivedAt        sql.NullInt64
+	}
+	archived := state{archivedAt: sql.NullInt64{Int64: 5, Valid: true}}
+	read := func() state {
+		t.Helper()
+		var s state
+		if err := db.QueryRow(`SELECT is_open, opens_at, closes_at, archived_at FROM exam WHERE id = 1`).
+			Scan(&s.isOpen, &s.opensAt, &s.closesAt, &s.archivedAt); err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	const inScope = `(? OR exam.owner_id = ?)`
+	for _, c := range []struct {
+		what  string
+		query string
+		args  []any
+	}{
+		{"is_open = 1", `UPDATE exam SET is_open = 1 WHERE id = 1`, nil},
+		{"opens_at", `UPDATE exam SET opens_at = 100 WHERE id = 1`, nil},
+		{"closes_at", `UPDATE exam SET closes_at = 100 WHERE id = 1`, nil},
+		{"5716eb8 Open", `UPDATE exam SET is_open = 1, opens_at = NULL, closes_at = NULL WHERE id = ? AND ` + inScope, []any{1, false, 1}},
+		{"5716eb8 schedule", `UPDATE exam SET is_open = 0, opens_at = ?, closes_at = ? WHERE id = ? AND ` + inScope, []any{100, 200, 1, false, 1}},
+	} {
+		_, err := db.Exec(c.query, c.args...)
+		wantErr(t, c.what+" on an archived exam", err, "CHECK")
+		if got := read(); got != archived {
+			t.Errorf("%s: exam 1 = %+v, want %+v", c.what, got, archived)
+		}
+	}
+
+	mustExec(t, db, `UPDATE exam SET is_open = 0, opens_at = NULL, closes_at = NULL WHERE id = ? AND `+inScope, 1, false, 1)
+	if got := read(); got != archived {
+		t.Errorf("after the 5716eb8 Close: exam 1 = %+v, want %+v", got, archived)
+	}
+	mustExec(t, db, `UPDATE exam SET archived_at = NULL WHERE id = 1`)
+	mustExec(t, db, `UPDATE exam SET is_open = 1 WHERE id = 1`)
 }

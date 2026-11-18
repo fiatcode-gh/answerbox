@@ -8,10 +8,11 @@
   {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
   <div class="exam-head">
     <h1>{{.Exam.Title}}</h1>
-    {{if .Exam.Open}}<span class="badge badge-ok">Open</span>{{else}}<span class="badge badge-muted">Closed</span>{{end}}
+    {{if .Exam.Archived}}<span class="badge badge-muted">Archived</span>{{else if .Exam.Open}}<span class="badge badge-ok">Open</span>{{else}}<span class="badge badge-muted">Closed</span>{{end}}
   </div>
+  {{if .Exam.Archived}}<p id="archived-note" class="frozen-notice">Archived on {{.ArchivedOn}}. It stays closed and out of the exams list until you unarchive it.</p>{{end}}
   <div class="exam-actions">
-    {{if or .Exam.Schedule.Set (not .Exam.Open)}}
+    {{if and (not .Exam.Archived) (or .Exam.Schedule.Set (not .Exam.Open))}}
     <form method="post" action="/admin/exams/{{.Exam.ID}}/open">
       <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
       <button type="submit">Open</button>
@@ -33,6 +34,17 @@
       <button type="submit" class="secondary">Copy exam</button>
     </form>
     {{end}}
+    {{if .Exam.Archived}}
+    <form id="unarchive-form" method="post" action="/admin/exams/{{.Exam.ID}}/unarchive">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button type="submit" class="secondary">Unarchive</button>
+    </form>
+    {{else}}
+    <form id="archive-form" method="post" action="/admin/exams/{{.Exam.ID}}/archive">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button type="submit" class="secondary">Archive</button>
+    </form>
+    {{end}}
   </div>
   {{if not .Exam.Revision}}<p id="no-revision" class="frozen-notice">{{.NoRevisionNotice}}</p>{{end}}
 
@@ -43,6 +55,7 @@
     {{if not .Exam.Open}}<p class="join-note">Students can start with this code only while the exam is open.</p>{{end}}
   </section>
 
+  {{if not .Exam.Archived}}
   <section class="schedule">
     <h2>Schedule</h2>
     <p id="schedule-times">{{if .Exam.Schedule.Set}}{{with .Opens}}Opens {{.}}{{end}}{{if and .Opens .Closes}} · {{end}}{{with .Closes}}Closes {{.}}{{end}}{{else}}No schedule. The exam follows the Open and Close buttons.{{end}}</p>
@@ -60,6 +73,7 @@
     </form>
     <p class="zone-note">Times are shown in {{.Zone}}. Without an open time the exam opens when you save; without a close time it stays open until you press Close. The close time stops new starts only. Open and Close remove the schedule.</p>
   </section>
+  {{end}}
 
   <dl class="settings">
     <dt>Length</dt>

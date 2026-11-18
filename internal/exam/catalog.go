@@ -9,13 +9,24 @@ import (
 )
 
 // Open opens examID for actor now and removes its schedule. No other exam is
-// touched; opening an open exam is a no-op.
+// touched; opening an open exam is a no-op. An archived exam is ErrArchived.
 func (s *Service) Open(ctx context.Context, actor Actor, examID int64) error {
-	res, err := s.db.ExecContext(ctx, `UPDATE exam SET is_open = 1, opens_at = NULL, closes_at = NULL WHERE id = ? AND `+inScope, scoped(examID, actor)...)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	return requireRow(res)
+	defer tx.Rollback()
+	if err := requireUnarchived(ctx, tx, actor, examID); err != nil {
+		return err
+	}
+	res, err := tx.ExecContext(ctx, `UPDATE exam SET is_open = 1, opens_at = NULL, closes_at = NULL WHERE id = ? AND `+inScope, scoped(examID, actor)...)
+	if err != nil {
+		return err
+	}
+	if err := requireRow(res); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // Close closes examID for actor and removes its schedule. Attempts are not
@@ -59,7 +70,8 @@ const examColumns = `SELECT id, title, shuffle, show_result, monitor, is_open, c
 	COALESCE((SELECT email FROM teacher WHERE id = exam.owner_id), ''),
 	COALESCE(exam.code, ''),
 	duration_minutes, opens_at, closes_at,
-	(SELECT COALESCE(MAX(number), 0) FROM exam_revision WHERE exam_id = exam.id)
+	(SELECT COALESCE(MAX(number), 0) FROM exam_revision WHERE exam_id = exam.id),
+	archived_at
 	FROM exam`
 
 // scanExam reads one examColumns row; Open is decided for the moment now.
@@ -67,11 +79,12 @@ func scanExam(row interface{ Scan(...any) error }, now time.Time) (Exam, error) 
 	var e Exam
 	var created int64
 	var buttonOpen bool
-	var opensAt, closesAt sql.NullInt64
+	var opensAt, closesAt, archivedAt sql.NullInt64
 	err := row.Scan(&e.ID, &e.Title, &e.Shuffle, &e.ShowResult, &e.Monitor, &buttonOpen, &created,
-		&e.QuestionCount, &e.AttemptCount, &e.OwnerID, &e.OwnerEmail, &e.Code, &e.DurationMinutes, &opensAt, &closesAt, &e.Revision)
+		&e.QuestionCount, &e.AttemptCount, &e.OwnerID, &e.OwnerEmail, &e.Code, &e.DurationMinutes, &opensAt, &closesAt, &e.Revision, &archivedAt)
 	e.CreatedAt = time.UnixMilli(created).UTC()
 	e.Schedule = Schedule{OpensAt: fromMillis(opensAt), ClosesAt: fromMillis(closesAt)}
+	e.ArchivedAt = fromMillis(archivedAt)
 	e.Open = AvailabilityAt(buttonOpen, e.Schedule, now) == OpenNow
 	return e, err
 }

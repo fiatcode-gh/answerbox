@@ -1,6 +1,6 @@
 # go-exam
 
-go-exam is a small, self-hosted web app for classroom multiple-choice exams. Students type the exam's code and their name, or open a link that carries the code, and take that exam within its time limit, the exam's own length (60 minutes unless the exam file says otherwise); the teacher imports exams from text files or writes them in the browser, opens and closes them by hand or on a schedule, and reviews the results. Teachers can also see every change to an exam as a numbered revision, download an exam as a file and copy an exam.
+go-exam is a small, self-hosted web app for classroom multiple-choice exams. Students type the exam's code and their name, or open a link that carries the code, and take that exam within its time limit, the exam's own length (60 minutes unless the exam file says otherwise); the teacher imports exams from text files or writes them in the browser, opens and closes them by hand or on a schedule, and reviews the results. Teachers can also see every change to an exam as a numbered revision, download an exam as a file, copy an exam and archive exams they no longer use.
 
 It is not a learning platform. Teachers sign in with their Google account, and only emails on the app's teacher list may sign in. Each teacher sees only their own exams and results; admins (the emails in `GOEXAM_ADMIN_EMAILS`) also see every exam and manage the teacher list. Students have no accounts. Several exams can be open at the same time.
 
@@ -52,6 +52,17 @@ A Google account can sign in only when its email is verified and on the teacher 
 - The close time stops new starts only. Attempts in progress keep their full length.
 - Open and Close remove the schedule and leave the exam open or closed. Saving a schedule on an exam opened with the button hands it to the schedule.
 - Times are typed and shown in `GOEXAM_TIME_ZONE`.
+
+## Archive
+
+- Archive, on the exam page, works for any exam the teacher can see: open or closed, with or without attempts. There is no confirmation; Unarchive is the undo.
+- Archiving closes the exam and removes its schedule. Attempts in progress continue to their own deadline; new starts are refused with the same sentence as for a mistyped code.
+- Archived exams leave the exams list. "Show archived" lists every exam, with archived ones marked `Archived`; "Hide archived" returns to the usual list. When every exam is archived, the list says "All exams are archived."
+- The exam page of an archived exam shows `Archived` and the date it was archived, in `GOEXAM_TIME_ZONE`. Open and Save schedule are refused until the exam is unarchived.
+- Results, the CSV, renaming and deleting attempts, History, Download and Copy keep working on an archived exam, and so do Edit questions and Replace while it has no attempts. A copy of an archived exam is not archived.
+- Unarchive returns the exam closed and without a schedule; it does not bring back an earlier schedule.
+- Archive is per exam, for everyone who can see it: an admin who archives a teacher's exam hides it from that teacher's list too.
+- Rolling back to the previous version (before archive): archived exams show as closed there, and its Open and Save schedule on them answer an error page and change nothing. Unarchive with this version first.
 
 ## Editor
 
@@ -187,6 +198,9 @@ uv run e2e/revisions.py  --base-url http://localhost:8080 --admin-email admin@ex
 uv run e2e/editor.py     --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/editor
 # Rollback rehearsal: start the previous release's binary on a copy of the data directory editor.py left, then:
 uv run e2e/editor.py --rollback --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/editor-rollback
+uv run e2e/archive.py    --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/archive
+# Rollback rehearsal: start the previous release's binary (5716eb8) on a copy of the data directory archive.py left, then:
+uv run e2e/archive.py --rollback --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/archive-rollback
 # The server must run with GOEXAM_TIME_ZONE=Asia/Jakarta; the run waits about two minutes on the real clock:
 uv run e2e/scheduled_exams.py --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --time-zone Asia/Jakarta --out e2e/out/scheduled-exams
 

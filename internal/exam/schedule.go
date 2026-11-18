@@ -50,7 +50,17 @@ func AvailabilityAt(buttonOpen bool, s Schedule, now time.Time) Availability {
 
 // SetSchedule gives examID in actor's scope a schedule. From then on the two
 // times alone decide whether the exam is open; the button state is cleared.
+// An exam outside the scope is ErrNotFound and an archived exam ErrArchived,
+// both before the schedule itself is checked.
 func (s *Service) SetSchedule(ctx context.Context, actor Actor, examID int64, sched Schedule) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := requireUnarchived(ctx, tx, actor, examID); err != nil {
+		return err
+	}
 	switch {
 	case !sched.Set():
 		return ErrScheduleEmpty
@@ -60,11 +70,14 @@ func (s *Service) SetSchedule(ctx context.Context, actor Actor, examID int64, sc
 		return ErrSchedulePast
 	}
 	args := append([]any{toMillis(sched.OpensAt), toMillis(sched.ClosesAt)}, scoped(examID, actor)...)
-	res, err := s.db.ExecContext(ctx, `UPDATE exam SET is_open = 0, opens_at = ?, closes_at = ? WHERE id = ? AND `+inScope, args...)
+	res, err := tx.ExecContext(ctx, `UPDATE exam SET is_open = 0, opens_at = ?, closes_at = ? WHERE id = ? AND `+inScope, args...)
 	if err != nil {
 		return err
 	}
-	return requireRow(res)
+	if err := requireRow(res); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // toMillis stores t as unix ms; a zero time is NULL.

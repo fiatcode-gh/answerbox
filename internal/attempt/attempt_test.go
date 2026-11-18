@@ -978,6 +978,38 @@ func TestStart_CloseTimeLeavesRunningAttempts(t *testing.T) {
 	}
 }
 
+func TestStart_ArchivedExam(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	id := h.openExam(t, examText("none", examfile.ShowScore, 1, 2))
+	q := h.questions(t, id)[0]
+	token := h.startIn(t, id, "Ayu")
+	if err := h.exams.Archive(ctx, h.owner, id); err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+
+	h.clock = t0.Add(10 * time.Minute)
+	if rem := h.save(t, token, q.ID, correctOption(q)); rem != defaultLength-10*time.Minute {
+		t.Errorf("Remaining after Archive = %v, want %v", rem, defaultLength-10*time.Minute)
+	}
+	_, err := h.svc.Start(ctx, h.code(t, id), "Budi")
+	wantErr(t, "Start on an archived exam", err, attempt.ErrNoOpenExam)
+	h.submit(t, token)
+	if s := h.only(t, id); s.Status != attempt.Submitted || s.Score != 1 || !s.StartedAt.Equal(t0) {
+		t.Errorf("attempt after Archive: %+v", s)
+	}
+
+	if err := h.exams.Unarchive(ctx, h.owner, id); err != nil {
+		t.Fatalf("Unarchive: %v", err)
+	}
+	_, err = h.svc.Start(ctx, h.code(t, id), "Budi")
+	wantErr(t, "Start after Unarchive", err, attempt.ErrNoOpenExam)
+	if err := h.exams.Open(ctx, h.owner, id); err != nil {
+		t.Fatalf("Open after Unarchive: %v", err)
+	}
+	h.startIn(t, id, "Budi")
+}
+
 func TestStart_ButtonOverridesSchedule(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()
