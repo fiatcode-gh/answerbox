@@ -43,6 +43,7 @@ var adminRoutes = []struct{ Method, Path string }{
 	{"GET", "/admin/exams/1/attempts/1/delete"},
 	{"POST", "/admin/exams/1/attempts/1/delete"},
 	{"POST", "/admin/exams/1/attempts/1/rename"},
+	{"POST", "/admin/exams/1/attempts/1/questions/1/override"},
 	{"GET", "/admin/exams/1/revisions"},
 	{"GET", "/admin/exams/1/revisions/1"},
 	{"GET", "/admin/exams/1/download"},

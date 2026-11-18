@@ -403,8 +403,8 @@ func TestUpgrade_Version5OpenExamKeeps60MinutesAndNoSchedule(t *testing.T) {
 	}
 
 	var version string
-	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != "9" {
-		t.Fatalf("user_version = %s, %v; want 9", version, err)
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != "10" {
+		t.Fatalf("user_version = %s, %v; want 10", version, err)
 	}
 	var (
 		open, minutes, noOpens, noCloses int
@@ -527,8 +527,8 @@ func TestUpgrade_Version6OlympiadShape(t *testing.T) {
 	}
 
 	var version string
-	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != "9" {
-		t.Fatalf("user_version = %s, %v; want 9", version, err)
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != "10" {
+		t.Fatalf("user_version = %s, %v; want 10", version, err)
 	}
 	if after := dumpRows(t, db); after != before {
 		t.Errorf("rows changed:\n%s\nwant\n%s", after, before)
@@ -685,8 +685,8 @@ func TestUpgrade_Version7LiveShape(t *testing.T) {
 	}
 
 	var version string
-	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != "9" {
-		t.Fatalf("user_version = %s, %v; want 9", version, err)
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != "10" {
+		t.Fatalf("user_version = %s, %v; want 10", version, err)
 	}
 	unchanged := func(when string) {
 		t.Helper()
@@ -751,82 +751,8 @@ func TestUpgrade_Version8LiveShape(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "go-exam.db")
 	old := openOldDatabase(t, path, 8)
-	const createdAt = 1_763_340_000_000
-	for _, q := range []string{
-		`INSERT INTO teacher (id, email, created_at) VALUES (1,'first@example.test',0)`,
-		fmt.Sprintf(`INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id, code)
-			VALUES (1,'Olimpiade','questions_options','score',1,'k1',%d,1,1,'3VK583')`, createdAt),
-		fmt.Sprintf(`INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id, code, archived_at)
-			VALUES (2,'Schedule check','none','score',0,'k2',%d,0,1,'KSC7RP',%d)`, createdAt+1, createdAt+10),
-		fmt.Sprintf(`INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id, code, archived_at)
-			VALUES (3,'Schedule check','none','score',0,'k3',%d,0,1,'4HGBZ9',%d)`, createdAt+2, createdAt+11),
-		`INSERT INTO question (id, exam_id, position, body_html) VALUES (21, 2, 1, '<p>Q</p>\n'), (22, 3, 1, '<p>Q</p>\n')`,
-		`INSERT INTO question_option (id, question_id, position, body_html, is_correct) VALUES
-			(81, 21, 1, '<p>a</p>\n', 1), (82, 21, 2, '<p>b</p>\n', 0), (83, 22, 1, '<p>a</p>\n', 1), (84, 22, 2, '<p>b</p>\n', 0)`,
-	} {
-		if _, err := old.Exec(q); err != nil {
-			t.Fatalf("%s: %v", q, err)
-		}
-	}
-	for q := 1; q <= 20; q++ {
-		if _, err := old.Exec(`INSERT INTO question (id, exam_id, position, body_html) VALUES (?, 1, ?, ?)`,
-			q, q, fmt.Sprintf("<p>Soal nomor %d: berapa %d + %d?</p>\n", q, q, q)); err != nil {
-			t.Fatal(err)
-		}
-		for m := 1; m <= 4; m++ {
-			if _, err := old.Exec(`INSERT INTO question_option (id, question_id, position, body_html, is_correct) VALUES (?, ?, ?, ?, ?)`,
-				(q-1)*4+m, q, m, fmt.Sprintf("<p>%d</p>\n", 2*q+m-1), m == 1); err != nil {
-				t.Fatal(err)
-			}
-		}
-	}
-	if _, err := old.Exec(`INSERT INTO exam_revision
-		(exam_id, number, created_at, teacher_id, summary, title, shuffle, show_result, monitor, duration_minutes, media_key, content)
-		SELECT id, 1, created_at, owner_id, 'Imported', title, shuffle, show_result, monitor, duration_minutes, media_key, '{}' FROM exam`); err != nil {
-		t.Fatalf("revisions: %v", err)
-	}
-	for i := range 51 {
-		res, err := old.Exec(`INSERT INTO attempt (exam_id, student_name, token_hash, shuffle_seed, status, started_at, deadline_at, finished_at)
-			VALUES (1, ?, ?, ?, 'submitted', 10, 20, 15)`, fmt.Sprintf("Student %d", i), []byte{byte(i)}, i)
-		if err != nil {
-			t.Fatalf("attempt %d: %v", i, err)
-		}
-		id, _ := res.LastInsertId()
-		for q := 1; q <= 20; q++ {
-			if _, err := old.Exec(`INSERT INTO answer (attempt_id, question_id, option_id) VALUES (?, ?, ?)`,
-				id, q, (q-1)*4+(i+q)%4+1); err != nil {
-				t.Fatal(err)
-			}
-		}
-		if i%10 == 0 {
-			if _, err := old.Exec(`INSERT INTO attempt_event (attempt_id, kind, question, at) VALUES (?, 'copy', 1, 12)`, id); err != nil {
-				t.Fatal(err)
-			}
-		}
-	}
-	// The three exams of the old file, by id; an exam imported later has a
-	// higher id and is left out.
-	dumpOlder := func(db *sql.DB) string {
-		t.Helper()
-		return dumpQueries(t, db,
-			`SELECT id, title, shuffle, show_result, monitor, is_open, media_key, created_at FROM exam WHERE id <= 3 ORDER BY id`,
-			`SELECT id, exam_id, position, body_html FROM question WHERE exam_id <= 3 ORDER BY id`,
-			`SELECT o.id, o.question_id, o.position, o.body_html, o.is_correct FROM question_option o
-				JOIN question q ON q.id = o.question_id WHERE q.exam_id <= 3 ORDER BY o.id`,
-			`SELECT id, exam_id, student_name, hex(token_hash), resume_code, shuffle_seed, started_at, deadline_at FROM attempt ORDER BY id`,
-			`SELECT attempt_id, question_id, option_id FROM answer ORDER BY attempt_id, question_id`,
-			`SELECT id, attempt_id, kind, question, at FROM attempt_event ORDER BY id`,
-		)
-	}
-	dumpLater := func(db *sql.DB) string {
-		t.Helper()
-		return dumpQueries(t, db,
-			`SELECT id, code, owner_id, is_open, duration_minutes, opens_at, closes_at, archived_at FROM exam WHERE id <= 3 ORDER BY id`,
-			`SELECT id, status, finished_at, revision FROM attempt ORDER BY id`,
-			`SELECT exam_id, number, created_at, teacher_id, summary FROM exam_revision WHERE exam_id <= 3 ORDER BY exam_id, number`,
-		)
-	}
-	before, older, later, scores := dumpRows(t, old), dumpOlder(old), dumpLater(old), attemptScores(t, old)
+	seedLiveShape(t, old)
+	before, older, later, scores := dumpRows(t, old), dumpLiveOlder(t, old), dumpLiveLater(t, old), attemptScores(t, old)
 	old.Close()
 
 	db, err := sqlite.Open(path)
@@ -848,18 +774,18 @@ func TestUpgrade_Version8LiveShape(t *testing.T) {
 	}
 
 	var version string
-	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != "9" {
-		t.Fatalf("user_version = %s, %v; want 9", version, err)
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != "10" {
+		t.Fatalf("user_version = %s, %v; want 10", version, err)
 	}
 	if after := dumpRows(t, db); after != before {
 		t.Errorf("rows changed:\n%s\nwant\n%s", after, before)
 	}
 	unchanged := func(when string) {
 		t.Helper()
-		if after := dumpOlder(db); after != older {
+		if after := dumpLiveOlder(t, db); after != older {
 			t.Errorf("%s: rows of the older exams changed:\n%s\nwant\n%s", when, after, older)
 		}
-		if after := dumpLater(db); after != later {
+		if after := dumpLiveLater(t, db); after != later {
 			t.Errorf("%s: schedule, archive, attempt and revision rows changed:\n%s\nwant\n%s", when, after, later)
 		}
 		if after := attemptScores(t, db); !slices.Equal(after, scores) {
@@ -902,6 +828,194 @@ func TestUpgrade_Version8LiveShape(t *testing.T) {
 		Scan(&revision, &length); err != nil || revision != 1 || length != 3600000 {
 		t.Errorf("new attempt: revision %d, deadline_at - started_at = %d, %v; want 1, 3600000", revision, length, err)
 	}
+}
+
+// liveAttempts is the number of attempts seedLiveShape writes, ids 1 to 51.
+const liveAttempts = 51
+
+// seedLiveShape fills old with the shape of the live instance at the
+// archive release: an open olympiad (exam 1, code 3VK583) of 20 questions
+// with liveAttempts submitted attempts, and two archived exams.
+func seedLiveShape(t *testing.T, old *sql.DB) {
+	t.Helper()
+	const createdAt = 1_763_340_000_000
+	for _, q := range []string{
+		`INSERT INTO teacher (id, email, created_at) VALUES (1,'first@example.test',0)`,
+		fmt.Sprintf(`INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id, code)
+			VALUES (1,'Olimpiade','questions_options','score',1,'k1',%d,1,1,'3VK583')`, createdAt),
+		fmt.Sprintf(`INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id, code, archived_at)
+			VALUES (2,'Schedule check','none','score',0,'k2',%d,0,1,'KSC7RP',%d)`, createdAt+1, createdAt+10),
+		fmt.Sprintf(`INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id, code, archived_at)
+			VALUES (3,'Schedule check','none','score',0,'k3',%d,0,1,'4HGBZ9',%d)`, createdAt+2, createdAt+11),
+		`INSERT INTO question (id, exam_id, position, body_html) VALUES (21, 2, 1, '<p>Q</p>\n'), (22, 3, 1, '<p>Q</p>\n')`,
+		`INSERT INTO question_option (id, question_id, position, body_html, is_correct) VALUES
+			(81, 21, 1, '<p>a</p>\n', 1), (82, 21, 2, '<p>b</p>\n', 0), (83, 22, 1, '<p>a</p>\n', 1), (84, 22, 2, '<p>b</p>\n', 0)`,
+	} {
+		if _, err := old.Exec(q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	for q := 1; q <= 20; q++ {
+		if _, err := old.Exec(`INSERT INTO question (id, exam_id, position, body_html) VALUES (?, 1, ?, ?)`,
+			q, q, fmt.Sprintf("<p>Soal nomor %d: berapa %d + %d?</p>\n", q, q, q)); err != nil {
+			t.Fatal(err)
+		}
+		for m := 1; m <= 4; m++ {
+			if _, err := old.Exec(`INSERT INTO question_option (id, question_id, position, body_html, is_correct) VALUES (?, ?, ?, ?, ?)`,
+				(q-1)*4+m, q, m, fmt.Sprintf("<p>%d</p>\n", 2*q+m-1), m == 1); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if _, err := old.Exec(`INSERT INTO exam_revision
+		(exam_id, number, created_at, teacher_id, summary, title, shuffle, show_result, monitor, duration_minutes, media_key, content)
+		SELECT id, 1, created_at, owner_id, 'Imported', title, shuffle, show_result, monitor, duration_minutes, media_key, '{}' FROM exam`); err != nil {
+		t.Fatalf("revisions: %v", err)
+	}
+	for i := range liveAttempts {
+		res, err := old.Exec(`INSERT INTO attempt (exam_id, student_name, token_hash, shuffle_seed, status, started_at, deadline_at, finished_at)
+			VALUES (1, ?, ?, ?, 'submitted', 10, 20, 15)`, fmt.Sprintf("Student %d", i), []byte{byte(i)}, i)
+		if err != nil {
+			t.Fatalf("attempt %d: %v", i, err)
+		}
+		id, _ := res.LastInsertId()
+		for q := 1; q <= 20; q++ {
+			if _, err := old.Exec(`INSERT INTO answer (attempt_id, question_id, option_id) VALUES (?, ?, ?)`,
+				id, q, (q-1)*4+(i+q)%4+1); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if i%10 == 0 {
+			if _, err := old.Exec(`INSERT INTO attempt_event (attempt_id, kind, question, at) VALUES (?, 'copy', 1, 12)`, id); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+}
+
+// dumpLiveOlder renders the rows of the three exams and the attempts of
+// seedLiveShape, by id; an exam imported or an attempt started later has a
+// higher id and is left out.
+func dumpLiveOlder(t *testing.T, db *sql.DB) string {
+	t.Helper()
+	return dumpQueries(t, db,
+		`SELECT id, title, shuffle, show_result, monitor, is_open, media_key, created_at FROM exam WHERE id <= 3 ORDER BY id`,
+		`SELECT id, exam_id, position, body_html FROM question WHERE exam_id <= 3 ORDER BY id`,
+		`SELECT o.id, o.question_id, o.position, o.body_html, o.is_correct FROM question_option o
+			JOIN question q ON q.id = o.question_id WHERE q.exam_id <= 3 ORDER BY o.id`,
+		fmt.Sprintf(`SELECT id, exam_id, student_name, hex(token_hash), resume_code, shuffle_seed, started_at, deadline_at FROM attempt WHERE id <= %d ORDER BY id`, liveAttempts),
+		fmt.Sprintf(`SELECT attempt_id, question_id, option_id FROM answer WHERE attempt_id <= %d ORDER BY attempt_id, question_id`, liveAttempts),
+		fmt.Sprintf(`SELECT id, attempt_id, kind, question, at FROM attempt_event WHERE attempt_id <= %d ORDER BY id`, liveAttempts),
+	)
+}
+
+// dumpLiveLater renders the columns of seedLiveShape's exams, attempts and
+// revisions that later releases added.
+func dumpLiveLater(t *testing.T, db *sql.DB) string {
+	t.Helper()
+	return dumpQueries(t, db,
+		`SELECT id, code, owner_id, is_open, duration_minutes, opens_at, closes_at, archived_at FROM exam WHERE id <= 3 ORDER BY id`,
+		fmt.Sprintf(`SELECT id, status, finished_at, revision FROM attempt WHERE id <= %d ORDER BY id`, liveAttempts),
+		`SELECT exam_id, number, created_at, teacher_id, summary FROM exam_revision WHERE exam_id <= 3 ORDER BY exam_id, number`,
+	)
+}
+
+// TestUpgrade_Version9LiveShape upgrades a database with the shape of the
+// live instance at the sections release, then imports a fill-in exam and
+// starts an attempt on the olympiad.
+func TestUpgrade_Version9LiveShape(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "go-exam.db")
+	old := openOldDatabase(t, path, 9)
+	seedLiveShape(t, old)
+	before, older, later, scores := dumpRows(t, old), dumpLiveOlder(t, old), dumpLiveLater(t, old), attemptScores(t, old)
+	old.Close()
+
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	exams := newExams(t, db)
+	if _, err := newAdmin(ctx, db, exams, []string{"first@example.test"}, discardLogger); err != nil {
+		t.Fatal(err)
+	}
+	if err := assignExamCodes(ctx, exams, discardLogger); err != nil {
+		t.Fatalf("assignExamCodes: %v", err)
+	}
+	if err := backfillRevisions(ctx, exams, discardLogger); err != nil {
+		t.Fatalf("backfillRevisions: %v", err)
+	}
+
+	var version string
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != "10" {
+		t.Fatalf("user_version = %s, %v; want 10", version, err)
+	}
+	if after := dumpRows(t, db); after != before {
+		t.Errorf("rows changed:\n%s\nwant\n%s", after, before)
+	}
+	var fillIn int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM question WHERE accepted_answers IS NOT NULL`).Scan(&fillIn); err != nil || fillIn != 0 {
+		t.Errorf("questions with accepted answers after the upgrade = %d, %v; want 0", fillIn, err)
+	}
+	unchanged := func(when string) {
+		t.Helper()
+		if after := dumpLiveOlder(t, db); after != older {
+			t.Errorf("%s: rows of the older exams changed:\n%s\nwant\n%s", when, after, older)
+		}
+		if after := dumpLiveLater(t, db); after != later {
+			t.Errorf("%s: schedule, archive, attempt and revision rows changed:\n%s\nwant\n%s", when, after, later)
+		}
+		if after := attemptScores(t, db); len(after) < len(scores) || !slices.Equal(after[:len(scores)], scores) {
+			t.Errorf("%s: scores = %v, want %v first", when, after, scores)
+		}
+		var typed, fillIn int
+		if err := db.QueryRow(`SELECT (SELECT COUNT(*) FROM typed_answer),
+			(SELECT COUNT(*) FROM question WHERE exam_id <= 3 AND accepted_answers IS NOT NULL)`).
+			Scan(&typed, &fillIn); err != nil || typed != 0 || fillIn != 0 {
+			t.Errorf("%s: typed answers = %d, older questions with accepted answers = %d, %v; want 0, 0", when, typed, fillIn, err)
+		}
+	}
+	unchanged("after the upgrade")
+
+	clock := time.UnixMilli(1_800_000_000_000)
+	students := attempt.NewService(db, func() time.Time { return clock }, rand.Reader)
+	results, err := students.List(ctx, 1)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(results.Attempts) != len(scores) {
+		t.Fatalf("List gives %d attempts, want %d", len(results.Attempts), len(scores))
+	}
+	for i, a := range results.Attempts {
+		if a.ID != int64(i+1) || a.Score != scores[i] {
+			t.Errorf("List attempt %d: id %d, score %d; want id %d, score %d", i, a.ID, a.Score, i+1, scores[i])
+		}
+	}
+
+	owner := exam.Actor{TeacherID: 1}
+	const fillInText = "# Isian\n\n1. Pilih\n- a *\n- b\n\n2. Ibu kota ....\n= Jakarta\n= DKI Jakarta\n"
+	id, err := exams.Import(ctx, owner, []byte(fillInText))
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	qs, err := exams.Questions(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(qs) != 2 || qs[0].FillIn() || !qs[1].FillIn() || !slices.Equal(qs[1].Answers, []string{"Jakarta", "DKI Jakarta"}) {
+		t.Errorf("imported questions = %+v, want multiple choice then fill-in", qs)
+	}
+	unchanged("after importing a fill-in exam")
+
+	if _, err := students.Start(ctx, "3VK583", "New student"); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	var revision int64
+	if err := db.QueryRow(`SELECT revision FROM attempt WHERE student_name = 'New student'`).Scan(&revision); err != nil || revision != 1 {
+		t.Errorf("new attempt revision = %d, %v; want 1", revision, err)
+	}
+	unchanged("after starting an attempt")
 }
 
 func TestBackfillRevisions_LogsUnconvertible(t *testing.T) {

@@ -3,7 +3,9 @@ package exam
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"html/template"
 	"io/fs"
 	"time"
@@ -125,12 +127,13 @@ func (s *Service) Questions(ctx context.Context, examID int64) ([]Question, erro
 	return LoadQuestions(ctx, s.db, examID)
 }
 
-// questionColumns reads a question row with its section; the variant before
-// sections reads a database from before migration 0009 the same way, as a
+// questionColumns reads a question row with its section and accepted
+// answers; the variant before sections reads a database from before
+// migration 0009 (and so before fill-in) the same way, as a multiple-choice
 // question without a section.
 const (
-	questionColumns               = `SELECT id, position, body_html, section_title, COALESCE(section_html, '') FROM question`
-	questionColumnsBeforeSections = `SELECT id, position, body_html, NULL, '' FROM question`
+	questionColumns               = `SELECT id, position, body_html, section_title, COALESCE(section_html, ''), accepted_answers FROM question`
+	questionColumnsBeforeSections = `SELECT id, position, body_html, NULL, '', NULL FROM question`
 )
 
 // LoadQuestions reads an exam's questions and options in original order
@@ -139,8 +142,9 @@ func LoadQuestions(ctx context.Context, q Queryer, examID int64) ([]Question, er
 	return loadQuestions(ctx, q, examID, questionColumns)
 }
 
-// loadQuestionsBeforeSections is LoadQuestions without the section columns,
-// for the rebuild of exams that may sit in a copy at schema 6, 7 or 8.
+// loadQuestionsBeforeSections is LoadQuestions without the section and
+// accepted-answer columns, for the rebuild of exams that may sit in a copy
+// at schema 6, 7, 8 or 9.
 func loadQuestionsBeforeSections(ctx context.Context, q Queryer, examID int64) ([]Question, error) {
 	return loadQuestions(ctx, q, examID, questionColumnsBeforeSections)
 }
@@ -157,13 +161,20 @@ func loadQuestions(ctx context.Context, q Queryer, examID int64, columns string)
 			qq           Question
 			sectionTitle sql.NullString
 			sectionHTML  string
+			answers      sql.NullString
 		)
-		if err := rows.Scan(&qq.ID, &qq.Position, &qq.BodyHTML, &sectionTitle, &sectionHTML); err != nil {
+		if err := rows.Scan(&qq.ID, &qq.Position, &qq.BodyHTML, &sectionTitle, &sectionHTML, &answers); err != nil {
 			rows.Close()
 			return nil, err
 		}
 		if sectionTitle.Valid {
 			qq.Section = &Section{Title: sectionTitle.String, BodyHTML: template.HTML(sectionHTML)}
+		}
+		if answers.Valid {
+			if err := json.Unmarshal([]byte(answers.String), &qq.Answers); err != nil {
+				rows.Close()
+				return nil, fmt.Errorf("exam: question %d: accepted answers: %w", qq.ID, err)
+			}
 		}
 		index[qq.ID] = len(questions)
 		questions = append(questions, qq)

@@ -30,10 +30,14 @@ type OptionSource struct {
 	Correct bool
 }
 
-// QuestionSource is a question's text and options as written.
+// QuestionSource is a question's text and its options or accepted answers as
+// written.
 type QuestionSource struct {
 	Text    string
 	Options []OptionSource
+	// Answers are the accepted answers of a fill-in question as typed; nil
+	// for multiple choice. A question has Options or Answers.
+	Answers []string
 	// Image is an image file to add with the save, nil for none. Its
 	// reference becomes the question text's new last line.
 	Image []byte
@@ -61,6 +65,7 @@ type Source struct {
 
 var (
 	errTitleLine        = &examfile.Error{Msg: "the title must be one line of text"}
+	errAnswerLine       = &examfile.Error{Msg: "an accepted answer must be one line of text"}
 	errSectionTitleLine = &examfile.Error{Msg: "the section title must be one line of text"}
 	errTooLarge         = &examfile.Error{Msg: "exam with its images is larger than 10 MB, the largest file that can be imported"}
 	errNotStorable      = &examfile.Error{Msg: "this text cannot be stored in an exam file"}
@@ -100,7 +105,7 @@ func (s *Service) Source(ctx context.Context, actor Actor, examID int64) (Source
 		Questions: make([]QuestionSource, len(ex.Questions)),
 	}
 	for i, q := range ex.Questions {
-		qs := QuestionSource{Text: q.Source, Options: make([]OptionSource, len(q.Options))}
+		qs := QuestionSource{Text: q.Source, Options: make([]OptionSource, len(q.Options)), Answers: slices.Clone(q.Answers)}
 		for j, o := range q.Options {
 			qs.Options[j] = OptionSource{Text: o.Source, Correct: o.Correct}
 		}
@@ -172,7 +177,10 @@ func (s *Service) SaveQuestion(ctx context.Context, actor Actor, examID int64, b
 		},
 		func(before, after examfile.Exam) string {
 			summary := fmt.Sprintf("Question %d edited", position)
-			if correctSource(before.Questions[position-1]) != correctSource(after.Questions[position-1]) {
+			switch before, after := before.Questions[position-1], after.Questions[position-1]; {
+			case !slices.Equal(answerSet(before), answerSet(after)):
+				summary += "; accepted answers changed"
+			case correctSource(before) != correctSource(after):
 				summary += "; correct option changed"
 			}
 			return summary
@@ -313,7 +321,7 @@ func (s *Service) edit(ctx context.Context, actor Actor, examID int64, base int,
 	next := cur.Exam
 	next.Questions = make([]examfile.Question, len(cur.Exam.Questions))
 	for i, q := range cur.Exam.Questions {
-		q.Options = slices.Clone(q.Options)
+		q.Options, q.Answers = slices.Clone(q.Options), slices.Clone(q.Answers)
 		next.Questions[i] = q
 	}
 	next.Sections = slices.Clone(cur.Exam.Sections)
@@ -399,6 +407,13 @@ func parseEdited(next examfile.Exam, dir string, files map[string][]byte, mediaK
 			return examfile.Exam{}, errSectionTitleLine
 		}
 	}
+	for _, q := range next.Questions {
+		for _, a := range q.Answers {
+			if strings.ContainsAny(a, "\r\n") {
+				return examfile.Exam{}, errAnswerLine
+			}
+		}
+	}
 	base := "/media/" + mediaKey
 	p1, err := examfile.Parse(examfile.Upload{Text: examfile.Format(next), Dir: dir, Files: files}, base)
 	if err != nil {
@@ -459,9 +474,9 @@ func editorError(err error) error {
 }
 
 // shapeDiffers returns the 1-based number of the first question whose
-// option count, correct flags or block texts apart from white space differ
-// between typed and parsed, or 0. A text that differs moved into another
-// block, for example through an unbalanced code fence.
+// option count, correct flags, answer count or block and answer texts apart
+// from white space differ between typed and parsed, or 0. A text that differs
+// moved into another block, for example through an unbalanced code fence.
 func shapeDiffers(typed, parsed examfile.Exam) int {
 	for i := range max(len(typed.Questions), len(parsed.Questions)) {
 		if i >= len(typed.Questions) || i >= len(parsed.Questions) {
@@ -481,6 +496,15 @@ func shapeDiffers(typed, parsed examfile.Exam) int {
 		}
 		for j := range a {
 			if !sameText(a[j].Source, b[j].Source) {
+				return i + 1
+			}
+		}
+		ta, pa := typed.Questions[i].Answers, parsed.Questions[i].Answers
+		if len(ta) != len(pa) {
+			return i + 1
+		}
+		for j := range ta {
+			if !sameText(ta[j], pa[j]) {
 				return i + 1
 			}
 		}
@@ -506,7 +530,8 @@ func sameText(a, b string) bool {
 }
 
 // sameExam reports whether a and b have the same title, settings, Sources,
-// correct flags and sections, and with html also the same HTML.
+// correct flags, accepted answers and sections, and with html also the same
+// HTML.
 func sameExam(a, b examfile.Exam, html bool) bool {
 	if a.Title != b.Title || a.Shuffle != b.Shuffle || a.ShowResult != b.ShowResult ||
 		a.Monitor != b.Monitor || a.DurationMinutes != b.DurationMinutes || len(a.Questions) != len(b.Questions) ||
@@ -521,7 +546,8 @@ func sameExam(a, b examfile.Exam, html bool) bool {
 	}
 	for i, qa := range a.Questions {
 		qb := b.Questions[i]
-		if qa.Source != qb.Source || len(qa.Options) != len(qb.Options) || html && qa.BodyHTML != qb.BodyHTML {
+		if qa.Source != qb.Source || len(qa.Options) != len(qb.Options) || !slices.Equal(qa.Answers, qb.Answers) ||
+			html && qa.BodyHTML != qb.BodyHTML {
 			return false
 		}
 		for j, oa := range qa.Options {
@@ -546,7 +572,7 @@ func typedQuestion(q QuestionSource, imageName string) examfile.Question {
 	if imageName != "" {
 		text = withImageLine(text, imageName)
 	}
-	out := examfile.Question{Source: typedBlock(text), Options: make([]examfile.Option, len(q.Options))}
+	out := examfile.Question{Source: typedBlock(text), Options: make([]examfile.Option, len(q.Options)), Answers: slices.Clone(q.Answers)}
 	for i, o := range q.Options {
 		out.Options[i] = examfile.Option{Source: typedBlock(o.Text), Correct: o.Correct}
 	}
@@ -577,4 +603,10 @@ func correctSource(q examfile.Question) string {
 		}
 	}
 	return ""
+}
+
+// answerSet returns q's accepted answers sorted and without duplicates, nil
+// for a multiple-choice question.
+func answerSet(q examfile.Question) []string {
+	return slices.Compact(slices.Sorted(slices.Values(q.Answers)))
 }

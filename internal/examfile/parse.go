@@ -15,9 +15,14 @@ var (
 	questionRe   = regexp.MustCompile(`^(\d{1,4})[.)](?:[ \t]+(.*))?$`)
 	optionRe     = regexp.MustCompile(`^[ \t]*-(?:[ \t]+(.*))?$`)
 	sectionRe    = regexp.MustCompile(`^##(?:[ \t]+(.*))?$`)
+	answerRe     = regexp.MustCompile(`^=(?:[ \t]+(.*))?$`)
 	commaRe      = regexp.MustCompile(`\s*,\s*`)
 	markerSkipRe = regexp.MustCompile("`[^`]*`|\\\\.")
 )
+
+// answerIndentLimit is the indentation in columns from which an "=" line is
+// text of the current block instead of an accepted answer.
+const answerIndentLimit = 8
 
 // block is one question body or option as written: the text after the
 // question number or dash, then its continuation lines.
@@ -35,6 +40,7 @@ type rawOption struct {
 type rawQuestion struct {
 	block
 	options []*rawOption
+	answers []*block
 }
 
 // rawSection is a section heading (block.line) and its instructions: the
@@ -200,6 +206,14 @@ func scan(lines []string) (Exam, []*rawQuestion, []*rawSection, error) {
 			cur = &o.block
 			continue
 		}
+		// In a section's instructions a line like an accepted answer is text.
+		if text, ok := answerLine(trimmed); ok && !inSection {
+			q := questions[len(questions)-1]
+			a := &block{line: n, first: text}
+			q.answers = append(q.answers, a)
+			cur = a
+			continue
+		}
 		cur.cont = append(cur.cont, line)
 	}
 	if inFence {
@@ -314,11 +328,31 @@ func splitMarker(s string) (string, bool) {
 	return strings.TrimRight(rest, " \t"), true
 }
 
+// answerLine reports whether trimmed, a right-trimmed line, is an accepted
+// answer line and returns its trimmed text.
+func answerLine(trimmed string) (text string, ok bool) {
+	w, rest := indent(trimmed)
+	if w >= answerIndentLimit {
+		return "", false
+	}
+	m := answerRe.FindStringSubmatch(rest)
+	if m == nil {
+		return "", false
+	}
+	return strings.TrimSpace(m[1]), true
+}
+
 func validate(r *renderer, k int, q *rawQuestion) (Question, error) {
 	body := q.text()
 	switch {
 	case isBlank(body):
 		return Question{}, errorf("question %d (line %d) has no text", k, q.line)
+	case len(q.options) > 0 && len(q.answers) > 0:
+		return Question{}, errorf(`question %d (line %d) has both options and accepted answers; use "-" lines or "=" lines, not both`, k, q.line)
+	case len(q.options) == 0 && len(q.answers) == 0:
+		return Question{}, errorf(`question %d (line %d) needs options (lines starting with "-") or accepted answers (lines starting with "=")`, k, q.line)
+	case len(q.answers) > 0:
+		return validateFillIn(r, k, q, body)
 	case len(q.options) < 2:
 		return Question{}, errorf("question %d (line %d) needs at least two options", k, q.line)
 	case len(q.options) > MaxOptions:
@@ -355,6 +389,30 @@ func validate(r *renderer, k int, q *rawQuestion) (Question, error) {
 		}
 	}
 	return out, nil
+}
+
+// validateFillIn checks the accepted answers of q, whose text is body.
+func validateFillIn(r *renderer, k int, q *rawQuestion, body string) (Question, error) {
+	if len(q.answers) > MaxAnswers {
+		return Question{}, errorf("question %d (line %d) has more than %d accepted answers", k, q.line, MaxAnswers)
+	}
+	texts := make([]string, len(q.answers))
+	for m, a := range q.answers {
+		texts[m] = a.text()
+		switch {
+		case isBlank(texts[m]):
+			return Question{}, errorf("question %d, accepted answer %d (line %d) has no text", k, m+1, a.line)
+		case strings.Contains(texts[m], "\n"):
+			return Question{}, errorf("question %d, accepted answer %d (line %d) must be one line", k, m+1, a.line)
+		case utf8.RuneCountInString(texts[m]) > MaxAnswerRunes:
+			return Question{}, errorf("question %d, accepted answer %d (line %d) is longer than %d characters", k, m+1, a.line, MaxAnswerRunes)
+		}
+	}
+	html, err := r.render(body, place{"question", k})
+	if err != nil {
+		return Question{}, err
+	}
+	return Question{Source: body, BodyHTML: html, Answers: texts}, nil
 }
 
 // text joins the first line with the dedented continuation lines and drops

@@ -582,3 +582,128 @@ func TestIsFence(t *testing.T) {
 		}
 	}
 }
+
+func TestParse_FillIn(t *testing.T) {
+	answers := func(t *testing.T, text string) Question {
+		t.Helper()
+		ex := mustParse(t, textUpload(text))
+		return ex.Questions[len(ex.Questions)-1]
+	}
+
+	t.Run("answers", func(t *testing.T) {
+		q := answers(t, "# T\n1. Ibu kota ....\n= Jakarta\n= DKI Jakarta")
+		if !reflect.DeepEqual(q.Answers, []string{"Jakarta", "DKI Jakarta"}) || q.Options != nil {
+			t.Errorf("Answers = %q, Options = %#v", q.Answers, q.Options)
+		}
+		if q.Source != "Ibu kota ...." || !strings.Contains(string(q.BodyHTML), "Ibu kota") {
+			t.Errorf("Source = %q, BodyHTML = %q", q.Source, q.BodyHTML)
+		}
+	})
+
+	t.Run("indentation", func(t *testing.T) {
+		for _, pad := range []string{"", "   ", "       ", "\t"} {
+			q := answers(t, "# T\n1. Q\n"+pad+"= x")
+			if !reflect.DeepEqual(q.Answers, []string{"x"}) || q.Source != "Q" {
+				t.Errorf("pad %q: Answers = %q, Source = %q", pad, q.Answers, q.Source)
+			}
+		}
+		for _, pad := range []string{"        ", "\t\t"} {
+			q := answers(t, "# T\n1. Q\n"+pad+"= x\n= a")
+			if q.Source != "Q\n= x" || !reflect.DeepEqual(q.Answers, []string{"a"}) {
+				t.Errorf("pad %q: Source = %q, Answers = %q", pad, q.Source, q.Answers)
+			}
+			_, err := Parse(textUpload("# T\n1. Q\n"+pad+"= x"), "/media/k")
+			want := `question 1 (line 2) needs options (lines starting with "-") or accepted answers (lines starting with "=")`
+			if got := errMsg(t, err); got != want {
+				t.Errorf("pad %q alone: message = %q", pad, got)
+			}
+		}
+	})
+
+	t.Run("not answer lines", func(t *testing.T) {
+		q := answers(t, "# T\n1. Q\n=x\n==\n===\n= a")
+		if q.Source != "Q\n=x\n==\n===" || !reflect.DeepEqual(q.Answers, []string{"a"}) {
+			t.Errorf("Source = %q, Answers = %q", q.Source, q.Answers)
+		}
+	})
+
+	t.Run("verbatim text", func(t *testing.T) {
+		q := answers(t, "# T\n1. Q\n=   **b** *  ")
+		if !reflect.DeepEqual(q.Answers, []string{"**b** *"}) {
+			t.Errorf("Answers = %q", q.Answers)
+		}
+	})
+
+	t.Run("in a fence", func(t *testing.T) {
+		q := answers(t, "# T\n1. Q\n```\n= x\n```\n= a")
+		if q.Source != "Q\n```\n= x\n```" || !reflect.DeepEqual(q.Answers, []string{"a"}) {
+			t.Errorf("Source = %q, Answers = %q", q.Source, q.Answers)
+		}
+	})
+
+	t.Run("in instructions", func(t *testing.T) {
+		ex := mustParse(t, textUpload("# T\n## A\n= x\n1. Q\n= a"))
+		if ex.Sections[0].Source != "= x" || !reflect.DeepEqual(ex.Questions[0].Answers, []string{"a"}) {
+			t.Errorf("instructions = %q, Answers = %q", ex.Sections[0].Source, ex.Questions[0].Answers)
+		}
+	})
+
+	t.Run("blank lines", func(t *testing.T) {
+		q := answers(t, "# T\n1. Q\n= a\n\n= b\n\n")
+		if !reflect.DeepEqual(q.Answers, []string{"a", "b"}) {
+			t.Errorf("Answers = %q", q.Answers)
+		}
+	})
+
+	t.Run("mixed section", func(t *testing.T) {
+		ex := mustParse(t, textUpload("# T\n## A\n1. Q1\n- a *\n- b\n2. Q2\n= c\n3. Q3\n- d\n- e *"))
+		if len(ex.Sections) != 1 || len(ex.Questions) != 3 {
+			t.Fatalf("Sections = %+v, %d questions", ex.Sections, len(ex.Questions))
+		}
+		q1, q2, q3 := ex.Questions[0], ex.Questions[1], ex.Questions[2]
+		if len(q1.Options) != 2 || q1.Answers != nil || len(q3.Options) != 2 || q3.Answers != nil {
+			t.Errorf("multiple choice = %+v, %+v", q1, q3)
+		}
+		if q2.Options != nil || !reflect.DeepEqual(q2.Answers, []string{"c"}) || q2.Source != "Q2" {
+			t.Errorf("fill-in = %+v", q2)
+		}
+	})
+}
+
+func TestParse_FillInRefusals(t *testing.T) {
+	answerLines := func(n int, text string) string {
+		var b strings.Builder
+		b.WriteString("# T\n1. Q\n")
+		for range n {
+			b.WriteString("= " + text + "\n")
+		}
+		return b.String()
+	}
+	accepted := []string{answerLines(10, "a"), answerLines(1, strings.Repeat("é", 200))}
+	for _, text := range accepted {
+		if _, err := Parse(textUpload(text), "/media/k"); err != nil {
+			t.Errorf("Parse(%q): %v", text, err)
+		}
+	}
+
+	cases := []struct{ name, input, want string }{
+		{"options then answers", "# T\n1. Q\n- a *\n- b\n= c", `question 1 (line 2) has both options and accepted answers; use "-" lines or "=" lines, not both`},
+		{"answers then options", "# T\n1. Q\n= c\n- a *\n- b", `question 1 (line 2) has both options and accepted answers; use "-" lines or "=" lines, not both`},
+		{"neither", "# T\n1. Q\n- a *\n- b\n2. R", `question 2 (line 5) needs options (lines starting with "-") or accepted answers (lines starting with "=")`},
+		{"one option", "# T\n1. Q\n- a *", `question 1 (line 2) needs at least two options`},
+		{"11 answers", answerLines(11, "a"), `question 1 (line 2) has more than 10 accepted answers`},
+		{"bare =", "# T\n1. Q\n= a\n=", `question 1, accepted answer 2 (line 4) has no text`},
+		{"= and spaces", "# T\n1. Q\n=  \t", `question 1, accepted answer 1 (line 3) has no text`},
+		{"201 runes", answerLines(1, strings.Repeat("é", 201)), `question 1, accepted answer 1 (line 3) is longer than 200 characters`},
+		{"continuation", "# T\n1. Q\n= a\n= b\n  more", `question 1, accepted answer 2 (line 4) must be one line`},
+		{"fence", "# T\n1. Q\n= a\n```\nx\n```", `question 1, accepted answer 1 (line 3) must be one line`},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := Parse(textUpload(c.input), "/media/k")
+			if got := errMsg(t, err); got != c.want {
+				t.Errorf("message = %q\nwant      %q", got, c.want)
+			}
+		})
+	}
+}

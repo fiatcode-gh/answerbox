@@ -29,13 +29,26 @@ const (
 	TimedOut   Status = "timed_out"
 )
 
+// Mark is a teacher's decision on a typed answer.
+type Mark string
+
+const (
+	MarkRight Mark = "right"
+	MarkWrong Mark = "wrong"
+	MarkNone  Mark = "none" // remove the override
+)
+
 var (
-	ErrNoOpenExam    = errors.New("attempt: no open exam has that code")
-	ErrInvalidName   = errors.New("attempt: name must be 1 to 100 characters")
-	ErrNotFound      = errors.New("attempt: not found")
-	ErrFinished      = errors.New("attempt: already finished")
-	ErrInvalidChoice = errors.New("attempt: question or option does not belong to this exam")
-	ErrBadCode       = errors.New("attempt: resume code is not valid")
+	ErrNoOpenExam     = errors.New("attempt: no open exam has that code")
+	ErrInvalidName    = errors.New("attempt: name must be 1 to 100 characters")
+	ErrNotFound       = errors.New("attempt: not found")
+	ErrFinished       = errors.New("attempt: already finished")
+	ErrInvalidChoice  = errors.New("attempt: question or option does not belong to this exam")
+	ErrBadCode        = errors.New("attempt: resume code is not valid")
+	ErrInvalidAnswer  = errors.New("attempt: typed answer is not valid for this question")
+	ErrInProgress     = errors.New("attempt: still in progress")
+	ErrNotOverridable = errors.New("attempt: not an answered fill-in question")
+	ErrInvalidMark    = errors.New("attempt: mark must be right, wrong or none")
 )
 
 // NotYetOpenError refuses a start on an exam whose open time is still ahead.
@@ -62,6 +75,8 @@ type ViewQuestion struct {
 	BodyHTML template.HTML
 	Options  []ViewOption
 	Section  *exam.Section // the section that starts here; nil when none
+	FillIn   bool          // a fill-in question: no options, a typed answer
+	Typed    string        // the saved typed answer; "" for none
 }
 
 // ViewOption is an option in display order. Letter is "A".. by display order.
@@ -80,13 +95,18 @@ type Result struct {
 	Review       []ReviewQuestion // attempt order; nil unless ShowReview
 }
 
-// ReviewQuestion is a finished question in attempt order.
+// ReviewQuestion is a finished question in attempt order. A fill-in question
+// is answered when Typed is not empty.
 type ReviewQuestion struct {
 	Number   int
 	BodyHTML template.HTML
 	Answered bool
 	Options  []ReviewOption
 	Section  *exam.Section // the section that starts here; nil when none
+	FillIn   bool
+	Typed    string   // the typed answer; "" for none
+	Right    bool     // as scored
+	Accepted []string // the accepted answers of a fill-in question
 }
 
 // ReviewOption is a finished option in display order.
@@ -132,13 +152,27 @@ type Detail struct {
 	Revision  int     // the exam revision the attempt was started on; 0 when the exam had none
 }
 
-// DetailQuestion is a question in original file order.
+// DetailQuestion is a question in original file order. A fill-in question is
+// answered when Typed is not empty.
 type DetailQuestion struct {
 	Position int
 	BodyHTML template.HTML
 	Answered bool
 	Options  []DetailOption
 	Section  *exam.Section // the section that starts here; nil when none
+	FillIn   bool
+	Typed    string    // the typed answer; "" for none
+	Accepted []string  // the accepted answers of a fill-in question
+	Auto     bool      // the typed answer matches an accepted answer
+	Right    bool      // as scored
+	Override *Override // the teacher's mark on the typed answer; nil for none
+}
+
+// Override is a teacher's mark on a typed answer.
+type Override struct {
+	Correct      bool
+	TeacherEmail string
+	At           time.Time
 }
 
 // DetailOption is an option in original file order.

@@ -679,6 +679,54 @@ small.schedule {
   margin-bottom: var(--ge-space-4);
 }
 
+/* Question form: the kind line and the accepted-answer rows. Pico's
+   [hidden] rule hides whichever list the form does not use. */
+.question-kind {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2) var(--ge-space-3);
+  align-items: center;
+  font-weight: 600;
+}
+
+.question-kind button,
+.answer-row button,
+.answer-add button {
+  width: auto;
+  margin: 0;
+  min-height: var(--ge-touch);
+}
+
+.answer-list {
+  min-width: 0;
+  margin: var(--ge-space-4) 0;
+  padding: 0;
+  border: 0;
+}
+
+.answer-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2) var(--ge-space-3);
+  align-items: center;
+  padding: var(--ge-space-3) 0;
+  border-top: 1px solid var(--ge-rule);
+}
+
+.answer-row input {
+  flex: 1 1 12rem;
+  min-width: 0;
+  margin: 0;
+}
+
+.answer-add {
+  margin-bottom: var(--ge-space-2);
+}
+
+.preview-answers {
+  margin-top: var(--ge-space-3);
+}
+
 .image-dropped {
   margin: var(--ge-space-2) 0;
   color: var(--ge-warn);
@@ -830,6 +878,64 @@ th[aria-sort] {
 .no-answer {
   color: var(--ge-danger);
   font-weight: 600;
+}
+
+/* Attempt page: a fill-in answer with its marks and the teacher's mark
+   buttons, in the right and wrong colours of the option list. */
+.detail-fill-in {
+  margin: var(--ge-space-4) 0 0;
+}
+
+.typed-answer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2) var(--ge-space-3);
+  align-items: center;
+  margin: 0 0 var(--ge-space-3);
+  padding: var(--ge-space-2) var(--ge-space-3);
+  border: 2px solid var(--ge-danger);
+  border-radius: var(--ge-radius);
+  background: var(--ge-danger-bg);
+}
+
+.detail-fill-in[data-correct="true"] .typed-answer {
+  border-color: var(--ge-ok);
+  background: var(--ge-ok-bg);
+}
+
+.auto-mark,
+.override-mark {
+  margin: var(--ge-space-1) 0 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.auto-mark[data-auto="true"],
+.override-mark[data-override="true"] {
+  color: var(--ge-ok);
+}
+
+.auto-mark[data-auto="false"],
+.override-mark[data-override="false"] {
+  color: var(--ge-danger);
+}
+
+.override-mark time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.override-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-3);
+  margin: var(--ge-space-3) 0 0;
+}
+
+.override-form button {
+  width: auto;
+  margin: 0;
+  min-height: var(--ge-touch);
 }
 
 .confirm-actions {
@@ -1223,6 +1329,25 @@ main[data-monitor="on"] .exam-questions {
   opacity: 0.7;
 }
 
+/* Fill-in: one text box the full width of the question. 16px or more keeps
+   phones from zooming in on focus. */
+.answer-box {
+  margin: var(--ge-space-4) 0 0;
+}
+
+.answer-box .answer-text {
+  width: 100%;
+  min-height: 48px;
+  margin: 0;
+  font-size: max(16px, 1rem);
+}
+
+/* The box stays editable under the monitor's user-select: none above. */
+main[data-monitor="on"] .exam-questions .answer-text {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 .exam-footer {
   margin-top: var(--ge-space-6);
   padding: var(--ge-space-4) 0 var(--ge-space-6);
@@ -1387,6 +1512,64 @@ main.result {
 
 .review-option[data-picked="true"][data-correct="false"] .review-mark {
   color: var(--ge-danger);
+}
+
+.review-fill-in {
+  margin: var(--ge-space-4) 0 0;
+}
+
+.review-typed {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2) var(--ge-space-3);
+  align-items: center;
+  margin: 0 0 var(--ge-space-3);
+  padding: var(--ge-space-2) var(--ge-space-3);
+  border: 1px solid var(--ge-danger);
+  border-radius: var(--ge-radius);
+  background: var(--ge-danger-bg);
+}
+
+.typed-text {
+  flex: 1 1 12rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.review-typed .review-mark {
+  color: var(--ge-danger);
+}
+
+.review-fill-in[data-correct="true"] .review-typed {
+  border-color: var(--ge-ok);
+  background: var(--ge-ok-bg);
+}
+
+.review-fill-in[data-correct="true"] .review-typed .review-mark {
+  color: var(--ge-ok);
+}
+
+.accepted-label {
+  margin: 0 0 var(--ge-space-2);
+  color: var(--ge-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.accepted-answers {
+  margin: 0;
+  padding: 0;
+}
+
+.accepted-answers li {
+  margin: 0 0 var(--ge-space-2);
+  padding: var(--ge-space-2) var(--ge-space-3);
+  border: 1px solid var(--ge-ok);
+  border-radius: var(--ge-radius);
+  background: var(--ge-ok-bg);
+  list-style: none;
+  overflow-wrap: anywhere;
 }
 
 /* Sections: a heading between question cards, in the paper voice, with an

@@ -19,7 +19,7 @@ import (
 type examRoute struct{ Method, Path string }
 
 // examRoutes returns every adminRoutes entry under /admin/exams/1. It fails
-// when fewer than today's thirty-one remain, so a route cannot drop out
+// when fewer than today's thirty-two remain, so a route cannot drop out
 // silently.
 func examRoutes(t *testing.T) []examRoute {
 	t.Helper()
@@ -29,8 +29,8 @@ func examRoutes(t *testing.T) []examRoute {
 			out = append(out, examRoute(r))
 		}
 	}
-	if len(out) < 31 {
-		t.Fatalf("adminRoutes has %d exam routes, want at least 31", len(out))
+	if len(out) < 32 {
+		t.Fatalf("adminRoutes has %d exam routes, want at least 32", len(out))
 	}
 	return out
 }
@@ -99,7 +99,7 @@ func (env *testEnv) call(t *testing.T, route examRoute, examID, attemptID int64,
 			"csrf_token": {who.csrf}, "name": {"Renamed"}, "opens_at": {"2026-11-20T08:00"},
 			"revision": {"1"}, "to": {"2"}, "title": {"Edited"}, "shuffle": {"questions"},
 			"show_result": {"score"}, "monitor": {"on"}, "duration": {"45"},
-			"do": {"save"}, "text": {"Edited question"}, "option": {"a", "b"}, "correct": {"0"},
+			"do": {"save"}, "text": {"Edited question"}, "option": {"a", "b"}, "correct": {"0"}, "mark": {"right"},
 		}, who.cookie)
 	}
 }
@@ -157,10 +157,15 @@ func TestOwnership_OwnerAndAdminCanUseEveryRoute(t *testing.T) {
 }
 
 // routeExam imports the closed exam route runs on for owner: one section
-// over two questions for a section route, otherwise ownedExam's exam, with
-// an attempt unless route is Replace or an editor route, which refuse one.
+// over two questions for a section route, a fill-in exam with one submitted
+// attempt that typed an answer to question 1 for the override route,
+// otherwise ownedExam's exam, with an attempt unless route is Replace or an
+// editor route, which refuse one.
 func (env *testEnv) routeExam(t *testing.T, route examRoute, owner exam.Actor) (examID, attemptID int64) {
 	t.Helper()
+	if strings.HasSuffix(route.Path, "/override") {
+		return env.typedAttempt(t, owner)
+	}
 	if !strings.Contains(route.Path, "/sections/") {
 		noAttempt := strings.HasSuffix(route.Path, "/replace") || editorRoute(route.Path)
 		return env.ownedExam(t, owner, "Algebra", !noAttempt)
@@ -170,6 +175,32 @@ func (env *testEnv) routeExam(t *testing.T, route examRoute, owner exam.Actor) (
 		t.Fatalf("Import: %v", err)
 	}
 	return id, 0
+}
+
+// typedAttempt imports a closed exam of a fill-in question 1 and a
+// multiple-choice question 2 for owner with one submitted attempt by "Ayu"
+// that typed an answer to question 1.
+func (env *testEnv) typedAttempt(t *testing.T, owner exam.Actor) (examID, attemptID int64) {
+	t.Helper()
+	ctx := context.Background()
+	id, err := env.exams.Import(ctx, owner, []byte("# Typed\n\n1. Capital of France?\n= Paris\n\n2. Q two\n- c *\n- d\n"))
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	if err := env.exams.Open(ctx, owner, id); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	token, aid := env.startAttempt(t, id, "Ayu")
+	qs, err := env.exams.Questions(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env.typeAnswer(t, token, qs[0], "Lyon")
+	env.submitAttempt(t, token)
+	if err := env.exams.Close(ctx, owner, id); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	return id, aid
 }
 
 // editorRoute reports whether path is a route of the exam editor.

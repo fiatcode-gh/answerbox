@@ -38,10 +38,13 @@ type revisionSection struct {
 	Start  int    `json:"start"`
 }
 
+// revisionQuestion is a question as written and rendered. A fill-in question
+// has Answers and an empty Options list; Answers is absent otherwise.
 type revisionQuestion struct {
 	Source  string           `json:"source"`
 	HTML    string           `json:"html"`
 	Options []revisionOption `json:"options"`
+	Answers []string         `json:"answers,omitempty"`
 }
 
 type revisionOption struct {
@@ -56,7 +59,7 @@ func insertRevision(ctx context.Context, tx *sql.Tx, examID, teacherID int64, at
 	summary string, ex examfile.Exam, mediaKey string) (int, error) {
 	content := revisionContent{Dir: ex.Dir, Images: ex.ImagePaths, Questions: make([]revisionQuestion, len(ex.Questions))}
 	for i, q := range ex.Questions {
-		rq := revisionQuestion{Source: q.Source, HTML: string(q.BodyHTML), Options: make([]revisionOption, len(q.Options))}
+		rq := revisionQuestion{Source: q.Source, HTML: string(q.BodyHTML), Options: make([]revisionOption, len(q.Options)), Answers: q.Answers}
 		for j, o := range q.Options {
 			rq.Options[j] = revisionOption{Source: o.Source, HTML: string(o.BodyHTML), Correct: o.Correct}
 		}
@@ -136,7 +139,7 @@ func (s *Service) Revision(ctx context.Context, examID int64, number int) (Revis
 	}
 	r.Questions = make([]Question, len(content.Questions))
 	for i, q := range content.Questions {
-		qq := Question{Position: i + 1, BodyHTML: template.HTML(q.HTML), Options: make([]Option, len(q.Options))}
+		qq := Question{Position: i + 1, BodyHTML: template.HTML(q.HTML), Options: make([]Option, len(q.Options)), Answers: q.Answers}
 		for j, o := range q.Options {
 			qq.Options[j] = Option{Position: j + 1, BodyHTML: template.HTML(o.HTML), Correct: o.Correct}
 		}

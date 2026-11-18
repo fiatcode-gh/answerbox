@@ -89,6 +89,13 @@ func openVersion8(t *testing.T, path string) *sql.DB {
 	return openBuilt(t, path, 8)
 }
 
+// openVersion9 creates a database file at path as the sections release left
+// it (migrations 0001 to 0009, user_version 9) and returns a raw handle.
+func openVersion9(t *testing.T, path string) *sql.DB {
+	t.Helper()
+	return openBuilt(t, path, 9)
+}
+
 // openBuilt applies the first version migrations by hand to a new file at
 // path, sets user_version and returns a raw handle.
 func openBuilt(t *testing.T, path string, version int) *sql.DB {
@@ -159,16 +166,16 @@ func TestOpen_MigratesOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	if got := pragma(t, db, "user_version"); got != "9" {
-		t.Errorf("user_version = %s, want 9", got)
+	if got := pragma(t, db, "user_version"); got != "10" {
+		t.Errorf("user_version = %s, want 10", got)
 	}
 	mustExec(t, db, ownerTeacher)
 	mustExec(t, db, `INSERT INTO exam (title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES ('t','none','score','k1',0,1,'AAAAAA')`)
 	db.Close()
 
 	db = openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "9" {
-		t.Errorf("user_version after reopen = %s, want 9", got)
+	if got := pragma(t, db, "user_version"); got != "10" {
+		t.Errorf("user_version after reopen = %s, want 10", got)
 	}
 	var title string
 	if err := db.QueryRow(`SELECT title FROM exam`).Scan(&title); err != nil || title != "t" {
@@ -200,8 +207,8 @@ func TestMigrate_0002KeepsVersion1Data(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "9" {
-		t.Fatalf("user_version = %s, want 9", got)
+	if got := pragma(t, db, "user_version"); got != "10" {
+		t.Fatalf("user_version = %s, want 10", got)
 	}
 	var (
 		title, name, code string
@@ -246,8 +253,8 @@ func TestMigrate_0003KeepsVersion2Data(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "9" {
-		t.Fatalf("user_version = %s, want 9", got)
+	if got := pragma(t, db, "user_version"); got != "10" {
+		t.Fatalf("user_version = %s, want 10", got)
 	}
 	var (
 		title, name, code, kind  string
@@ -309,8 +316,8 @@ func TestMigrate_0004KeepsExamsAndRequiresOwner(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "9" {
-		t.Fatalf("user_version = %s, want 9", got)
+	if got := pragma(t, db, "user_version"); got != "10" {
+		t.Fatalf("user_version = %s, want 10", got)
 	}
 	var (
 		title, student string
@@ -371,8 +378,8 @@ func TestMigrate_0005KeepsExamsAndAddsCodes(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "9" {
-		t.Fatalf("user_version = %s, want 9", got)
+	if got := pragma(t, db, "user_version"); got != "10" {
+		t.Fatalf("user_version = %s, want 10", got)
 	}
 	var (
 		title, student string
@@ -430,8 +437,8 @@ func TestMigrate_0006KeepsExamsAt60MinutesWithoutSchedule(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "9" {
-		t.Fatalf("user_version = %s, want 9", got)
+	if got := pragma(t, db, "user_version"); got != "10" {
+		t.Fatalf("user_version = %s, want 10", got)
 	}
 	for id, wantOpen := range map[int64]int{1: 1, 2: 0} {
 		var open, minutes, noOpens, noCloses int
@@ -726,8 +733,8 @@ func TestMigrate_0007KeepsVersion6Data(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "9" {
-		t.Fatalf("user_version = %s, want 9", got)
+	if got := pragma(t, db, "user_version"); got != "10" {
+		t.Fatalf("user_version = %s, want 10", got)
 	}
 	if after := dumpRows(t, db, columns); after != before {
 		t.Errorf("rows changed by the migration:\nbefore:\n%s\nafter:\n%s", before, after)
@@ -1034,8 +1041,8 @@ func TestMigrate_0008KeepsVersion7Data(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "9" {
-		t.Fatalf("user_version = %s, want 9", got)
+	if got := pragma(t, db, "user_version"); got != "10" {
+		t.Fatalf("user_version = %s, want 10", got)
 	}
 	if after := dumpRows(t, db, columns); after != before {
 		t.Errorf("rows changed by the migration:\nbefore:\n%s\nafter:\n%s", before, after)
@@ -1157,8 +1164,8 @@ func TestMigrate_0009KeepsVersion8Data(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "9" {
-		t.Fatalf("user_version = %s, want 9", got)
+	if got := pragma(t, db, "user_version"); got != "10" {
+		t.Fatalf("user_version = %s, want 10", got)
 	}
 	if after := dumpRows(t, db, columns); after != before {
 		t.Errorf("rows changed by the migration:\nbefore:\n%s\nafter:\n%s", before, after)
@@ -1294,5 +1301,211 @@ func TestSchema_PreviousBinaryQuestionStatements(t *testing.T) {
 	}
 	if want := []string{"1:n1", "2:n2"}; !slices.Equal(bodies, want) {
 		t.Errorf("questions = %q, want %q", bodies, want)
+	}
+}
+
+// TestMigrate_0010KeepsVersion9Data opens a database as the sections release
+// left it and checks that the fill-in migration keeps every row as it was,
+// leaves every question without accepted answers and adds no typed answer.
+func TestMigrate_0010KeepsVersion9Data(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "go-exam.db")
+	old := openVersion9(t, path)
+	mustExec(t, old, ownerTeacher)
+	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id, code) VALUES (1,'Live','questions','review',1,'k1',5,1,1,'3VK583')`)
+	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, owner_id, code, archived_at) VALUES (2,'Old one','none','score',0,'k2',6,1,'KSC7RP',50)`)
+	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, owner_id, code, archived_at) VALUES (3,'Old two','none','score',0,'k3',7,1,'4HGBZ9',51)`)
+	mustExec(t, old, `INSERT INTO question (id, exam_id, position, body_html) VALUES (1,1,1,'q1'),(2,1,2,'q2')`)
+	mustExec(t, old, `INSERT INTO question (id, exam_id, position, body_html, section_title, section_html) VALUES (3,2,1,'q3','Part A','<p>Read.</p>\n')`)
+	mustExec(t, old, `INSERT INTO question_option (id, question_id, position, body_html, is_correct) VALUES (1,1,1,'o1',1),(2,1,2,'o2',0),(3,2,1,'o3',0),(4,2,2,'o4',1),(5,3,1,'o5',1),(6,3,2,'o6',0)`)
+	for id := int64(1); id <= 3; id++ {
+		if err := addRevision(old, id, 1); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for id := 1; id <= 3; id++ {
+		mustExec(t, old, `INSERT INTO attempt (id, exam_id, student_name, token_hash, shuffle_seed, status, started_at, deadline_at, finished_at)
+			VALUES (?, 1, ?, ?, ?, 'submitted', 10, 20, 15)`, id, fmt.Sprintf("s%d", id), []byte{byte(id)}, id*7)
+		mustExec(t, old, `INSERT INTO answer (attempt_id, question_id, option_id) VALUES (?, 1, ?), (?, 2, 4)`, id, 1+id%2, id)
+	}
+	mustExec(t, old, `INSERT INTO attempt (id, exam_id, student_name, token_hash, resume_code, shuffle_seed, started_at, deadline_at)
+		VALUES (4, 1, 's4', x'04', 'ABCDEFGH', 28, 30, 40)`)
+	mustExec(t, old, `INSERT INTO attempt_event (id, attempt_id, kind, question, at) VALUES (1, 2, 'copy', 1, 12)`)
+	columns := tableColumns(t, old)
+	before := dumpRows(t, old, columns)
+	old.Close()
+
+	db := openFile(t, path)
+	if got := pragma(t, db, "user_version"); got != "10" {
+		t.Fatalf("user_version = %s, want 10", got)
+	}
+	if after := dumpRows(t, db, columns); after != before {
+		t.Errorf("rows changed by the migration:\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+	var fillIn, typed int
+	if err := db.QueryRow(`SELECT (SELECT COUNT(*) FROM question WHERE accepted_answers IS NOT NULL),
+		(SELECT COUNT(*) FROM typed_answer)`).Scan(&fillIn, &typed); err != nil || fillIn != 0 || typed != 0 {
+		t.Errorf("questions with accepted answers = %d, typed answers = %d, %v; want 0, 0", fillIn, typed, err)
+	}
+	if id := insertAttempt(t, db, 1); attemptRevision(t, db, id) != 1 {
+		t.Errorf("new attempt revision = %d, want 1", attemptRevision(t, db, id))
+	}
+}
+
+// jsonArray returns a JSON array of n one-letter strings.
+func jsonArray(n int) string {
+	items := make([]string, n)
+	for i := range items {
+		items[i] = `"a"`
+	}
+	return "[" + strings.Join(items, ",") + "]"
+}
+
+// TestSchema_AcceptedAnswers proves that accepted answers are NULL or a JSON
+// array of 1 to 10 items, on insert and on update.
+func TestSchema_AcceptedAnswers(t *testing.T) {
+	db := sqlitetest.Open(t)
+	mustExec(t, db, ownerTeacher)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES (1,'a','none','score','k1',0,1,'AAAAAA')`)
+	mustExec(t, db, `INSERT INTO question (id, exam_id, position, body_html) VALUES (1,1,1,'q1')`)
+
+	for _, bad := range []string{``, `x`, `{}`, `"a"`, `[]`, jsonArray(11)} {
+		_, err := db.Exec(`INSERT INTO question (exam_id, position, body_html, accepted_answers) VALUES (1, 2, 'q2', ?)`, bad)
+		wantErr(t, fmt.Sprintf("insert accepted_answers %q", bad), err, "CHECK")
+		_, err = db.Exec(`UPDATE question SET accepted_answers = ? WHERE id = 1`, bad)
+		wantErr(t, fmt.Sprintf("update accepted_answers %q", bad), err, "CHECK")
+	}
+	for i, good := range []any{nil, `["a"]`, jsonArray(10)} {
+		mustExec(t, db, `INSERT INTO question (exam_id, position, body_html, accepted_answers) VALUES (1, ?, 'q', ?)`, i+2, good)
+		mustExec(t, db, `UPDATE question SET accepted_answers = ? WHERE id = 1`, good)
+	}
+}
+
+// TestSchema_AcceptedAnswersFrozenWithQuestions proves that the question
+// freeze triggers of 0001 freeze accepted answers too.
+func TestSchema_AcceptedAnswersFrozenWithQuestions(t *testing.T) {
+	db := sqlitetest.Open(t)
+	mustExec(t, db, ownerTeacher)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES (1,'a','none','score','k1',0,1,'AAAAAA')`)
+	mustExec(t, db, `INSERT INTO question (id, exam_id, position, body_html, accepted_answers) VALUES (1,1,1,'q1','["5"]')`)
+	mustExec(t, db, `INSERT INTO attempt (id, exam_id, student_name, token_hash, shuffle_seed, started_at, deadline_at) VALUES (1,1,'s',x'01',0,0,0)`)
+
+	values := []any{`["6"]`, nil}
+	for _, v := range values {
+		_, err := db.Exec(`UPDATE question SET accepted_answers = ? WHERE id = 1`, v)
+		wantErr(t, fmt.Sprintf("set accepted_answers to %v with an attempt", v), err, "exam is frozen")
+	}
+	var answers string
+	if err := db.QueryRow(`SELECT accepted_answers FROM question WHERE id = 1`).Scan(&answers); err != nil || answers != `["5"]` {
+		t.Errorf("accepted_answers = %q, %v; want [\"5\"]", answers, err)
+	}
+
+	mustExec(t, db, `DELETE FROM attempt WHERE id = 1`)
+	for _, v := range values {
+		mustExec(t, db, `UPDATE question SET accepted_answers = ? WHERE id = 1`, v)
+	}
+}
+
+// TestSchema_TypedAnswer proves the checks and keys of typed_answer: a
+// typed answer is 1 to 200 characters, an override is all three columns or
+// none, and deleting the attempt deletes its typed answers.
+func TestSchema_TypedAnswer(t *testing.T) {
+	db := sqlitetest.Open(t)
+	mustExec(t, db, ownerTeacher)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES (1,'a','none','score','k1',0,1,'AAAAAA')`)
+	mustExec(t, db, `INSERT INTO question (id, exam_id, position, body_html, accepted_answers) VALUES (1,1,1,'q1','["5"]'),(2,1,2,'q2','["6"]'),(3,1,3,'q3','["7"]')`)
+	mustExec(t, db, `INSERT INTO attempt (id, exam_id, student_name, token_hash, shuffle_seed, started_at, deadline_at) VALUES (1,1,'s',x'01',0,0,0)`)
+
+	const insert = `INSERT INTO typed_answer (attempt_id, question_id, text, override_correct, override_by, override_at) VALUES (?, ?, ?, ?, ?, ?)`
+	mustExec(t, db, insert, 1, 1, "5", nil, nil, nil)
+	refused := []struct {
+		what string
+		args []any
+		want string
+	}{
+		{"empty text", []any{1, 2, "", nil, nil, nil}, "CHECK"},
+		{"201 characters", []any{1, 2, strings.Repeat("é", 201), nil, nil, nil}, "CHECK"},
+		{"override_correct = 2", []any{1, 2, "x", 2, 1, 10}, "CHECK"},
+		{"override_correct alone", []any{1, 2, "x", 1, nil, nil}, "CHECK"},
+		{"override_by alone", []any{1, 2, "x", nil, 1, nil}, "CHECK"},
+		{"override_at alone", []any{1, 2, "x", nil, nil, 10}, "CHECK"},
+		{"override without time", []any{1, 2, "x", 1, 1, nil}, "CHECK"},
+		{"override without teacher", []any{1, 2, "x", 1, nil, 10}, "CHECK"},
+		{"override without mark", []any{1, 2, "x", nil, 1, 10}, "CHECK"},
+		{"a second row for a question", []any{1, 1, "6", nil, nil, nil}, "UNIQUE"},
+		{"an unknown attempt", []any{9, 2, "x", nil, nil, nil}, "FOREIGN KEY"},
+		{"an unknown question", []any{1, 9, "x", nil, nil, nil}, "FOREIGN KEY"},
+		{"an unknown teacher", []any{1, 2, "x", 1, 9, 10}, "FOREIGN KEY"},
+	}
+	for _, c := range refused {
+		_, err := db.Exec(insert, c.args...)
+		wantErr(t, c.what, err, c.want)
+	}
+	mustExec(t, db, insert, 1, 2, "6", 1, 1, 10)
+	mustExec(t, db, insert, 1, 3, strings.Repeat("é", 200), nil, nil, nil)
+	mustExec(t, db, `UPDATE typed_answer SET override_correct = 0, override_by = 1, override_at = 11 WHERE attempt_id = 1 AND question_id = 1`)
+
+	mustExec(t, db, `DELETE FROM attempt WHERE id = 1`)
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM typed_answer`).Scan(&n); err != nil || n != 0 {
+		t.Errorf("typed answers after deleting the attempt = %d, %v; want 0", n, err)
+	}
+}
+
+// TestSchema_SectionsBinaryStatements runs the statements of the release
+// before fill-in questions (1bddec5) against the current schema: a rollback
+// to that binary keeps working on multiple-choice exams.
+func TestSchema_SectionsBinaryStatements(t *testing.T) {
+	db := sqlitetest.Open(t)
+	mustExec(t, db, ownerTeacher)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES (1,'a','none','score','k1',0,1,'AAAAAA')`)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES (2,'fill','none','score','k2',0,1,'BBBBBB')`)
+
+	const insertQuestion = `INSERT INTO question (exam_id, position, body_html, section_title, section_html) VALUES (?, ?, ?, ?, ?)`
+	res, err := db.Exec(insertQuestion, 1, 1, "q1", "Part A", "")
+	if err != nil {
+		t.Fatalf("question insert: %v", err)
+	}
+	q1, err := res.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustExec(t, db, insertQuestion, 1, 2, "q2", nil, nil)
+	var fillIn int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM question WHERE accepted_answers IS NOT NULL`).Scan(&fillIn); err != nil || fillIn != 0 {
+		t.Errorf("questions with accepted answers after the 1bddec5 insert = %d, %v; want 0", fillIn, err)
+	}
+	mustExec(t, db, `INSERT INTO question (id, exam_id, position, body_html, accepted_answers) VALUES (9,1,3,'q3','["5"]')`)
+	mustExec(t, db, `INSERT INTO question_option (id, question_id, position, body_html, is_correct) VALUES (1,?,1,'o1',1),(2,?,2,'o2',0)`, q1, q1)
+
+	attemptID := insertAttempt(t, db, 1)
+	const upsert = `INSERT INTO answer (attempt_id, question_id, option_id) VALUES (?, ?, ?)
+		ON CONFLICT (attempt_id, question_id) DO UPDATE SET option_id = excluded.option_id`
+	mustExec(t, db, upsert, attemptID, q1, 2)
+	mustExec(t, db, upsert, attemptID, q1, 1)
+	mustExec(t, db, `INSERT INTO typed_answer (attempt_id, question_id, text) VALUES (?, 9, '5')`, attemptID)
+
+	const correctAnswersSQL = "answer an JOIN question_option o ON o.id = an.option_id AND o.is_correct = 1"
+	var score int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM `+correctAnswersSQL+` WHERE an.attempt_id = ?`, attemptID).Scan(&score); err != nil || score != 1 {
+		t.Errorf("1bddec5 score = %d, %v; want 1", score, err)
+	}
+
+	res, err = db.Exec(`DELETE FROM attempt WHERE id = ? AND exam_id = ?`, attemptID, 1)
+	if err != nil {
+		t.Fatalf("attempt delete: %v", err)
+	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		t.Errorf("attempt delete removed %d rows, want 1", n)
+	}
+	var typed int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM typed_answer`).Scan(&typed); err != nil || typed != 0 {
+		t.Errorf("typed answers after the 1bddec5 attempt delete = %d, %v; want 0", typed, err)
+	}
+
+	mustExec(t, db, `INSERT INTO question (exam_id, position, body_html, accepted_answers) VALUES (2,1,'f1','["5"]'),(2,2,'f2','["a","b"]')`)
+	mustExec(t, db, `DELETE FROM question WHERE exam_id = ?`, 2)
+	var left int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM question WHERE exam_id = 2`).Scan(&left); err != nil || left != 0 {
+		t.Errorf("questions of the fill-in exam after the 1bddec5 delete = %d, %v; want 0", left, err)
 	}
 }

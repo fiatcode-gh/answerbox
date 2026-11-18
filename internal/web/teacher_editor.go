@@ -349,21 +349,28 @@ func (s *server) saveSettings(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// questionForm is the question part of an editor form as posted.
+// questionForm is the question part of an editor form as posted. The form
+// carries both the option list and the accepted-answer list; FillIn says
+// which one a save stores.
 type questionForm struct {
 	Text    string
+	FillIn  bool // the question is answered by typing
 	Options []string
-	Correct int // index into Options; -1 when none is chosen
+	Correct int      // index into Options; -1 when none is chosen
+	Answers []string // accepted answers
 }
 
 // blankQuestionForm is the form of a question not written yet.
 func blankQuestionForm() questionForm {
-	return questionForm{Options: make([]string, 4), Correct: -1}
+	return questionForm{Options: make([]string, 4), Correct: -1, Answers: []string{""}}
 }
 
 // questionFormOf is the form opened on a stored question.
 func questionFormOf(q exam.QuestionSource) questionForm {
-	f := questionForm{Text: q.Text, Options: make([]string, len(q.Options)), Correct: -1}
+	if len(q.Answers) > 0 {
+		return questionForm{Text: q.Text, FillIn: true, Options: make([]string, 4), Correct: -1, Answers: slices.Clone(q.Answers)}
+	}
+	f := questionForm{Text: q.Text, Options: make([]string, len(q.Options)), Correct: -1, Answers: []string{""}}
 	for i, o := range q.Options {
 		f.Options[i] = o.Text
 		if o.Correct {
@@ -375,25 +382,54 @@ func questionFormOf(q exam.QuestionSource) questionForm {
 
 // questionFormFrom reads the question fields of the posted form.
 func questionFormFrom(r *http.Request) questionForm {
-	f := questionForm{Text: r.PostFormValue("text"), Options: slices.Clone(r.PostForm["option"]), Correct: -1}
+	f := questionForm{
+		Text:    r.PostFormValue("text"),
+		FillIn:  r.PostFormValue("kind") == "fill_in",
+		Options: slices.Clone(r.PostForm["option"]),
+		Correct: -1,
+		Answers: slices.Clone(r.PostForm["answer"]),
+	}
 	if c, err := strconv.Atoi(r.PostFormValue("correct")); err == nil && c >= 0 && c < len(f.Options) {
 		f.Correct = c
 	}
 	return f
 }
 
-// apply changes the option list as the option button do asks: "add",
-// "remove:<i>", "up:<i>" or "down:<i>". The correct choice follows the
-// option it points at. Any other value, or an index that is not an option
-// or cannot move that way, changes nothing.
+// apply changes the form as a form button do asks: "kind:choice" or
+// "kind:fill_in" switch the kind, "answer-add" and "answer-remove:<i>"
+// change the accepted-answer list, "add", "remove:<i>", "up:<i>" and
+// "down:<i>" the option list. The correct choice follows the option it
+// points at. Any other value, or an index that is not a row or cannot move
+// that way, changes nothing.
 func (f *questionForm) apply(do string) {
-	if do == "add" {
+	switch do {
+	case "kind:choice":
+		f.FillIn = false
+		return
+	case "kind:fill_in":
+		f.FillIn = true
+		return
+	case "answer-add":
+		if len(f.Answers) < examfile.MaxAnswers {
+			f.Answers = append(f.Answers, "")
+		}
+		return
+	case "add":
 		f.Options = append(f.Options, "")
 		return
 	}
 	verb, arg, _ := strings.Cut(do, ":")
 	i, err := strconv.Atoi(arg)
-	if err != nil || i < 0 || i >= len(f.Options) {
+	if err != nil || i < 0 {
+		return
+	}
+	if verb == "answer-remove" {
+		if i < len(f.Answers) && len(f.Answers) > 1 {
+			f.Answers = slices.Delete(f.Answers, i, i+1)
+		}
+		return
+	}
+	if i >= len(f.Options) {
 		return
 	}
 	switch verb {
@@ -427,8 +463,11 @@ func (f *questionForm) swap(i, j int) {
 }
 
 // source is the form as the service takes it, with image to add (nil for
-// none).
+// none): the accepted answers of a fill-in form, the options otherwise.
 func (f questionForm) source(image []byte) exam.QuestionSource {
+	if f.FillIn {
+		return exam.QuestionSource{Text: f.Text, Answers: f.Answers, Image: image}
+	}
 	q := exam.QuestionSource{Text: f.Text, Options: make([]exam.OptionSource, len(f.Options)), Image: image}
 	for i, o := range f.Options {
 		q.Options[i] = exam.OptionSource{Text: o, Correct: i == f.Correct}
@@ -438,10 +477,16 @@ func (f questionForm) source(image []byte) exam.QuestionSource {
 
 // questionFields is the view of the question_fields partial.
 type questionFields struct {
-	Text    string
+	Text string
+	// FillIn is whether the form is a fill-in form; the other list stays in
+	// the form, hidden.
+	FillIn  bool
 	Options []optionRow
 	// CanAdd is whether the form offers Add option.
-	CanAdd bool
+	CanAdd  bool
+	Answers []answerRow
+	// CanAddAnswer is whether the form offers Add accepted answer.
+	CanAddAnswer bool
 	// ImageDropped is whether the request carried an image the re-rendered
 	// form cannot keep.
 	ImageDropped bool
@@ -455,12 +500,23 @@ type optionRow struct {
 	Up, Down, Remove bool
 }
 
+// answerRow is an accepted answer of the question form; Remove is whether
+// it shows a Remove button.
+type answerRow struct {
+	Index, Number int
+	Text          string
+	Remove        bool
+}
+
 func (f questionForm) fields(imageDropped bool) questionFields {
 	last := len(f.Options) - 1
 	v := questionFields{
 		Text:         f.Text,
+		FillIn:       f.FillIn,
 		Options:      make([]optionRow, len(f.Options)),
 		CanAdd:       len(f.Options) < examfile.MaxOptions,
+		Answers:      make([]answerRow, len(f.Answers)),
+		CanAddAnswer: len(f.Answers) < examfile.MaxAnswers,
 		ImageDropped: imageDropped,
 	}
 	for i, o := range f.Options {
@@ -473,6 +529,9 @@ func (f questionForm) fields(imageDropped bool) questionFields {
 			Down:    i < last,
 			Remove:  len(f.Options) > 2,
 		}
+	}
+	for i, a := range f.Answers {
+		v.Answers[i] = answerRow{Index: i, Number: i + 1, Text: a, Remove: len(f.Answers) > 1}
 	}
 	return v
 }

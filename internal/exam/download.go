@@ -36,8 +36,8 @@ func (s *Service) Download(ctx context.Context, actor Actor, examID int64) (File
 }
 
 // current is an exam's current revision. Exam holds the title, settings, Dir,
-// ImagePaths, the sections and every Source, Start and Correct; BodyHTML and
-// Images are empty.
+// ImagePaths, the sections and every Source, Start, Correct and accepted
+// answer; BodyHTML and Images are empty.
 type current struct {
 	Exam     examfile.Exam
 	MediaKey string
@@ -92,7 +92,7 @@ func (s *Service) currentRevision(ctx context.Context, actor Actor, examID int64
 		ImagePaths:      content.Images,
 	}
 	for i, q := range content.Questions {
-		eq := examfile.Question{Source: q.Source, Options: make([]examfile.Option, len(q.Options))}
+		eq := examfile.Question{Source: q.Source, Options: make([]examfile.Option, len(q.Options)), Answers: q.Answers}
 		for j, o := range q.Options {
 			eq.Options[j] = examfile.Option{Source: o.Source, Correct: o.Correct}
 		}

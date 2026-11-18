@@ -18,12 +18,12 @@ var shuffleText = map[Shuffle]string{
 	ShuffleQuestionsOptions: "questions, options",
 }
 
-// Format writes ex as exam text. For an exam whose Sources are block texts as
-// Parse returns them, Parse of the result (with the same files and media
-// base) returns the same title, settings, sections, Sources, HTML and correct
-// options. Format does not validate ex: sections are written in slice order,
-// each before the first question whose number is at least its Start, or
-// after the last question when there is none.
+// Format writes ex as exam text. For an exam whose Sources and accepted
+// answers are as Parse returns them, Parse of the result (with the same files
+// and media base) returns the same title, settings, sections, Sources, HTML,
+// correct options and accepted answers. Format does not validate ex: sections
+// are written in slice order, each before the first question whose number is
+// at least its Start, or after the last question when there is none.
 func Format(ex Exam) []byte {
 	var b strings.Builder
 	monitor := "off"
@@ -56,6 +56,9 @@ func Format(ex Exam) []byte {
 			}
 			writeBlock(&b, "-", o.Source, marker)
 		}
+		for _, a := range q.Answers {
+			writeBlock(&b, "=", a, "")
+		}
 	}
 	sectionsUpTo(math.MaxInt)
 	return []byte(b.String())
@@ -77,14 +80,10 @@ func writeBlock(b *strings.Builder, lead, source, marker string) {
 	}
 }
 
-// writeLines writes continuation lines. When one of them outside a fenced
-// block would start a question or a section at column 0, every non-empty
-// line is indented by four spaces, which dedent removes again on parse.
+// writeLines writes continuation lines, every non-empty one indented by
+// blockPad(lines), which dedent removes again on parse.
 func writeLines(b *strings.Builder, lines []string) {
-	pad := ""
-	if startsBlock(lines) {
-		pad = "    "
-	}
+	pad := blockPad(lines)
 	for _, l := range lines {
 		if l != "" {
 			b.WriteString(pad + l)
@@ -93,20 +92,30 @@ func writeLines(b *strings.Builder, lines []string) {
 	}
 }
 
-// startsBlock reports whether a line outside a fenced block matches the
-// question number grammar or, right-trimmed, is a section heading.
-func startsBlock(lines []string) bool {
+// blockPad is the indentation that keeps continuation lines text: eight
+// spaces when a line outside a fenced block is an accepted-answer line, else
+// four when one matches the question number grammar or, right-trimmed, is a
+// section heading, else none.
+func blockPad(lines []string) string {
+	pad := ""
 	inFence := false
 	for _, l := range lines {
 		if IsFence(l) {
 			inFence = !inFence
 			continue
 		}
-		if !inFence && (questionRe.MatchString(l) || sectionRe.MatchString(strings.TrimRightFunc(l, unicode.IsSpace))) {
-			return true
+		if inFence {
+			continue
+		}
+		trimmed := strings.TrimRightFunc(l, unicode.IsSpace)
+		if _, ok := answerLine(trimmed); ok {
+			return "        "
+		}
+		if questionRe.MatchString(l) || sectionRe.MatchString(trimmed) {
+			pad = "    "
 		}
 	}
-	return false
+	return pad
 }
 
 // EncodeUpload is the inverse of ReadUpload: the text alone when u has no

@@ -1,6 +1,6 @@
 # go-exam
 
-go-exam is a small, self-hosted web app for classroom multiple-choice exams. Students type the exam's code and their name, or open a link that carries the code, and take that exam within its time limit, the exam's own length (60 minutes unless the exam file says otherwise); the teacher imports exams from text files or writes them in the browser, opens and closes them by hand or on a schedule, and reviews the results. Teachers can also split an exam into named sections with instructions, see every change to an exam as a numbered revision, download an exam as a file, copy an exam and archive exams they no longer use.
+go-exam is a small, self-hosted web app for classroom exams with multiple-choice and fill-in questions. Students type the exam's code and their name, or open a link that carries the code, and take that exam within its time limit, the exam's own length (60 minutes unless the exam file says otherwise); the teacher imports exams from text files or writes them in the browser, opens and closes them by hand or on a schedule, and reviews the results. Teachers can also split an exam into named sections with instructions, see every change to an exam as a numbered revision, download an exam as a file, copy an exam and archive exams they no longer use.
 
 It is not a learning platform. Teachers sign in with their Google account, and only emails on the app's teacher list may sign in. Each teacher sees only their own exams and results; admins (the emails in `GOEXAM_ADMIN_EMAILS`) also see every exam and manage the teacher list. Students have no accounts. Several exams can be open at the same time.
 
@@ -67,7 +67,7 @@ A Google account can sign in only when its email is verified and on the teacher 
 ## Editor
 
 - New exam, on the exams page, writes an exam in the browser: its title, settings and first question. The new exam is closed and opens on its editor page.
-- Edit questions, on the exam page, lists the questions with Edit, Move up, Move down and Remove, plus Add question and Settings (title, shuffle, result shown, monitor, length). A question form holds the question text, two to ten options and the correct one; Add option, Remove, Up and Down change the list without saving, and Enter in a text field saves.
+- Edit questions, on the exam page, lists the questions with Edit, Move up, Move down and Remove, plus Add question and Settings (title, shuffle, result shown, monitor, length). A question form is multiple choice or fill-in; "Switch to fill-in" and "Switch to multiple choice" change it without saving. A multiple-choice form holds the question text, two to ten options and the correct one; Add option, Remove, Up and Down change the list without saving, and Enter in a text field saves. A fill-in form holds the question text and one to ten accepted answers; Add accepted answer and Remove change the list without saving. The form keeps both lists until you save, so switching back loses nothing; only the shown kind is saved.
 - The editor works only for an exam without attempts. Once a student has started, the exam is frozen as before.
 - A form opened before another save of the same exam (in another tab or by another teacher) is refused: "This exam changed since you opened this page. Nothing was saved." The typed text stays in the form; reopen the question to see the current version.
 - A question form can add an image (PNG, JPEG, GIF or WebP, up to 5 MB). Saving adds a line such as `![](3f2a….png)` (a name made from the file's content) at the end of the question text; move that line to place the image elsewhere, also into an option. When the end of the question text would hide that line (for example raw HTML there), the save is refused and no file is kept. A refused save cannot keep the chosen file, so choose it again.
@@ -94,9 +94,24 @@ A Google account can sign in only when its email is verified and on the teacher 
 
   close each one, let its running attempts end, and do not edit, replace, copy or download them until this version is back.
 
+## Fill-in questions
+
+- A fill-in question has no options: the student types a short answer. The teacher lists 1 to 10 accepted answers, and a typed answer is right when it matches one of them. An exam can mix fill-in and multiple-choice questions, also inside sections.
+- Matching ignores capital letters and extra spaces (before, after and between words). Accents and punctuation count. Numbers written the Indonesian way match by value: `1.003` matches `1003`, `0,50` matches `0,5` and `007` matches `7`. `1.5` and `1.00` are not numbers that way, so they match only the same text.
+- The student sees a text box under the question, up to 200 characters. It saves on its own after a short pause in typing and when the student leaves the box, with the same saved state and retry as a picked option. Clearing the box makes the question unanswered again. With the monitor on, pasting or dropping text into the box is blocked and reported as a paste; typing is not. With `show_result: review` the student's review shows their answer, whether it counted as correct, and the accepted answers.
+- The attempt page shows the typed answer, the accepted answers and the automatic mark. Once the attempt has ended, Mark right or Mark wrong overrides that mark, and Remove override returns to it; only the latest mark is kept, with who set it and when. An override changes the score everywhere: the attempt page, the results list, the section columns, the CSV and the student's result page. It works on frozen and archived exams and makes no revision. Unanswered questions and attempts in progress cannot be marked, and the student is not told.
+- The CSV has scores only, no typed answers.
+- Rolling back to the previous version (before fill-in questions): multiple-choice exams work as before. Fill-in questions show there without an answer box and count as wrong, so the scores of fill-in exams read too low; its editor save of a fill-in question is refused, its Download leaves the accepted answers out and its Copy answers an error page. Typed answers and overrides are kept and count again when this version is back. Before rolling back, list the exams with fill-in questions:
+
+  ```sh
+  sqlite3 "$db" "SELECT DISTINCT e.code FROM exam e JOIN question q ON q.exam_id = e.id WHERE q.accepted_answers IS NOT NULL"
+  ```
+
+  close each one, let its running attempts end, and do not read their results, download, copy, replace or delete attempts of them until this version is back.
+
 ## Revisions, download and copy
 
-- Importing an exam makes its revision 1; each Replace and each editor save makes the next one. A revision records its number, the time, the teacher and a summary: `Imported`, `Replaced from file`, `Copied from <title> (<code>), revision <N>`, or for an editor save `Created in the editor`, `Question N edited` (with `; correct option changed` when the correct option's text changed), `Question N added`, `Question N removed`, `Question N moved to M`, `Question N moved to section K`, `Section K started at question N`, `Section K edited`, `Section K removed` or `Settings changed: ` and the changed settings. Sections are named by their position, as questions are.
+- Importing an exam makes its revision 1; each Replace and each editor save makes the next one. A revision records its number, the time, the teacher and a summary: `Imported`, `Replaced from file`, `Copied from <title> (<code>), revision <N>`, or for an editor save `Created in the editor`, `Question N edited` (with `; correct option changed` when the correct option's text changed, or `; accepted answers changed` when a fill-in question's accepted answers changed), `Question N added`, `Question N removed`, `Question N moved to M`, `Question N moved to section K`, `Section K started at question N`, `Section K edited`, `Section K removed` or `Settings changed: ` and the changed settings. Sections are named by their position, as questions are.
 - History, on the exam page, lists the revisions newest first. Any revision opens read-only with its settings, questions, correct options and images.
 - Once an exam has an attempt it is frozen: no Replace, no editor save and no new revision. To change it, copy it.
 - Each attempt records the revision it started on; the attempt page shows it as a link to that revision. The results list and the CSV do not show it.
@@ -195,6 +210,19 @@ Choose **one** answer.
 - 6 dollars
 ```
 
+A fill-in question lists its accepted answers on `=` lines instead of options:
+
+```markdown
+# Chapter 5 quiz
+
+1. What is the capital of Indonesia?
+= Jakarta
+= DKI Jakarta
+
+2. How much is 1.000 + 3?
+= 1.003
+```
+
 Rules:
 
 - The first line is the title: `# Title`.
@@ -202,8 +230,9 @@ Rules:
 - With `monitor: on`, the exam page blocks copy, cut, paste and the right-click menu, and reports to the teacher when the student leaves the page for more than 3 seconds, tries one of those blocked actions or resizes the window. The student sees "Your teacher has been notified." after each event, and the page asks the browser to keep the screen on. The teacher sees the count in the results list (Flags) and CSV (`flags`), and each event on the attempt page. The monitor cannot see other apps, other devices, screenshots or browser extensions; it discourages cheating, it does not prevent it. Events never change answers, time or score.
 - Questions are numbered `1.`, `2.`, … at the start of a line.
 - A line `## Title` before a question starts a section; the lines after it, up to the next question number, are the section's instructions. See [Sections](#sections).
-- Options start with `- `. Each question needs at least two.
+- Options start with `- `. Each multiple-choice question needs at least two.
 - Mark exactly one option per question as correct with a trailing `*`.
+- Lines starting with `= ` list a fill-in question's accepted answers: 1 to 10 per question, each one line of plain text, up to 200 characters. A question has either options or accepted answers, never both. An `=` line indented 8 or more columns (a tab counts 4), inside a code block or in a section's instructions is text. See [Fill-in questions](#fill-in-questions).
 - Text supports bold (`**bold**`), italics (`*italics*`), inline `` `code` ``, line breaks, fenced code blocks (```` ``` ````) and images (`![description](file.png)`).
 - To use images, upload a `.zip` containing the text file and the image files (PNG, JPEG, GIF or WebP). File names inside the zip must be valid UTF-8, which every current zip tool writes.
 - Uploads are limited to 10 MB and must finish within 60 seconds, which needs an upload speed of about 1.4 Mbit/s for a 10 MB file.
@@ -245,6 +274,11 @@ uv run e2e/archive.py --rollback --base-url http://localhost:8080 --admin-email 
 uv run e2e/sections.py   --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/sections
 # Rollback rehearsal: start the previous release's binary (293ab19) on a copy of the data directory sections.py left, then:
 uv run e2e/sections.py --rollback --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/sections-rollback
+uv run e2e/fillin.py     --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/fillin
+# Rollback rehearsal: start the previous release's binary (1bddec5) on a copy of the data directory fillin.py left, then:
+uv run e2e/fillin.py --rollback --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/fillin-rollback
+# Then start this release on that copy again:
+uv run e2e/fillin.py --returned --expect-csv e2e/out/fillin/attempts.csv --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/fillin-returned
 # The server must run with GOEXAM_TIME_ZONE=Asia/Jakarta; the run waits about two minutes on the real clock:
 uv run e2e/scheduled_exams.py --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --time-zone Asia/Jakarta --out e2e/out/scheduled-exams
 

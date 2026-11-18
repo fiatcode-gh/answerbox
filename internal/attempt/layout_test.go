@@ -277,3 +277,29 @@ func TestLayout_Sections(t *testing.T) {
 		}
 	}
 }
+
+// A fill-in question has no options, so it draws nothing from the shuffle:
+// the rest of the layout is the one a single-option question would give.
+func TestLayout_FillInDrawsNothing(t *testing.T) {
+	for seed := range int64(20) {
+		fillIn := gridQuestions(5, 4)
+		fillIn[1].Options = nil
+		fillIn[1].Answers = []string{"Jakarta"}
+		single := gridQuestions(5, 4)
+		single[1].Options = single[1].Options[:1]
+
+		a := layout(fillIn, examfile.ShuffleQuestionsOptions, seed)
+		b := layout(single, examfile.ShuffleQuestionsOptions, seed)
+		if !reflect.DeepEqual(questionPositions(a), questionPositions(b)) {
+			t.Fatalf("seed %d: questions = %v, want %v", seed, questionPositions(a), questionPositions(b))
+		}
+		for i := range a {
+			if a[i].Position == 2 {
+				continue
+			}
+			if !reflect.DeepEqual(optionPositions(a[i]), optionPositions(b[i])) {
+				t.Fatalf("seed %d: options of %d = %v, want %v", seed, a[i].Position, optionPositions(a[i]), optionPositions(b[i]))
+			}
+		}
+	}
+}

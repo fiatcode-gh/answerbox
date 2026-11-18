@@ -1,10 +1,10 @@
 {{define "preview_question_body"}}
     <div class="question-body">{{.BodyHTML}}</div>
-    <ol class="preview-options">
+    {{if .FillIn}}<div class="preview-answers"><p class="accepted-label">Accepted answers</p><ul class="accepted-answers">{{range .Answers}}<li>{{.}}</li>{{end}}</ul></div>{{else}}<ol class="preview-options">
       {{range .Options}}
       <li data-correct="{{.Correct}}"><div class="option-body">{{.BodyHTML}}</div>{{if .Correct}}<span class="correct-mark">✓ Correct</span>{{end}}</li>
       {{end}}
-    </ol>
+    </ol>{{end}}
 {{end}}
 
 {{define "preview_questions"}}

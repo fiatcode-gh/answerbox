@@ -12,6 +12,7 @@
   var RETRY_FIRST_MS = 1000;
   var RETRY_MAX_MS = 10000;
   var TIME_UP_WAIT_MS = 2000;
+  var TYPE_PAUSE_MS = 800; // a typed answer is sent once typing pauses this long
   var NARROW = window.matchMedia("(max-width: 991.98px)");
   var ANNOUNCEMENTS = [
     { seconds: 600, text: "10 minutes left" },
@@ -47,24 +48,33 @@
   var stopped = false; // time is up or the attempt moved: no more input
   var moved = false;
 
-  // One save record per question, in page order.
+  // textValue is a typed answer as the queue holds it: null when blank.
+  function textValue(input) {
+    return input.value.trim() === "" ? null : input.value;
+  }
+
+  // One save record per question, in page order. A fill-in question has a
+  // text box (input) and no radios; its value is the typed text.
   var questions = Array.prototype.map.call(
     document.querySelectorAll("section.question"),
     function (section) {
+      var input = section.querySelector("input.answer-text");
       var checked = section.querySelector("input[type=radio]:checked");
-      var value = checked ? checked.value : null;
+      var value = input ? textValue(input) : checked ? checked.value : null;
       return {
         id: section.dataset.questionId,
         radios: section.querySelectorAll("input[type=radio]"),
+        input: input,
         state: section.querySelector(".q-state"),
         bubble: nav.querySelector('a.bubble[href="#' + section.id + '"]'),
         want: value,
         sent: value,
         inFlight: false,
         failed: false,
-        rejected: false, // the server refused the last pick: wait for a new one
+        rejected: false, // the server refused the last answer: wait for a new one
         retryDelay: RETRY_FIRST_MS,
         retryTimer: null,
+        typeTimer: null, // waiting for typing to pause
       };
     }
   );
@@ -153,7 +163,7 @@
     var retrying = questions.some(function (q) {
       return unsaved(q) && q.failed;
     });
-    var rejected = questions.some(function (q) {
+    var rejected = questions.find(function (q) {
       return q.rejected;
     });
     if (retrying) {
@@ -164,7 +174,7 @@
       saveState.textContent = "Saving…";
     } else if (rejected) {
       saveState.dataset.state = "error";
-      saveState.textContent = "✗ Not saved — choose again";
+      saveState.textContent = rejected.input ? "✗ Not saved — check your answer" : "✗ Not saved — choose again";
     } else {
       saveState.dataset.state = "saved";
       saveState.textContent = "✓ All answers saved";
@@ -204,6 +214,12 @@
       q.retryTimer = null;
     }
     var value = q.want;
+    var fields = { question: q.id };
+    if (q.input) {
+      fields.text = value === null ? "" : value;
+    } else {
+      fields.option = value;
+    }
     var controller = new AbortController();
     var timeout = setTimeout(function () {
       controller.abort();
@@ -218,7 +234,7 @@
         "Content-Type": "application/x-www-form-urlencoded",
         Accept: "application/json",
       },
-      body: new URLSearchParams({ question: q.id, option: value }).toString(),
+      body: new URLSearchParams(fields).toString(),
       signal: controller.signal,
     })
       .then(function (res) {
@@ -250,9 +266,9 @@
               return;
             case 422:
               if (q.want === value) {
-                rejectPick(q);
+                rejectAnswer(q);
               } else {
-                pump(q); // a newer pick is waiting; send that one
+                pump(q); // a newer answer is waiting; send that one
               }
               return;
             default:
@@ -271,10 +287,11 @@
       );
   }
 
-  // rejectPick handles a pick the server refused. Retrying cannot help, so
-  // the question goes back to its last saved answer (Submit is not blocked by
-  // it) and shows an error until the student picks again.
-  function rejectPick(q) {
+  // rejectAnswer handles an answer the server refused. Retrying cannot help,
+  // so the question goes back to its last saved answer (Submit is not blocked
+  // by it) and shows an error until the student answers again. A text box
+  // keeps what the student typed.
+  function rejectAnswer(q) {
     q.want = q.sent;
     q.failed = false;
     q.rejected = true;
@@ -284,6 +301,13 @@
     q.bubble.dataset.answered = q.want === null ? "false" : "true";
     renderAnswered();
     render();
+  }
+
+  function clearTypeTimer(q) {
+    if (q.typeTimer !== null) {
+      clearTimeout(q.typeTimer);
+      q.typeTimer = null;
+    }
   }
 
   questions.forEach(function (q) {
@@ -297,6 +321,30 @@
         q.bubble.dataset.answered = "true";
         renderAnswered();
         render();
+        pump(q);
+      });
+    });
+    if (!q.input) {
+      return;
+    }
+    q.input.addEventListener("input", function () {
+      if (stopped) {
+        return;
+      }
+      q.want = textValue(q.input);
+      q.rejected = false;
+      q.bubble.dataset.answered = q.want === null ? "false" : "true";
+      renderAnswered();
+      render();
+      clearTypeTimer(q);
+      q.typeTimer = setTimeout(function () {
+        q.typeTimer = null;
+        pump(q);
+      }, TYPE_PAUSE_MS);
+    });
+    ["change", "blur"].forEach(function (type) {
+      q.input.addEventListener(type, function () {
+        clearTypeTimer(q);
         pump(q);
       });
     });
@@ -319,6 +367,9 @@
       Array.prototype.forEach.call(q.radios, function (radio) {
         radio.disabled = true;
       });
+      if (q.input) {
+        q.input.disabled = true;
+      }
     });
   }
 
@@ -328,6 +379,13 @@
     }
     stopped = true;
     stopCountdown();
+    // The last typed characters go out now, inside the wait below.
+    questions.forEach(function (q) {
+      if (q.typeTimer !== null) {
+        clearTypeTimer(q);
+        pump(q);
+      }
+    });
     disableInputs();
     document.getElementById("time-up").hidden = false;
     var since = performance.now();
@@ -350,6 +408,7 @@
     disableInputs();
     submitOpen.disabled = true;
     questions.forEach(function (q) {
+      clearTypeTimer(q);
       if (q.retryTimer !== null) {
         clearTimeout(q.retryTimer);
         q.retryTimer = null;
@@ -604,7 +663,8 @@
     // the monitor stays off and the rest of the page keeps working.
     monitorBanner = document.getElementById("monitor-banner");
     bannerText = monitorBanner.textContent; // the template holds the wording
-    var blocked = { copy: "copy", cut: "copy", paste: "paste", contextmenu: "right_click" };
+    // A drop into the answer box inserts text like a paste, so it counts as one.
+    var blocked = { copy: "copy", cut: "copy", paste: "paste", drop: "paste", contextmenu: "right_click" };
     Object.keys(blocked).forEach(function (type) {
       document.addEventListener(type, function (event) {
         event.preventDefault();

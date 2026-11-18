@@ -25,10 +25,12 @@
 
 {{define "question_fields"}}
 <div class="question-fields">
+  <input type="hidden" name="kind" value="{{if .FillIn}}fill_in{{else}}choice{{end}}">
+  <p class="question-kind">{{if .FillIn}}Fill-in <button type="submit" class="secondary" name="do" value="kind:choice" formnovalidate>Switch to multiple choice</button>{{else}}Multiple choice <button type="submit" class="secondary" name="do" value="kind:fill_in" formnovalidate>Switch to fill-in</button>{{end}}</p>
   <label for="question-text">Question text</label>
   <textarea id="question-text" name="text" rows="6">
 {{.Text}}</textarea>
-  <fieldset class="option-list">
+  <fieldset class="option-list"{{if .FillIn}} hidden{{end}}>
     <legend>Options</legend>
     {{range .Options}}
     <div class="option-row">
@@ -43,7 +45,18 @@
     </div>
     {{end}}
   </fieldset>
-  {{if .CanAdd}}<div class="option-add"><button type="submit" class="secondary" name="do" value="add" formnovalidate>Add option</button></div>{{end}}
+  {{if .CanAdd}}<div class="option-add"{{if .FillIn}} hidden{{end}}><button type="submit" class="secondary" name="do" value="add" formnovalidate>Add option</button></div>{{end}}
+  <fieldset class="answer-list"{{if not .FillIn}} hidden{{end}}>
+    <legend>Accepted answers</legend>
+    {{range .Answers}}
+    <div class="answer-row">
+      <input type="text" name="answer" value="{{.Text}}" maxlength="200" autocomplete="off" aria-label="Accepted answer {{.Number}}">
+      {{if .Remove}}<button type="submit" class="secondary" name="do" value="answer-remove:{{.Index}}" formnovalidate>Remove</button>{{end}}
+    </div>
+    {{end}}
+    {{if .CanAddAnswer}}<div class="answer-add"><button type="submit" class="secondary" name="do" value="answer-add" formnovalidate>Add accepted answer</button></div>{{end}}
+    <small>A typed answer is right when it matches one of these, ignoring capital letters and extra spaces. Numbers match by value: 1.003 and 1003, or 0,5 and 0,50.</small>
+  </fieldset>
   <label for="question-image">Add an image (PNG, JPEG, GIF or WebP, up to 5 MB)</label>
   <input type="file" id="question-image" name="image" accept="image/png,image/jpeg,image/gif,image/webp" aria-describedby="question-image-note">
   {{if .ImageDropped}}<p class="image-dropped">The image was not kept. Choose it again.</p>{{end}}
@@ -55,6 +68,7 @@
       <li>Code blocks: a line <code>```</code> before and after the code.</li>
       <li>Images: <code>![description](file.png)</code>, as on the import page.</li>
       <li>As in an exam file, a line that starts with <code>-</code> is read as an option and an option that ends with <code>*</code> is read as the correct one. Write <code>\-</code> or <code>\*</code> to show the character.</li>
+      <li>In an exam file, a fill-in question lists its accepted answers on lines that start with <code>=</code> instead of option lines. An accepted answer is plain text on one line, up to 200 characters. A line of question or option text that starts with <code>=</code> stays text.</li>
     </ul>
   </details>
 </div>

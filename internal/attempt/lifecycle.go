@@ -110,49 +110,33 @@ func (s *Service) View(ctx context.Context, token string) (View, error) {
 	if err != nil {
 		return View{}, err
 	}
-	picked, err := loadAnswers(ctx, tx, id)
+	answers, err := loadAnswers(ctx, tx, "a.id = ?", id)
 	if err != nil {
 		return View{}, err
 	}
+	sc := newScorer(questions)
 	questions = layout(questions, shuffle, seed)
 
 	if v.Status == InProgress {
 		v.Remaining = remaining(deadline, now)
-		v.Questions = viewQuestions(questions, picked)
+		v.Questions = viewQuestions(questions, answers[id])
 	} else {
-		v.Result = result(questions, picked, show)
+		v.Result = result(sc, questions, answers[id], show)
 	}
 	return v, tx.Commit()
-}
-
-// loadAnswers returns the attempt's picks as question ID → option ID.
-func loadAnswers(ctx context.Context, tx *sql.Tx, attemptID int64) (map[int64]int64, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT question_id, option_id FROM answer WHERE attempt_id = ?`, attemptID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	picked := map[int64]int64{}
-	for rows.Next() {
-		var q, o int64
-		if err := rows.Scan(&q, &o); err != nil {
-			return nil, err
-		}
-		picked[q] = o
-	}
-	return picked, rows.Err()
 }
 
 func letter(i int) string { return string(rune('A' + i)) }
 
 // viewQuestions renders laid-out questions for the student, without the key.
-func viewQuestions(questions []exam.Question, picked map[int64]int64) []ViewQuestion {
+func viewQuestions(questions []exam.Question, answers map[int64]given) []ViewQuestion {
 	out := make([]ViewQuestion, len(questions))
 	for i, q := range questions {
-		vq := ViewQuestion{ID: q.ID, Number: i + 1, BodyHTML: q.BodyHTML, Section: q.Section}
+		g := answers[q.ID]
+		vq := ViewQuestion{ID: q.ID, Number: i + 1, BodyHTML: q.BodyHTML, Section: q.Section, FillIn: q.FillIn(), Typed: g.text}
 		for j, o := range q.Options {
 			vq.Options = append(vq.Options, ViewOption{
-				ID: o.ID, Letter: letter(j), BodyHTML: o.BodyHTML, Picked: picked[q.ID] == o.ID,
+				ID: o.ID, Letter: letter(j), BodyHTML: o.BodyHTML, Picked: g.option == o.ID,
 			})
 		}
 		out[i] = vq
@@ -160,30 +144,29 @@ func viewQuestions(questions []exam.Question, picked map[int64]int64) []ViewQues
 	return out
 }
 
-// result is what a finished attempt may show under the exam's show_result.
-func result(questions []exam.Question, picked map[int64]int64, show examfile.ShowResult) *Result {
+// result is what a finished attempt may show under the exam's show_result;
+// questions are laid out in attempt order and sc holds them in file order.
+func result(sc scorer, questions []exam.Question, answers map[int64]given, show examfile.ShowResult) *Result {
 	r := &Result{ShowResult: show}
 	if show == examfile.ShowNone {
 		return r
 	}
 	r.Total = len(questions)
-	for _, q := range questions {
-		for _, o := range q.Options {
-			if o.Correct && picked[q.ID] == o.ID {
-				r.Score++
-			}
-		}
-	}
+	r.Score, _ = sc.score(answers, 0)
 	if show != examfile.ShowReview {
 		return r
 	}
 	r.Review = make([]ReviewQuestion, len(questions))
 	for i, q := range questions {
-		pick, answered := picked[q.ID]
-		rq := ReviewQuestion{Number: i + 1, BodyHTML: q.BodyHTML, Answered: answered, Section: q.Section}
+		g := answers[q.ID]
+		answered := g.answered()
+		rq := ReviewQuestion{
+			Number: i + 1, BodyHTML: q.BodyHTML, Answered: answered, Section: q.Section,
+			FillIn: q.FillIn(), Typed: g.text, Right: sc.right(q, g), Accepted: q.Answers,
+		}
 		for j, o := range q.Options {
 			rq.Options = append(rq.Options, ReviewOption{
-				Letter: letter(j), BodyHTML: o.BodyHTML, Picked: answered && pick == o.ID, Correct: o.Correct,
+				Letter: letter(j), BodyHTML: o.BodyHTML, Picked: answered && g.option == o.ID, Correct: o.Correct,
 			})
 		}
 		r.Review[i] = rq
@@ -243,6 +226,56 @@ func (s *Service) SaveAnswer(ctx context.Context, token string, questionID, opti
 	_, err = tx.ExecContext(ctx, `INSERT INTO answer (attempt_id, question_id, option_id) VALUES (?, ?, ?)
 		ON CONFLICT (attempt_id, question_id) DO UPDATE SET option_id = excluded.option_id`,
 		a.id, questionID, optionID)
+	if err != nil {
+		return 0, err
+	}
+	return remaining(a.deadline, now), tx.Commit()
+}
+
+const maxAnswerRunes = 200
+
+// SaveText stores the student's typed answer to a fill-in question and
+// returns the time left; an answer that is empty after trimming removes
+// the stored one, so the question is unanswered again.
+func (s *Service) SaveText(ctx context.Context, token string, questionID int64, text string) (time.Duration, error) {
+	if !utf8.ValidString(text) || strings.IndexFunc(text, unicode.IsControl) >= 0 {
+		return 0, ErrInvalidAnswer
+	}
+	text = strings.TrimSpace(text)
+	if utf8.RuneCountInString(text) > maxAnswerRunes {
+		return 0, ErrInvalidAnswer
+	}
+	tx, now, err := s.begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	a, err := lookup(ctx, tx, token)
+	if err != nil {
+		return 0, err
+	}
+	if a.status != InProgress {
+		// Commit so a finalisation by this call's sweep is kept.
+		if err := tx.Commit(); err != nil {
+			return 0, err
+		}
+		return 0, ErrFinished
+	}
+	var fillIn bool
+	err = tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM question
+		WHERE id = ? AND exam_id = ? AND accepted_answers IS NOT NULL)`, questionID, a.examID).Scan(&fillIn)
+	if err != nil {
+		return 0, err
+	}
+	if !fillIn {
+		return 0, ErrInvalidAnswer
+	}
+	if text == "" {
+		_, err = tx.ExecContext(ctx, `DELETE FROM typed_answer WHERE attempt_id = ? AND question_id = ?`, a.id, questionID)
+	} else {
+		_, err = tx.ExecContext(ctx, `INSERT INTO typed_answer (attempt_id, question_id, text) VALUES (?, ?, ?)
+			ON CONFLICT (attempt_id, question_id) DO UPDATE SET text = excluded.text`, a.id, questionID, text)
+	}
 	if err != nil {
 		return 0, err
 	}

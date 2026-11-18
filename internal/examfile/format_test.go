@@ -316,6 +316,62 @@ var roundTripTexts = map[string]string{
 		"- c *",
 		"- d",
 	),
+	"fill-in": lines(
+		"# T",
+		"1. Ibu kota ....",
+		"= Jakarta",
+		"   = DKI Jakarta",
+		"",
+		"2. Q",
+		"- a *",
+		"- b",
+	),
+	"fill-in in sections": lines(
+		"# T",
+		"## A",
+		"Isi.",
+		"1. Q",
+		"= x",
+		"## B",
+		"2. R",
+		"=\t**y** *  ",
+		"",
+		"= z",
+		"3. S",
+		"- c",
+		"- d *",
+	),
+	"answer-like line in question text": lines(
+		"# T",
+		"1. Q",
+		"        2 + 3",
+		"        = 5",
+		"- a *",
+		"- b",
+	),
+	"answer-like line in option text": lines(
+		"# T",
+		"1. Q",
+		"- a *",
+		"          = 5",
+		"- b",
+	),
+	"answer-like line in instructions": lines(
+		"# T",
+		"## A",
+		"= x",
+		"1. Q",
+		"- a *",
+		"- b",
+	),
+	"answer-like line in fence": lines(
+		"# T",
+		"1. Q",
+		"```",
+		"= 5",
+		"```",
+		"= 5",
+	),
 }
 
 // roundTripFiles are the upload files and folder used with a round-trip text.
@@ -490,6 +546,56 @@ func TestFormat_Layout(t *testing.T) {
 	if got, want := string(Format(sectioned)), "- d\n\n## Late\nx\n"; !strings.HasSuffix(got, want) {
 		t.Errorf("Format =\n%q\nwant suffix\n%q", got, want)
 	}
+}
+
+func TestFormat_FillIn(t *testing.T) {
+	head := "# Quiz\nshuffle: none\nshow_result: score\nmonitor: on\nduration: 30\n"
+	exam := func(qs ...Question) Exam {
+		return Exam{Title: "Quiz", Shuffle: ShuffleNone, ShowResult: ShowScore, Monitor: true, DurationMinutes: 30, Questions: qs}
+	}
+	twoOptions := []Option{{Source: "a", Correct: true}, {Source: "b"}}
+
+	t.Run("layout", func(t *testing.T) {
+		got := string(Format(exam(Question{Source: "Q\nmore", Answers: []string{"a", "b c"}})))
+		if want := head + "\n1. Q\nmore\n= a\n= b c\n"; got != want {
+			t.Errorf("Format =\n%q\nwant\n%q", got, want)
+		}
+	})
+
+	t.Run("answer-like line is indented by eight", func(t *testing.T) {
+		out := string(Format(mustParse(t, textUpload(roundTripTexts["answer-like line in question text"]))))
+		want := "1. Q\n        2 + 3\n        = 5\n- a *"
+		if !strings.Contains(out, want) {
+			t.Errorf("Format =\n%s\nwant it to contain\n%s", out, want)
+		}
+	})
+
+	reparse := func(t *testing.T, ex Exam) Question {
+		t.Helper()
+		out := Format(ex)
+		got, err := Parse(textUpload(string(out)), "/media/k")
+		if err != nil {
+			t.Fatalf("Parse(Format(ex)): %v\nformatted:\n%s", err, out)
+		}
+		return got.Questions[0]
+	}
+
+	t.Run("stored revision", func(t *testing.T) {
+		q := reparse(t, exam(Question{Source: "Hitung:\n2 + 3\n= 5", Options: twoOptions}))
+		if q.Source != "Hitung:\n2 + 3\n= 5" || len(q.Options) != 2 || q.Answers != nil {
+			t.Errorf("question = %+v", q)
+		}
+	})
+
+	t.Run("question-like and answer-like lines", func(t *testing.T) {
+		ex := exam(Question{Source: "Q\n12. x\n= 5", Options: twoOptions})
+		if out, want := string(Format(ex)), "1. Q\n        12. x\n        = 5\n- a *"; !strings.Contains(out, want) {
+			t.Errorf("Format =\n%s\nwant it to contain\n%s", out, want)
+		}
+		if q := reparse(t, ex); q.Source != "Q\n12. x\n= 5" || len(q.Options) != 2 || q.Answers != nil {
+			t.Errorf("question = %+v", q)
+		}
+	})
 }
 
 func FuzzFormatRoundTrip(f *testing.F) {

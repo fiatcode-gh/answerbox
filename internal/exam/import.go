@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -193,7 +194,9 @@ func (s *Service) writeImages(key string, images []examfile.Image) (created []st
 }
 
 // insertQuestions inserts the questions and options of ex; a question that
-// starts a section carries its title and HTML, every other one NULL.
+// starts a section carries its title and HTML, every other one NULL. It is
+// the only writer of accepted_answers: a JSON array for a fill-in question,
+// NULL for multiple choice.
 func insertQuestions(ctx context.Context, tx *sql.Tx, examID int64, ex examfile.Exam) error {
 	next := 0 // ex.Sections are in Start order
 	for i, q := range ex.Questions {
@@ -204,9 +207,17 @@ func insertQuestions(ctx context.Context, tx *sql.Tx, examID int64, ex examfile.
 			html = sql.NullString{String: string(s.BodyHTML), Valid: true}
 			next++
 		}
+		var answers sql.NullString
+		if len(q.Answers) > 0 {
+			doc, err := json.Marshal(q.Answers)
+			if err != nil {
+				return fmt.Errorf("exam: accepted answers: %w", err)
+			}
+			answers = sql.NullString{String: string(doc), Valid: true}
+		}
 		res, err := tx.ExecContext(ctx,
-			`INSERT INTO question (exam_id, position, body_html, section_title, section_html) VALUES (?, ?, ?, ?, ?)`,
-			examID, i+1, string(q.BodyHTML), title, html)
+			`INSERT INTO question (exam_id, position, body_html, section_title, section_html, accepted_answers) VALUES (?, ?, ?, ?, ?, ?)`,
+			examID, i+1, string(q.BodyHTML), title, html, answers)
 		if err != nil {
 			return fmt.Errorf("exam: insert question: %w", err)
 		}

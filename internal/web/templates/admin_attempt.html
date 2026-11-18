@@ -49,15 +49,26 @@
     {{end}}
   </section>
 
-  {{range .Attempt.Questions}}
+  {{range .Questions}}
   {{with .Section}}{{template "section_head" .}}{{end}}<section class="detail-question" id="q{{.Position}}">
     <p class="eyebrow">Question {{.Position}}{{if not .Answered}} · <span class="no-answer">No answer</span>{{end}}</p>
     <div class="question-body">{{.BodyHTML}}</div>
-    <ol class="preview-options detail-options">
+    {{if .FillIn}}<div class="detail-fill-in" data-answered="{{.Answered}}" data-correct="{{.Right}}">
+      {{if .Answered}}<p class="typed-answer">Typed answer: <span class="typed-text">{{.Typed}}</span></p>{{end}}
+      <p class="accepted-label">Accepted answers</p><ul class="accepted-answers">{{range .Accepted}}<li>{{.}}</li>{{end}}</ul>
+      {{if .Answered}}<p class="auto-mark" data-auto="{{.Auto}}">Automatic mark: {{if .Auto}}✓ Right{{else}}✗ Wrong{{end}}</p>{{end}}
+      {{if .Override}}<p class="override-mark" data-override="{{.Override.Correct}}">Marked {{if .Override.Correct}}right{{else}}wrong{{end}} by {{.Override.TeacherEmail}} on <time>{{.OverrideAt}}</time></p>{{end}}
+      {{if .CanOverride}}<form class="override-form" method="post" action="/admin/exams/{{$.Exam.ID}}/attempts/{{$.Attempt.ID}}/questions/{{.Position}}/override">
+        <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+        <button type="submit" name="mark" value="right" class="secondary">Mark right</button>
+        <button type="submit" name="mark" value="wrong" class="secondary">Mark wrong</button>
+        {{if .Override}}<button type="submit" name="mark" value="none" class="secondary">Remove override</button>{{end}}
+      </form>{{end}}
+    </div>{{else}}<ol class="preview-options detail-options">
       {{range .Options}}
       <li data-correct="{{.Correct}}" data-picked="{{.Picked}}"><div class="option-body">{{.BodyHTML}}</div>{{if or .Correct .Picked}}<p class="option-marks">{{if .Correct}}<span class="correct-mark">✓ Correct</span>{{end}}{{if .Picked}}<span class="pick-mark">{{if not .Correct}}✗ {{end}}Student's pick</span>{{end}}</p>{{end}}</li>
       {{end}}
-    </ol>
+    </ol>{{end}}
   </section>
   {{end}}
 </main>

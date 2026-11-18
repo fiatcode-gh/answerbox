@@ -26,6 +26,7 @@ func (s *server) mountTeacherResults(admin *http.ServeMux) {
 	admin.HandleFunc("GET /admin/exams/{id}/attempts/{aid}/delete", s.attemptDeleteConfirm)
 	admin.HandleFunc("POST /admin/exams/{id}/attempts/{aid}/delete", s.attemptDelete)
 	admin.HandleFunc("POST /admin/exams/{id}/attempts/{aid}/rename", s.attemptRename)
+	admin.HandleFunc("POST /admin/exams/{id}/attempts/{aid}/questions/{n}/override", s.attemptOverride)
 }
 
 // resultsExam resolves the {id} exam of a results route for the signed-in
@@ -425,16 +426,31 @@ func (s *server) resultsAttempt(w http.ResponseWriter, r *http.Request) (exam.Ex
 // renameAlert reports a refused rename on the attempt page.
 const renameAlert = "Enter a name (1 to 100 characters)."
 
+// The alerts of a refused mark on the attempt page.
+const (
+	overrideInProgressAlert = "This attempt is still in progress. An answer can be marked once it has ended."
+	overrideRefusedAlert    = "Only an answered fill-in question can be marked right or wrong."
+)
+
 type attemptDetailData struct {
 	adminPage
 	Exam              exam.Exam
 	Attempt           attempt.Detail
+	Questions         []attemptQuestion // Attempt.Questions with what the page adds
 	Status            statusLabel
 	Started, Finished string
 	Zone              string
 	Events            []eventRow
 	RenameName        string // value of the rename field
 	Alert             string
+}
+
+// attemptQuestion is a question of the attempt page with what the page
+// adds for a fill-in question.
+type attemptQuestion struct {
+	attempt.DetailQuestion
+	OverrideAt  string // the override's date and time in the configured zone; "" without one
+	CanOverride bool   // an answered fill-in question of a finished attempt
 }
 
 func (s *server) attemptDetail(w http.ResponseWriter, r *http.Request) {
@@ -446,7 +462,7 @@ func (s *server) attemptDetail(w http.ResponseWriter, r *http.Request) {
 }
 
 // renderAttemptDetail renders the attempt page. renameName fills the rename
-// field; a non-empty alert reports a refused rename.
+// field; a non-empty alert reports a refused rename or mark.
 func (s *server) renderAttemptDetail(w http.ResponseWriter, r *http.Request, status int,
 	e exam.Exam, d attempt.Detail, renameName, alert string) {
 	data := attemptDetailData{
@@ -462,6 +478,13 @@ func (s *server) renderAttemptDetail(w http.ResponseWriter, r *http.Request, sta
 	}
 	if d.Status != attempt.InProgress {
 		data.Finished = s.fullTime(d.FinishedAt)
+	}
+	for _, q := range d.Questions {
+		row := attemptQuestion{DetailQuestion: q, CanOverride: d.Status != attempt.InProgress && q.FillIn && q.Answered}
+		if q.Override != nil {
+			row.OverrideAt = s.fullTime(q.Override.At)
+		}
+		data.Questions = append(data.Questions, row)
 	}
 	shuffled := e.Shuffle != examfile.ShuffleNone
 	for _, ev := range d.Events {
@@ -497,6 +520,43 @@ func (s *server) attemptRename(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 	default:
 		http.Redirect(w, r, attemptPath(e.ID, aid), http.StatusSeeOther)
+	}
+}
+
+// attemptOverride sets, replaces or removes the teacher's mark on the typed
+// answer to file question {n} of the attempt.
+func (s *server) attemptOverride(w http.ResponseWriter, r *http.Request) {
+	e, ok := s.resultsExam(w, r)
+	if !ok {
+		return
+	}
+	aid, ok := attemptID(r)
+	if !ok {
+		s.notFound(w, r)
+		return
+	}
+	n, err := strconv.Atoi(r.PathValue("n"))
+	if err != nil {
+		s.notFound(w, r)
+		return
+	}
+	err = s.deps.Attempts.Override(r.Context(), e.ID, aid, n, actorFrom(r).TeacherID, attempt.Mark(r.PostFormValue("mark")))
+	refused := func(status int, alert string) {
+		if e, d, ok := s.resultsAttempt(w, r); ok {
+			s.renderAttemptDetail(w, r, status, e, d, d.StudentName, alert)
+		}
+	}
+	switch {
+	case errors.Is(err, attempt.ErrNotFound):
+		s.notFound(w, r)
+	case errors.Is(err, attempt.ErrInProgress):
+		refused(http.StatusConflict, overrideInProgressAlert)
+	case errors.Is(err, attempt.ErrNotOverridable), errors.Is(err, attempt.ErrInvalidMark):
+		refused(http.StatusUnprocessableEntity, overrideRefusedAlert)
+	case err != nil:
+		s.serverError(w, r, err)
+	default:
+		http.Redirect(w, r, attemptPath(e.ID, aid)+"#q"+strconv.Itoa(n), http.StatusSeeOther)
 	}
 }
 

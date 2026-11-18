@@ -309,7 +309,7 @@ func newExamPageData(v attempt.View) examPageData {
 		d.Level = "warn"
 	}
 	for _, q := range v.Questions {
-		eq := examQuestion{ViewQuestion: q}
+		eq := examQuestion{ViewQuestion: q, Answered: q.Typed != ""}
 		for _, o := range q.Options {
 			eq.Answered = eq.Answered || o.Picked
 		}
@@ -413,18 +413,31 @@ func (s *server) studentJSONForm(w http.ResponseWriter, r *http.Request) (string
 	return token, true
 }
 
+// answer saves one answer: question plus exactly one of option (multiple
+// choice) or text (fill-in).
 func (s *server) answer(w http.ResponseWriter, r *http.Request) {
 	token, ok := s.studentJSONForm(w, r)
 	if !ok {
 		return
 	}
 	questionID, qErr := strconv.ParseInt(r.PostFormValue("question"), 10, 64)
-	optionID, oErr := strconv.ParseInt(r.PostFormValue("option"), 10, 64)
-	if qErr != nil || oErr != nil {
+	hasOption, hasText := r.PostForm.Has("option"), r.PostForm.Has("text")
+	if qErr != nil || hasOption == hasText {
 		s.writeJSON(w, r, http.StatusUnprocessableEntity, errorResponse{"invalid"})
 		return
 	}
-	remaining, err := s.deps.Attempts.SaveAnswer(r.Context(), token, questionID, optionID)
+	var remaining time.Duration
+	var err error
+	if hasText {
+		remaining, err = s.deps.Attempts.SaveText(r.Context(), token, questionID, r.PostFormValue("text"))
+	} else {
+		optionID, oErr := strconv.ParseInt(r.PostFormValue("option"), 10, 64)
+		if oErr != nil {
+			s.writeJSON(w, r, http.StatusUnprocessableEntity, errorResponse{"invalid"})
+			return
+		}
+		remaining, err = s.deps.Attempts.SaveAnswer(r.Context(), token, questionID, optionID)
+	}
 	switch {
 	case err == nil:
 		s.writeJSON(w, r, http.StatusOK, answerResponse{Saved: true, RemainingMS: remaining.Milliseconds()})
@@ -432,7 +445,7 @@ func (s *server) answer(w http.ResponseWriter, r *http.Request) {
 		s.writeJSON(w, r, http.StatusUnauthorized, errorResponse{"no_attempt"})
 	case errors.Is(err, attempt.ErrFinished):
 		s.writeJSON(w, r, http.StatusConflict, errorResponse{"finished"})
-	case errors.Is(err, attempt.ErrInvalidChoice):
+	case errors.Is(err, attempt.ErrInvalidChoice), errors.Is(err, attempt.ErrInvalidAnswer):
 		s.writeJSON(w, r, http.StatusUnprocessableEntity, errorResponse{"invalid"})
 	default:
 		s.serverError(w, r, err)

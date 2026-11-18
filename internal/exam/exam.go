@@ -99,7 +99,13 @@ type Question struct {
 	// Section is the section that starts at this question; nil when none
 	// does.
 	Section *Section
+	// Answers are the accepted answers of a fill-in question; nil for
+	// multiple choice, which has Options instead.
+	Answers []string
 }
+
+// FillIn reports whether q is a fill-in question: one with accepted answers.
+func (q Question) FillIn() bool { return len(q.Answers) > 0 }
 
 // Section is a named part of an exam: its title and rendered instructions
 // ("" for none). It holds the questions from the one it starts at up to the

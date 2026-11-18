@@ -41,7 +41,7 @@
           {{if $q.Answered}}<span class="q-state" data-state="saved">Saved</span>{{else}}<span class="q-state" data-state="idle"></span>{{end}}
         </div>
         <div class="question-body">{{$q.BodyHTML}}</div>
-        <fieldset class="options">
+        {{if $q.FillIn}}<div class="answer-box"><label class="visually-hidden" for="t{{$q.ID}}">Answer for question {{$q.Number}}</label><input type="text" class="answer-text" id="t{{$q.ID}}" name="t{{$q.ID}}" value="{{$q.Typed}}" maxlength="200" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done"></div>{{else}}<fieldset class="options">
           <legend class="visually-hidden">Answer for question {{$q.Number}}</legend>
           {{range $q.Options}}
           <label class="option" for="o{{.ID}}">
@@ -50,7 +50,7 @@
             <span class="option-body">{{.BodyHTML}}</span>
           </label>
           {{end}}
-        </fieldset>
+        </fieldset>{{end}}
       </section>
       {{end}}
 

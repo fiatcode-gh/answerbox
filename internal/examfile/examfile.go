@@ -34,6 +34,8 @@ const (
 	MaxZipTotalBytes = 20 << 20
 	MaxQuestions     = 500
 	MaxOptions       = 10
+	MaxAnswers       = 10
+	MaxAnswerRunes   = 200
 	MaxTitleRunes    = 200
 )
 
@@ -81,6 +83,10 @@ type Question struct {
 	Source   string
 	BodyHTML template.HTML
 	Options  []Option
+	// Answers are the accepted answers of a fill-in question as written: plain
+	// text, one line each, trimmed; nil for multiple choice. A question has
+	// Options or Answers, never both.
+	Answers []string
 }
 
 // Section is a named part of an exam. Source is its instructions as

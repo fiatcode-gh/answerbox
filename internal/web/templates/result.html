@@ -20,7 +20,7 @@
       <p class="eyebrow">Question {{.Number}} of {{$total}}</p>
       <div class="question-body">{{.BodyHTML}}</div>
       {{if not .Answered}}<p class="no-answer">No answer</p>{{end}}
-      <ul class="review-options">
+      {{if .FillIn}}<div class="review-fill-in" data-answered="{{.Answered}}" data-correct="{{.Right}}">{{if .Answered}}<p class="review-typed">Your answer: <span class="typed-text">{{.Typed}}</span> <span class="review-mark">{{if .Right}}✓ Correct{{else}}✗ Not correct{{end}}</span></p>{{end}}<p class="accepted-label">Accepted answers</p><ul class="accepted-answers">{{range .Accepted}}<li>{{.}}</li>{{end}}</ul></div>{{else}}<ul class="review-options">
         {{range .Options}}
         <li class="review-option" data-picked="{{.Picked}}" data-correct="{{.Correct}}">
           <span class="bubble">{{.Letter}}</span>
@@ -30,7 +30,7 @@
           {{else if .Picked}}<span class="review-mark">✗ Your answer</span>{{end}}
         </li>
         {{end}}
-      </ul>
+      </ul>{{end}}
     </section>
     {{end}}
   </div>
