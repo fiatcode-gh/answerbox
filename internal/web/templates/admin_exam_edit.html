@@ -13,11 +13,26 @@
     <a id="settings-link" role="button" class="secondary" href="/admin/exams/{{.Exam.ID}}/settings">Settings</a>
   </div>
   {{range .Questions}}
+  {{- if .Section}}
+  <div class="section-head editor-section" id="s{{.SectionNumber}}">
+    <h2 class="section-title">{{.Section.Title}}</h2>
+    {{with .Section.BodyHTML}}<div class="section-body question-body">{{.}}</div>{{end}}
+    <div class="section-actions">
+      <a class="edit-section" href="/admin/exams/{{$.Exam.ID}}/sections/{{.SectionNumber}}">Edit section</a>
+      <form class="remove-section" method="post" action="/admin/exams/{{$.Exam.ID}}/sections/{{.SectionNumber}}/remove">
+        <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+        <input type="hidden" name="revision" value="{{$.Revision}}">
+        <button type="submit" class="secondary">Remove section</button>
+      </form>
+    </div>
+  </div>
+  {{- end}}
   <section class="preview-question" id="q{{.Position}}">
     <p class="eyebrow">Question {{.Position}}</p>
     {{template "preview_question_body" .}}
     <div class="question-actions">
       <a class="edit-question" href="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}">Edit</a>
+      {{if .StartSection}}<a class="start-section" href="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}/section">Start a section here</a>{{end}}
       {{if .CanMoveUp}}
       <form class="move-up" method="post" action="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}/move">
         <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">

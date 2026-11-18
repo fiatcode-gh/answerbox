@@ -24,11 +24,14 @@ const notSavedPrefix = "Not saved: "
 // path and form values and choose the answer.
 func (s *server) mountTeacherEditor(admin *http.ServeMux) {
 	admin.HandleFunc("GET /admin/exams/{id}/edit", s.editorPage)
-	admin.HandleFunc("POST /admin/exams/{id}/questions/{n}/move", s.questionAction(func(ctx context.Context, a exam.Actor, id int64, base, n int, r *http.Request) error {
+	admin.HandleFunc("POST /admin/exams/{id}/questions/{n}/move", s.editorAction(func(ctx context.Context, a exam.Actor, id int64, base, n int, r *http.Request) error {
 		return s.deps.Exams.MoveQuestion(ctx, a, id, base, n, formInt(r, "to"))
 	}))
-	admin.HandleFunc("POST /admin/exams/{id}/questions/{n}/remove", s.questionAction(func(ctx context.Context, a exam.Actor, id int64, base, n int, _ *http.Request) error {
+	admin.HandleFunc("POST /admin/exams/{id}/questions/{n}/remove", s.editorAction(func(ctx context.Context, a exam.Actor, id int64, base, n int, _ *http.Request) error {
 		return s.deps.Exams.RemoveQuestion(ctx, a, id, base, n)
+	}))
+	admin.HandleFunc("POST /admin/exams/{id}/sections/{n}/remove", s.editorAction(func(ctx context.Context, a exam.Actor, id int64, base, n int, _ *http.Request) error {
+		return s.deps.Exams.RemoveSection(ctx, a, id, base, n)
 	}))
 	admin.HandleFunc("GET /admin/exams/{id}/settings", s.settingsPage)
 	admin.HandleFunc("POST /admin/exams/{id}/settings", s.saveSettings)
@@ -36,6 +39,10 @@ func (s *server) mountTeacherEditor(admin *http.ServeMux) {
 	admin.HandleFunc("POST /admin/exams/{id}/questions/{n}", s.saveQuestion)
 	admin.HandleFunc("GET /admin/exams/{id}/questions/new", s.newQuestionPage)
 	admin.HandleFunc("POST /admin/exams/{id}/questions/new", s.addQuestion)
+	admin.HandleFunc("GET /admin/exams/{id}/questions/{n}/section", s.newSectionPage)
+	admin.HandleFunc("POST /admin/exams/{id}/questions/{n}/section", s.startSection)
+	admin.HandleFunc("GET /admin/exams/{id}/sections/{n}", s.editSectionPage)
+	admin.HandleFunc("POST /admin/exams/{id}/sections/{n}", s.saveSection)
 	admin.HandleFunc("GET /admin/exams/new", s.newExamPage)
 	admin.HandleFunc("POST /admin/exams/new", s.createExam)
 }
@@ -77,9 +84,14 @@ func (s *server) editorRefused(w http.ResponseWriter, r *http.Request, id int64,
 // editorQuestion is a question of the editor page with its actions.
 type editorQuestion struct {
 	exam.Question
+	// SectionNumber is the number of the section that starts at this
+	// question, 0 when none does.
+	SectionNumber int
 	// Up and Down are the numbers Move up and Move down move it to.
 	Up, Down                       int
 	CanMoveUp, CanMoveDown, Remove bool
+	// StartSection is whether the page offers to start a section here.
+	StartSection bool
 }
 
 type editorData struct {
@@ -130,24 +142,45 @@ func (s *server) renderEditor(w http.ResponseWriter, r *http.Request, status int
 		Questions: make([]editorQuestion, len(rev.Questions)),
 		Alert:     alert,
 	}
+	// group[i] is the number of the section question i+1 belongs to, 0
+	// before any section; size[k] counts the questions of section k.
 	last := len(rev.Questions)
+	group := make([]int, last)
+	size := []int{0}
+	for i, q := range rev.Questions {
+		if q.Section != nil {
+			size = append(size, 0)
+		}
+		group[i] = len(size) - 1
+		size[group[i]]++
+	}
+	sectioned := len(size) > 1
 	for i, q := range rev.Questions {
 		n := i + 1
-		data.Questions[i] = editorQuestion{
-			Question:    q,
-			Up:          n - 1,
-			Down:        n + 1,
-			CanMoveUp:   n > 1,
-			CanMoveDown: n < last,
-			Remove:      last > 1,
+		// The only question of a section can neither leave it nor go: the
+		// service would refuse the empty section.
+		alone := size[group[i]] == 1
+		eq := editorQuestion{
+			Question:     q,
+			Up:           n - 1,
+			Down:         n + 1,
+			CanMoveUp:    n > 1 && !alone,
+			CanMoveDown:  n < last && !alone,
+			Remove:       last > 1 && !alone,
+			StartSection: q.Section == nil && (sectioned || n == 1),
 		}
+		if q.Section != nil {
+			eq.SectionNumber = group[i]
+		}
+		data.Questions[i] = eq
 	}
 	s.page(w, r, status, "admin_exam_edit.html", data)
 }
 
-// questionAction returns the handler of a question action of the editor
-// page: act stores it for question {n} on the posted revision.
-func (s *server) questionAction(act func(ctx context.Context, a exam.Actor, id int64, base, n int, r *http.Request) error) http.HandlerFunc {
+// editorAction returns the handler of a question or section action of the
+// editor page: act stores it for question or section {n} on the posted
+// revision.
+func (s *server) editorAction(act func(ctx context.Context, a exam.Actor, id int64, base, n int, r *http.Request) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, ok := examID(r)
 		if !ok {

@@ -1,0 +1,2 @@
+{{/* section_head is the heading of a section above its first question: the title and, when there are any, the instructions. */}}
+{{define "section_head"}}<div class="section-head"><h2 class="section-title">{{.Title}}</h2>{{with .BodyHTML}}<div class="section-body question-body">{{.}}</div>{{end}}</div>{{end}}

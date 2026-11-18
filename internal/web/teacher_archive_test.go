@@ -345,8 +345,7 @@ func TestArchived_EveryOtherRouteWorks(t *testing.T) {
 	env := newTestEnv(t)
 	owner := env.addTeacher(t, "a@example.test")
 	for _, route := range examRoutes(t) {
-		noAttempt := strings.HasSuffix(route.Path, "/replace") || editorRoute(route.Path)
-		id, aid := env.ownedExam(t, owner.actor, "Algebra", !noAttempt)
+		id, aid := env.routeExam(t, route, owner.actor)
 		if err := env.exams.Archive(context.Background(), owner.actor, id); err != nil {
 			t.Fatal(err)
 		}

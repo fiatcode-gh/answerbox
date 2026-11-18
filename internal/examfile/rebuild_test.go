@@ -257,6 +257,19 @@ func TestRebuild_LeadingCodeBlock(t *testing.T) {
 	}
 }
 
+// A paragraph line that starts with an escaped "##" is not a section
+// heading, before and after sections joined the grammar.
+func TestRebuild_HashLineStaysText(t *testing.T) {
+	ex := mustParse(t, textUpload("# T\n1. a\n\\## b\n- c *\n- d"))
+	if ex.Sections != nil {
+		t.Fatalf("Sections = %+v, want none", ex.Sections)
+	}
+	rebuilt := mustRebuild(t, ex)
+	if rebuilt.Questions[0].BodyHTML != ex.Questions[0].BodyHTML || rebuilt.Sections != nil {
+		t.Errorf("rebuilt question HTML = %q, sections %+v", rebuilt.Questions[0].BodyHTML, rebuilt.Sections)
+	}
+}
+
 func TestRebuild_Images(t *testing.T) {
 	a := pngBytes(t, colorRGB(255, 0, 0))
 	b := pngBytes(t, colorRGB(0, 255, 0))
@@ -312,7 +325,8 @@ func TestRebuild_Unsupported(t *testing.T) {
 		{"autolink", "# T\n1. Q\n- a *\n- <http://example.com/secret>", 1, 2},
 		{"quote", "# T\n1. Q\n- a *\n- b\n2. > secret\n- c *\n- d", 2, 0},
 		{"raw HTML", "# T\n1. Q\n- <b>secret</b> *\n- b", 1, 1},
-		{"heading", "# T\n1. Q\n\n## secret\n- a *\n- b", 1, 0},
+		// Indented, so that it is question text and not a section heading.
+		{"heading", "# T\n1. Q\n\n  ## secret\n- a *\n- b", 1, 0},
 	}
 	check := func(t *testing.T, ex Exam, question, option int) {
 		t.Helper()

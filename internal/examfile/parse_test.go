@@ -293,7 +293,7 @@ func TestParse_Rejections(t *testing.T) {
 		{"dash with form feed last", "# T\n1. Q\n- a *\n- b\n-\f", nil, `question 1, option 3 (line 5) has no text`},
 		{"number with no-break space alone", "# T\n1. Q\n- a *\n- b\n2.\u00a0", nil, `question 2 (line 5) has no text`},
 		{"long title", "# " + strings.Repeat("é", 201) + "\n" + q, nil, `line 1: title is longer than 200 characters`},
-		{"header zone junk", "# T\n\nintro\n" + q, nil, `line 3: expected "shuffle:", "show_result:", "monitor:", "duration:" or question 1`},
+		{"header zone junk", "# T\n\nintro\n" + q, nil, `line 3: expected "shuffle:", "show_result:", "monitor:", "duration:", a "## " section heading or question 1`},
 		{"duplicate header", "# T\nshuffle: none\nshow_result: none\nshuffle: none\n" + q, nil, `line 4: duplicate "shuffle" header`},
 		{"bad shuffle", "# T\nshuffle: random\n" + q, nil, `line 2: shuffle must be "none", "questions" or "questions, options"`},
 		{"bad show_result", "# T\nshow_result: all\n" + q, nil, `line 2: show_result must be "none", "score" or "review"`},
@@ -329,6 +329,17 @@ func TestParse_Rejections(t *testing.T) {
 		{"image escaping", "# T\n1. ![x](../a.png)\n- a *\n- b", nil, `question 1: image "../a.png" must be a file inside the upload`},
 		{"image bad escape", "# T\n1. ![x](a%zz.png)\n- a *\n- b", nil, `question 1: image "a%zz.png" must be a file inside the upload`},
 		{"image not an image", "# T\n1. ![x](a.png)\n- a *\n- b", map[string][]byte{"a.png": []byte("hello")}, `question 1: image "a.png" is not a PNG, JPEG, GIF or WebP file`},
+		{"empty section title", "# T\n## \n" + q, nil, `line 2: section title is empty`},
+		{"bare section heading", "# T\n##\n" + q, nil, `line 2: section title is empty`},
+		{"long section title", "# T\n## " + strings.Repeat("é", 201) + "\n" + q, nil, `line 2: section title is longer than 200 characters`},
+		{"heading after question 1", "# T\n" + q + "\n## Late\n2. Q\n- a *\n- b", nil, `line 5: the first section heading must come before question 1`},
+		{"section before a section", "# T\n## A\n## B\n" + q, nil, `section 1 (line 2) has no questions`},
+		{"section at the end", "# T\n## A\n" + q + "\n## B\n", nil, `section 2 (line 6) has no questions`},
+		{"only a section", "# T\n## A\n", nil, `section 1 (line 2) has no questions`},
+		{"51 sections", sections(51), nil, `exam has more than 50 sections`},
+		{"junk before a section", "# T\nintro\n## A\n" + q, nil, `line 2: expected "shuffle:", "show_result:", "monitor:", "duration:", a "## " section heading or question 1`},
+		{"section image missing", "# T\n## A\n![x](nope.png)\n" + q, nil, `section 1: image "nope.png" not found in upload`},
+		{"section fence never closed", "# T\n## A\n```\ncode\n" + q, nil, `line 3: code block is never closed`},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -341,6 +352,142 @@ func TestParse_Rejections(t *testing.T) {
 				t.Errorf("message = %q\nwant      %q", got, c.want)
 			}
 		})
+	}
+}
+
+// sections is an exam of n sections with one question each.
+func sections(n int) string {
+	var b strings.Builder
+	b.WriteString("# T\n")
+	for i := 1; i <= n; i++ {
+		fmt.Fprintf(&b, "## S%d\n%d. Q%d\n- a *\n- b\n", i, i, i)
+	}
+	return b.String()
+}
+
+func TestParse_SectionLimits(t *testing.T) {
+	if ex := mustParse(t, textUpload(sections(50))); len(ex.Sections) != 50 {
+		t.Errorf("50 sections parse to %d", len(ex.Sections))
+	}
+	title := strings.Repeat("é", 200)
+	ex := mustParse(t, textUpload("# T\n## "+title+"\n1. Q\n- a *\n- b"))
+	if len(ex.Sections) != 1 || ex.Sections[0].Title != title {
+		t.Errorf("Sections = %+v, want one titled with 200 characters", ex.Sections)
+	}
+}
+
+func TestParse_Sections(t *testing.T) {
+	img := pngBytes(t, colorRGB(9, 8, 7))
+	instructions := lines(
+		"Bacalah dengan **teliti**.",
+		"",
+		"- bullet",
+		"```",
+		"## not a heading",
+		"3. not a question",
+		"- not an option",
+		"```",
+		"![gambar](img.png)",
+	)
+	ex := mustParse(t, Upload{Dir: ".", Files: map[string][]byte{"img.png": img}, Text: []byte(lines(
+		"# T",
+		"shuffle: none",
+		"",
+		"## Bagian A: Pilihan Ganda",
+		instructions,
+		"",
+		"1. Q1",
+		"- a *",
+		"- b",
+		"",
+		"2. Q2",
+		"- c *",
+		"- d",
+		"",
+		"## Bagian B",
+		"",
+		"3. Q3",
+		"- e *",
+		"- f",
+		"",
+		"4. Q4",
+		"- g *",
+		"- h",
+	))})
+
+	if len(ex.Sections) != 2 {
+		t.Fatalf("Sections = %+v, want two", ex.Sections)
+	}
+	a, b := ex.Sections[0], ex.Sections[1]
+	if a.Title != "Bagian A: Pilihan Ganda" || a.Start != 1 || a.Source != instructions {
+		t.Errorf("section 1 = %q start %d source %q", a.Title, a.Start, a.Source)
+	}
+	name := imageName(img, ".png")
+	for _, want := range []string{"<strong>", "<li>", "<pre><code>", `src="/media/k/` + name + `"`} {
+		if !strings.Contains(string(a.BodyHTML), want) {
+			t.Errorf("section 1 HTML %q lacks %s", a.BodyHTML, want)
+		}
+	}
+	if b != (Section{Title: "Bagian B", Start: 3}) {
+		t.Errorf("section 2 = %+v", b)
+	}
+	if len(ex.Questions) != 4 {
+		t.Fatalf("%d questions, want 4", len(ex.Questions))
+	}
+	for k, q := range ex.Questions {
+		if want := fmt.Sprintf("Q%d", k+1); q.Source != want || len(q.Options) != 2 {
+			t.Errorf("question %d = %q with %d options", k+1, q.Source, len(q.Options))
+		}
+	}
+	if !reflect.DeepEqual(ex.ImagePaths, map[string]string{"img.png": name}) || len(ex.Images) != 1 {
+		t.Errorf("ImagePaths = %v, Images = %d", ex.ImagePaths, len(ex.Images))
+	}
+
+	if ex := mustParse(t, textUpload("# T\n1. Q\n- a *\n- b")); ex.Sections != nil {
+		t.Errorf("Sections without a heading = %#v, want nil", ex.Sections)
+	}
+}
+
+func TestParse_SectionHeadingForms(t *testing.T) {
+	q := "1. Q\n- a *\n- b"
+	title := func(text string) string {
+		t.Helper()
+		ex := mustParse(t, textUpload(text))
+		if len(ex.Sections) != 1 {
+			t.Fatalf("Sections = %+v, want one", ex.Sections)
+		}
+		return ex.Sections[0].Title
+	}
+	if got := title("# T\n##\tTab title  \n" + q); got != "Tab title" {
+		t.Errorf("tab title = %q", got)
+	}
+	if got := title("# T\n## A ##\n" + q); got != "A ##" {
+		t.Errorf("closing hashes title = %q", got)
+	}
+
+	ex := mustParse(t, textUpload("# T\n1. Q\n##x\n### y\n  ## z\n- a *\n- b"))
+	if ex.Sections != nil || ex.Questions[0].Source != "Q\n##x\n### y\n  ## z" {
+		t.Errorf("Sections = %+v, question Source = %q", ex.Sections, ex.Questions[0].Source)
+	}
+
+	ex = mustParse(t, textUpload("# T\n## A\n- x\nshuffle: none\n"+q))
+	if len(ex.Sections) != 1 || ex.Sections[0].Source != "- x\nshuffle: none" || ex.Shuffle != ShuffleQuestions {
+		t.Errorf("Sections = %+v, Shuffle = %q", ex.Sections, ex.Shuffle)
+	}
+
+	ex = mustParse(t, textUpload("# T\n## A\n\n      code\n  text\n"+q))
+	if len(ex.Sections) != 1 || ex.Sections[0].Source != "    code\ntext" {
+		t.Errorf("Sections = %+v", ex.Sections)
+	}
+
+	// Lines like options in a later section's instructions stay text and
+	// leave the question before the heading as it was.
+	ex = mustParse(t, textUpload("# T\n## A\n1. Q\n- a *\n- b\n## B\n- x\n- y *\n2. R\n- c *\n- d"))
+	if len(ex.Sections) != 2 || ex.Sections[1].Source != "- x\n- y *" {
+		t.Errorf("Sections = %+v", ex.Sections)
+	}
+	if q := ex.Questions[0]; len(q.Options) != 2 || !q.Options[0].Correct || q.Options[1].Correct {
+		t.Errorf("question 1 options = %+v", q.Options)
 	}
 }
 

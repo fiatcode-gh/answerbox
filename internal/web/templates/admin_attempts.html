@@ -30,7 +30,7 @@
           <th scope="col"{{with .Started.AriaSort}} aria-sort="{{.}}"{{end}}>Started{{with .Started.Arrow}} <span aria-hidden="true">{{.}}</span>{{end}}</th>
           <th scope="col">Finished</th>
           <th scope="col">Status</th>
-          <th scope="col"{{with .Score.AriaSort}} aria-sort="{{.}}"{{end}}><a href="{{.ScoreHref}}" class="sort-link">Score{{with .Score.Arrow}} <span aria-hidden="true">{{.}}</span>{{end}}</a></th>
+          <th scope="col"{{with .Score.AriaSort}} aria-sort="{{.}}"{{end}}><a href="{{.ScoreHref}}" class="sort-link">Score{{with .Score.Arrow}} <span aria-hidden="true">{{.}}</span>{{end}}</a></th>{{range .Sections}}<th scope="col" class="wrap section-score">{{.Title}}</th>{{end}}
           <th scope="col" class="wrap">Time left</th>
           <th scope="col" class="wrap">Resume code</th>
           <th scope="col">Flags</th>
@@ -44,7 +44,7 @@
           <td class="numeric" title="{{.Started.Full}}">{{.Started.Text}}</td>
           <td class="numeric"{{with .Finished.Full}} title="{{.}}"{{end}}>{{if .InProgress}}—{{else}}{{.Finished.Text}}{{end}}</td>
           <td><span class="badge {{.Status.Badge}}">{{.Status.Text}}</span></td>
-          <td class="numeric">{{.Score}} / {{.Total}}</td>
+          <td class="numeric">{{.Score}} / {{.Total}}</td>{{range .Sections}}<td class="numeric section-score">{{.Score}} / {{.Total}}</td>{{end}}
           <td class="numeric">{{if .InProgress}}{{.TimeLeft}}{{else}}—{{end}}</td>
           <td>{{if .InProgress}}<code class="resume-code">{{.ResumeCode}}</code>{{else}}—{{end}}</td>
           <td class="numeric flags" data-flags="{{.Flags}}">{{.Flags}}</td>

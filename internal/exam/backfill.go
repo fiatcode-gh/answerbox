@@ -135,7 +135,7 @@ func rebuildStored(ctx context.Context, q Queryer, media fs.FS, examID int64) (e
 		Scan(&stored.Title, &stored.Shuffle, &stored.ShowResult, &stored.Monitor, &stored.DurationMinutes, &key); err != nil {
 		return examfile.Exam{}, "", fmt.Errorf("exam %d: %w", examID, err)
 	}
-	questions, err := LoadQuestions(ctx, q, examID)
+	questions, err := loadQuestionsBeforeSections(ctx, q, examID)
 	if err != nil {
 		return examfile.Exam{}, "", err
 	}

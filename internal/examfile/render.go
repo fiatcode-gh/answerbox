@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/yuin/goldmark"
@@ -40,9 +41,18 @@ func newRenderer(u Upload, mediaBase string) *renderer {
 	return &renderer{upload: u, mediaBase: mediaBase, seen: map[string]bool{}}
 }
 
+// place names the block being rendered in image errors: "question 3" or
+// "section 2". It is formatted only when an error is built.
+type place struct {
+	kind string // "question" or "section"
+	n    int    // 1-based number
+}
+
+func (p place) String() string { return p.kind + " " + strconv.Itoa(p.n) }
+
 // render converts Markdown to HTML, pointing every image at mediaBase.
-// question is the 1-based question number used in image errors.
-func (r *renderer) render(src string, question int) (template.HTML, error) {
+// at names the block in image errors.
+func (r *renderer) render(src string, at place) (template.HTML, error) {
 	source := []byte(src)
 	doc := markdown.Parser().Parse(text.NewReader(source))
 	err := ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -50,7 +60,7 @@ func (r *renderer) render(src string, question int) (template.HTML, error) {
 		if !ok || !entering {
 			return ast.WalkContinue, nil
 		}
-		name, err := r.resolveImage(string(img.Destination), question)
+		name, err := r.resolveImage(string(img.Destination), at)
 		if err != nil {
 			return ast.WalkStop, err
 		}
@@ -69,29 +79,31 @@ func (r *renderer) render(src string, question int) (template.HTML, error) {
 
 // resolveImage finds ref inside the upload, relative to the exam text's
 // directory, and returns the image's content-addressed Name.
-func (r *renderer) resolveImage(ref string, question int) (string, error) {
-	outside := errorf(`question %d: image "%s" must be a file inside the upload`, question, ref)
+func (r *renderer) resolveImage(ref string, at place) (string, error) {
+	outside := func() error {
+		return errorf(`%s: image "%s" must be a file inside the upload`, at, ref)
+	}
 	decoded, err := url.PathUnescape(ref)
 	if err != nil {
-		return "", outside
+		return "", outside()
 	}
 	if parsed, err := url.Parse(ref); err != nil || parsed.Scheme != "" || parsed.Host != "" {
-		return "", outside
+		return "", outside()
 	}
 	if strings.HasPrefix(decoded, "/") || strings.HasPrefix(decoded, `\`) {
-		return "", outside
+		return "", outside()
 	}
 	p := path.Clean(path.Join(r.upload.Dir, decoded))
 	if p == ".." || strings.HasPrefix(p, "../") {
-		return "", outside
+		return "", outside()
 	}
 	data, ok := r.upload.Files[p]
 	if !ok {
-		return "", errorf(`question %d: image "%s" not found in upload`, question, ref)
+		return "", errorf(`%s: image "%s" not found in upload`, at, ref)
 	}
 	name, ok := ImageName(data)
 	if !ok {
-		return "", errorf(`question %d: image "%s" is not a PNG, JPEG, GIF or WebP file`, question, ref)
+		return "", errorf(`%s: image "%s" is not a PNG, JPEG, GIF or WebP file`, at, ref)
 	}
 	if r.paths == nil {
 		r.paths = map[string]string{}

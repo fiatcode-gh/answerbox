@@ -16,7 +16,7 @@
   <div class="review">
     {{$total := len .Review}}
     {{range .Review}}
-    <section class="review-question">
+    {{with .Section}}{{template "section_head" .}}{{end}}<section class="review-question">
       <p class="eyebrow">Question {{.Number}} of {{$total}}</p>
       <div class="question-body">{{.BodyHTML}}</div>
       {{if not .Answered}}<p class="no-answer">No answer</p>{{end}}

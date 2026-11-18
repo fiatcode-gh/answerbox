@@ -61,6 +61,7 @@ type ViewQuestion struct {
 	Number   int
 	BodyHTML template.HTML
 	Options  []ViewOption
+	Section  *exam.Section // the section that starts here; nil when none
 }
 
 // ViewOption is an option in display order. Letter is "A".. by display order.
@@ -85,6 +86,7 @@ type ReviewQuestion struct {
 	BodyHTML template.HTML
 	Answered bool
 	Options  []ReviewOption
+	Section  *exam.Section // the section that starts here; nil when none
 }
 
 // ReviewOption is a finished option in display order.
@@ -92,6 +94,18 @@ type ReviewOption struct {
 	Letter          string
 	BodyHTML        template.HTML
 	Picked, Correct bool
+}
+
+// Results is the teacher's result list of one exam.
+type Results struct {
+	Sections []ResultSection // the exam's sections in order; nil without sections
+	Attempts []Summary       // start order; empty, not nil, without attempts
+}
+
+// ResultSection is one section of an exam in the result list.
+type ResultSection struct {
+	Title string
+	Total int // questions in the section
 }
 
 // Summary is one row of the teacher's result list.
@@ -104,6 +118,9 @@ type Summary struct {
 	Remaining             time.Duration // in progress only
 	ResumeCode            string        // in progress only, "ABCD-EFGH"
 	Flags                 int           // recorded monitor events
+	// SectionScores holds the correct answers per section, parallel to
+	// Results.Sections; nil without sections. Only List fills it.
+	SectionScores []int
 }
 
 // Detail is one attempt as the teacher sees it: the summary and every
@@ -121,6 +138,7 @@ type DetailQuestion struct {
 	BodyHTML template.HTML
 	Answered bool
 	Options  []DetailOption
+	Section  *exam.Section // the section that starts here; nil when none
 }
 
 // DetailOption is an option in original file order.

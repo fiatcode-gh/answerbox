@@ -4,10 +4,12 @@ import (
 	"archive/zip"
 	"bytes"
 	"maps"
+	"math"
 	"path"
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 var shuffleText = map[Shuffle]string{
@@ -18,8 +20,10 @@ var shuffleText = map[Shuffle]string{
 
 // Format writes ex as exam text. For an exam whose Sources are block texts as
 // Parse returns them, Parse of the result (with the same files and media
-// base) returns the same title, settings, Sources, HTML and correct options.
-// Format does not validate ex.
+// base) returns the same title, settings, sections, Sources, HTML and correct
+// options. Format does not validate ex: sections are written in slice order,
+// each before the first question whose number is at least its Start, or
+// after the last question when there is none.
 func Format(ex Exam) []byte {
 	var b strings.Builder
 	monitor := "off"
@@ -31,7 +35,18 @@ func Format(ex Exam) []byte {
 	b.WriteString("show_result: " + string(ex.ShowResult) + "\n")
 	b.WriteString("monitor: " + monitor + "\n")
 	b.WriteString("duration: " + strconv.Itoa(ex.DurationMinutes) + "\n")
+	next := 0
+	sectionsUpTo := func(number int) {
+		for ; next < len(ex.Sections) && ex.Sections[next].Start <= number; next++ {
+			s := ex.Sections[next]
+			b.WriteString("\n## " + s.Title + "\n")
+			if s.Source != "" {
+				writeLines(&b, strings.Split(s.Source, "\n"))
+			}
+		}
+	}
 	for k, q := range ex.Questions {
+		sectionsUpTo(k + 1)
 		b.WriteString("\n")
 		writeBlock(&b, strconv.Itoa(k+1)+".", q.Source, "")
 		for _, o := range q.Options {
@@ -42,14 +57,12 @@ func Format(ex Exam) []byte {
 			writeBlock(&b, "-", o.Source, marker)
 		}
 	}
+	sectionsUpTo(math.MaxInt)
 	return []byte(b.String())
 }
 
 // writeBlock writes lead, the first line of source and marker separated by
-// single spaces (empty parts left out), then the continuation lines. When a
-// continuation line outside a fenced block would start a question at column
-// 0, every non-empty continuation line is indented by four spaces, which
-// dedent removes again on parse.
+// single spaces (empty parts left out), then the continuation lines.
 func writeBlock(b *strings.Builder, lead, source, marker string) {
 	first, rest, hasCont := strings.Cut(source, "\n")
 	b.WriteString(lead)
@@ -59,15 +72,20 @@ func writeBlock(b *strings.Builder, lead, source, marker string) {
 		}
 	}
 	b.WriteString("\n")
-	if !hasCont {
-		return
+	if hasCont {
+		writeLines(b, strings.Split(rest, "\n"))
 	}
-	cont := strings.Split(rest, "\n")
+}
+
+// writeLines writes continuation lines. When one of them outside a fenced
+// block would start a question or a section at column 0, every non-empty
+// line is indented by four spaces, which dedent removes again on parse.
+func writeLines(b *strings.Builder, lines []string) {
 	pad := ""
-	if startsQuestion(cont) {
+	if startsBlock(lines) {
 		pad = "    "
 	}
-	for _, l := range cont {
+	for _, l := range lines {
 		if l != "" {
 			b.WriteString(pad + l)
 		}
@@ -75,16 +93,16 @@ func writeBlock(b *strings.Builder, lead, source, marker string) {
 	}
 }
 
-// startsQuestion reports whether a line outside a fenced block matches the
-// question number grammar.
-func startsQuestion(cont []string) bool {
+// startsBlock reports whether a line outside a fenced block matches the
+// question number grammar or, right-trimmed, is a section heading.
+func startsBlock(lines []string) bool {
 	inFence := false
-	for _, l := range cont {
+	for _, l := range lines {
 		if IsFence(l) {
 			inFence = !inFence
 			continue
 		}
-		if !inFence && questionRe.MatchString(l) {
+		if !inFence && (questionRe.MatchString(l) || sectionRe.MatchString(strings.TrimRightFunc(l, unicode.IsSpace))) {
 			return true
 		}
 	}

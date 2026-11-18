@@ -82,6 +82,13 @@ func openVersion7(t *testing.T, path string) *sql.DB {
 	return openBuilt(t, path, 7)
 }
 
+// openVersion8 creates a database file at path as the archive release left
+// it (migrations 0001 to 0008, user_version 8) and returns a raw handle.
+func openVersion8(t *testing.T, path string) *sql.DB {
+	t.Helper()
+	return openBuilt(t, path, 8)
+}
+
 // openBuilt applies the first version migrations by hand to a new file at
 // path, sets user_version and returns a raw handle.
 func openBuilt(t *testing.T, path string, version int) *sql.DB {
@@ -152,16 +159,16 @@ func TestOpen_MigratesOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	if got := pragma(t, db, "user_version"); got != "8" {
-		t.Errorf("user_version = %s, want 8", got)
+	if got := pragma(t, db, "user_version"); got != "9" {
+		t.Errorf("user_version = %s, want 9", got)
 	}
 	mustExec(t, db, ownerTeacher)
 	mustExec(t, db, `INSERT INTO exam (title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES ('t','none','score','k1',0,1,'AAAAAA')`)
 	db.Close()
 
 	db = openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "8" {
-		t.Errorf("user_version after reopen = %s, want 8", got)
+	if got := pragma(t, db, "user_version"); got != "9" {
+		t.Errorf("user_version after reopen = %s, want 9", got)
 	}
 	var title string
 	if err := db.QueryRow(`SELECT title FROM exam`).Scan(&title); err != nil || title != "t" {
@@ -193,8 +200,8 @@ func TestMigrate_0002KeepsVersion1Data(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "8" {
-		t.Fatalf("user_version = %s, want 8", got)
+	if got := pragma(t, db, "user_version"); got != "9" {
+		t.Fatalf("user_version = %s, want 9", got)
 	}
 	var (
 		title, name, code string
@@ -239,8 +246,8 @@ func TestMigrate_0003KeepsVersion2Data(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "8" {
-		t.Fatalf("user_version = %s, want 8", got)
+	if got := pragma(t, db, "user_version"); got != "9" {
+		t.Fatalf("user_version = %s, want 9", got)
 	}
 	var (
 		title, name, code, kind  string
@@ -302,8 +309,8 @@ func TestMigrate_0004KeepsExamsAndRequiresOwner(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "8" {
-		t.Fatalf("user_version = %s, want 8", got)
+	if got := pragma(t, db, "user_version"); got != "9" {
+		t.Fatalf("user_version = %s, want 9", got)
 	}
 	var (
 		title, student string
@@ -364,8 +371,8 @@ func TestMigrate_0005KeepsExamsAndAddsCodes(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "8" {
-		t.Fatalf("user_version = %s, want 8", got)
+	if got := pragma(t, db, "user_version"); got != "9" {
+		t.Fatalf("user_version = %s, want 9", got)
 	}
 	var (
 		title, student string
@@ -423,8 +430,8 @@ func TestMigrate_0006KeepsExamsAt60MinutesWithoutSchedule(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "8" {
-		t.Fatalf("user_version = %s, want 8", got)
+	if got := pragma(t, db, "user_version"); got != "9" {
+		t.Fatalf("user_version = %s, want 9", got)
 	}
 	for id, wantOpen := range map[int64]int{1: 1, 2: 0} {
 		var open, minutes, noOpens, noCloses int
@@ -719,8 +726,8 @@ func TestMigrate_0007KeepsVersion6Data(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "8" {
-		t.Fatalf("user_version = %s, want 8", got)
+	if got := pragma(t, db, "user_version"); got != "9" {
+		t.Fatalf("user_version = %s, want 9", got)
 	}
 	if after := dumpRows(t, db, columns); after != before {
 		t.Errorf("rows changed by the migration:\nbefore:\n%s\nafter:\n%s", before, after)
@@ -1027,8 +1034,8 @@ func TestMigrate_0008KeepsVersion7Data(t *testing.T) {
 	old.Close()
 
 	db := openFile(t, path)
-	if got := pragma(t, db, "user_version"); got != "8" {
-		t.Fatalf("user_version = %s, want 8", got)
+	if got := pragma(t, db, "user_version"); got != "9" {
+		t.Fatalf("user_version = %s, want 9", got)
 	}
 	if after := dumpRows(t, db, columns); after != before {
 		t.Errorf("rows changed by the migration:\nbefore:\n%s\nafter:\n%s", before, after)
@@ -1118,4 +1125,174 @@ func TestSchema_ArchiveChecks(t *testing.T) {
 	}
 	mustExec(t, db, `UPDATE exam SET archived_at = NULL WHERE id = 1`)
 	mustExec(t, db, `UPDATE exam SET is_open = 1 WHERE id = 1`)
+}
+
+// TestMigrate_0009KeepsVersion8Data opens a database as the archive release
+// left it and checks that the sections migration keeps every row as it was
+// and leaves every question without a section.
+func TestMigrate_0009KeepsVersion8Data(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "go-exam.db")
+	old := openVersion8(t, path)
+	mustExec(t, old, ownerTeacher)
+	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id, code) VALUES (1,'Live','questions','review',1,'k1',5,1,1,'3VK583')`)
+	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, owner_id, code, archived_at) VALUES (2,'Old one','none','score',0,'k2',6,1,'KSC7RP',50)`)
+	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, owner_id, code, archived_at) VALUES (3,'Old two','none','score',0,'k3',7,1,'4HGBZ9',51)`)
+	mustExec(t, old, `INSERT INTO question (id, exam_id, position, body_html) VALUES (1,1,1,'q1'),(2,1,2,'q2')`)
+	mustExec(t, old, `INSERT INTO question_option (id, question_id, position, body_html, is_correct) VALUES (1,1,1,'o1',1),(2,1,2,'o2',0),(3,2,1,'o3',0),(4,2,2,'o4',1)`)
+	for id := int64(1); id <= 3; id++ {
+		if err := addRevision(old, id, 1); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for id := 1; id <= 3; id++ {
+		mustExec(t, old, `INSERT INTO attempt (id, exam_id, student_name, token_hash, shuffle_seed, status, started_at, deadline_at, finished_at)
+			VALUES (?, 1, ?, ?, ?, 'submitted', 10, 20, 15)`, id, fmt.Sprintf("s%d", id), []byte{byte(id)}, id*7)
+		mustExec(t, old, `INSERT INTO answer (attempt_id, question_id, option_id) VALUES (?, 1, ?), (?, 2, 4)`, id, 1+id%2, id)
+	}
+	mustExec(t, old, `INSERT INTO attempt (id, exam_id, student_name, token_hash, resume_code, shuffle_seed, started_at, deadline_at)
+		VALUES (4, 1, 's4', x'04', 'ABCDEFGH', 28, 30, 40)`)
+	mustExec(t, old, `INSERT INTO attempt_event (id, attempt_id, kind, question, at) VALUES (1, 2, 'copy', 1, 12)`)
+	columns := tableColumns(t, old)
+	before := dumpRows(t, old, columns)
+	old.Close()
+
+	db := openFile(t, path)
+	if got := pragma(t, db, "user_version"); got != "9" {
+		t.Fatalf("user_version = %s, want 9", got)
+	}
+	if after := dumpRows(t, db, columns); after != before {
+		t.Errorf("rows changed by the migration:\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+	var sectioned int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM question WHERE section_title IS NOT NULL OR section_html IS NOT NULL`).Scan(&sectioned); err != nil || sectioned != 0 {
+		t.Errorf("questions with a section column set = %d, %v; want 0", sectioned, err)
+	}
+	if id := insertAttempt(t, db, 1); attemptRevision(t, db, id) != 1 {
+		t.Errorf("new attempt revision = %d, want 1", attemptRevision(t, db, id))
+	}
+}
+
+// TestSchema_SectionColumns proves that a section always has a non-empty
+// title and HTML (possibly empty), and a question without one has neither.
+func TestSchema_SectionColumns(t *testing.T) {
+	db := sqlitetest.Open(t)
+	mustExec(t, db, ownerTeacher)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES (1,'a','none','score','k1',0,1,'AAAAAA')`)
+	mustExec(t, db, `INSERT INTO question (id, exam_id, position, body_html) VALUES (1,1,1,'q1'),(2,1,2,'q2')`)
+
+	refused := []struct {
+		what        string
+		title, html any
+	}{
+		{"a title without HTML", "A", nil},
+		{"HTML without a title", nil, "<p>x</p>"},
+		{"an empty title", "", ""},
+	}
+	for _, c := range refused {
+		_, err := db.Exec(`UPDATE question SET section_title = ?, section_html = ? WHERE id = 1`, c.title, c.html)
+		wantErr(t, "update with "+c.what, err, "CHECK")
+		_, err = db.Exec(`INSERT INTO question (exam_id, position, body_html, section_title, section_html) VALUES (1, 3, 'q3', ?, ?)`, c.title, c.html)
+		wantErr(t, "insert with "+c.what, err, "CHECK")
+	}
+
+	for _, c := range []struct {
+		title, html any
+	}{{"A", ""}, {"A", "<p>Read.</p>\n"}, {nil, nil}} {
+		mustExec(t, db, `UPDATE question SET section_title = ?, section_html = ? WHERE id = 1`, c.title, c.html)
+	}
+	mustExec(t, db, `INSERT INTO question (exam_id, position, body_html, section_title, section_html) VALUES (1, 3, 'q3', 'B', '')`)
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM question WHERE section_title IS NOT NULL`).Scan(&n); err != nil || n != 1 {
+		t.Errorf("questions with a section = %d, %v; want 1", n, err)
+	}
+}
+
+// TestSchema_SectionsFrozenWithQuestions proves that the question freeze
+// triggers of 0001 freeze the section columns too.
+func TestSchema_SectionsFrozenWithQuestions(t *testing.T) {
+	db := sqlitetest.Open(t)
+	mustExec(t, db, ownerTeacher)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES (1,'a','none','score','k1',0,1,'AAAAAA')`)
+	mustExec(t, db, `INSERT INTO question (id, exam_id, position, body_html, section_title, section_html) VALUES (1,1,1,'q1','Part A','<p>Read.</p>\n')`)
+	mustExec(t, db, `INSERT INTO question (id, exam_id, position, body_html) VALUES (2,1,2,'q2')`)
+	mustExec(t, db, `INSERT INTO attempt (id, exam_id, student_name, token_hash, shuffle_seed, started_at, deadline_at) VALUES (1,1,'s',x'01',0,0,0)`)
+
+	ops := []struct{ name, sql string }{
+		{"rename a section", `UPDATE question SET section_title = 'X' WHERE id = 1`},
+		{"clear a section", `UPDATE question SET section_title = NULL, section_html = NULL WHERE id = 1`},
+		{"insert a question that starts a section", `INSERT INTO question (id, exam_id, position, body_html, section_title, section_html) VALUES (3,1,3,'q3','Part B','')`},
+	}
+	for _, op := range ops {
+		_, err := db.Exec(op.sql)
+		wantErr(t, op.name+" with an attempt", err, "exam is frozen")
+	}
+	var title string
+	if err := db.QueryRow(`SELECT section_title FROM question WHERE id = 1`).Scan(&title); err != nil || title != "Part A" {
+		t.Errorf("section title = %q, %v; want Part A", title, err)
+	}
+
+	mustExec(t, db, `DELETE FROM attempt WHERE id = 1`)
+	for _, op := range ops {
+		if _, err := db.Exec(op.sql); err != nil {
+			t.Errorf("%s without attempt: %v", op.name, err)
+		}
+	}
+}
+
+// TestSchema_PreviousBinaryQuestionStatements runs the replace statements of
+// the release before sections (293ab19) on a sectioned exam without
+// attempts: they work and store the exam without sections.
+func TestSchema_PreviousBinaryQuestionStatements(t *testing.T) {
+	db := sqlitetest.Open(t)
+	mustExec(t, db, ownerTeacher)
+	mustExec(t, db, `INSERT INTO exam (id, title, shuffle, show_result, media_key, created_at, owner_id, code) VALUES (1,'a','none','score','k1',0,1,'AAAAAA')`)
+	mustExec(t, db, `INSERT INTO question (id, exam_id, position, body_html, section_title, section_html) VALUES (1,1,1,'q1','Part A',''),(2,1,2,'q2',NULL,NULL)`)
+	mustExec(t, db, `INSERT INTO question (id, exam_id, position, body_html, section_title, section_html) VALUES (3,1,3,'q3','Part B','<p>B</p>\n')`)
+	mustExec(t, db, `INSERT INTO question_option (question_id, position, body_html, is_correct) VALUES (1,1,'o1',1),(1,2,'o2',0)`)
+	if err := addRevision(db, 1, 1); err != nil {
+		t.Fatal(err)
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	mustExec(t, tx, `INSERT INTO exam_revision (exam_id, number, created_at, teacher_id, summary, title, shuffle, show_result, monitor, duration_minutes, media_key, content)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		1, 2, 10, 1, "Replaced from file", "b", "none", "score", true, 30, "k2", `{"dir":".","questions":[]}`)
+	mustExec(t, tx, `DELETE FROM question WHERE exam_id = ?`, 1)
+	mustExec(t, tx, `UPDATE exam SET title = ?, shuffle = ?, show_result = ?, monitor = ?, duration_minutes = ?, media_key = ? WHERE id = ?`,
+		"b", "none", "score", true, 30, "k2", 1)
+	for pos := 1; pos <= 2; pos++ {
+		mustExec(t, tx, `INSERT INTO question (exam_id, position, body_html) VALUES (?, ?, ?)`, 1, pos, fmt.Sprintf("n%d", pos))
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+
+	var sectioned int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM question WHERE exam_id = 1 AND (section_title IS NOT NULL OR section_html IS NOT NULL)`).Scan(&sectioned); err != nil || sectioned != 0 {
+		t.Errorf("new questions with a section column set = %d, %v; want 0", sectioned, err)
+	}
+	rows, err := db.Query(`SELECT id, position, body_html FROM question WHERE exam_id = ? ORDER BY position`, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var bodies []string
+	for rows.Next() {
+		var id, position int64
+		var body string
+		if err := rows.Scan(&id, &position, &body); err != nil {
+			t.Fatal(err)
+		}
+		bodies = append(bodies, fmt.Sprintf("%d:%s", position, body))
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"1:n1", "2:n2"}; !slices.Equal(bodies, want) {
+		t.Errorf("questions = %q, want %q", bodies, want)
+	}
 }

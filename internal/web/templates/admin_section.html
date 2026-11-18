@@ -1,0 +1,34 @@
+{{define "title"}}{{.Heading}}: {{.ExamTitle}} · go-exam{{end}}
+
+{{define "header"}}{{template "admin_header" .}}{{end}}
+
+{{define "main"}}
+<main class="container admin section-page" data-exam-id="{{.ExamID}}">
+  <p class="back"><a href="/admin/exams/{{.ExamID}}/edit">← Edit questions: {{.ExamTitle}}</a></p>
+  <h1>{{.Heading}}</h1>
+  {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
+  <form id="section-form" method="post" enctype="multipart/form-data" action="{{.Action}}">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="revision" value="{{.Revision}}">
+    <label for="section-title">Section title
+      <input type="text" id="section-title" name="title" value="{{.Title}}" required>
+    </label>
+    <label for="section-text">Instructions (optional)</label>
+    <textarea id="section-text" name="text" rows="6">
+{{.Text}}</textarea>
+    <label for="section-image">Add an image (PNG, JPEG, GIF or WebP, up to 5 MB)</label>
+    <input type="file" id="section-image" name="image" accept="image/png,image/jpeg,image/gif,image/webp" aria-describedby="section-image-note">
+    {{if .ImageDropped}}<p class="image-dropped">The image was not kept. Choose it again.</p>{{end}}
+    <small id="section-image-note">Saving adds the image on a new line at the end of the instructions. Move that line to place it elsewhere.</small>
+    <details class="format-help">
+      <summary>Text format</summary>
+      <ul>
+        <li>The instructions use the same text format as questions: <code>**bold**</code>, <code>*italics*</code>, <code>`code`</code>, code blocks between <code>```</code> lines and images as <code>![description](file.png)</code>.</li>
+        <li>Here a line that starts with <code>-</code> is a list item, not an option.</li>
+      </ul>
+    </details>
+    <button type="submit" id="save">Save section</button>
+  </form>
+  <p class="zone-note">Saving makes a new revision. Earlier revisions stay readable in <a href="/admin/exams/{{.ExamID}}/revisions">History</a>.</p>
+</main>
+{{end}}

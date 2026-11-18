@@ -301,7 +301,7 @@ func TestImage_Refusals(t *testing.T) {
 	}
 }
 
-const hiddenImageMsg = "the image line would not show at the end of this question text, for example after raw HTML; " +
+const hiddenImageMsg = "the image line would not show at the end of the text, for example after raw HTML; " +
 	"change the end of the text and save again"
 
 func TestCreate_ImageLineHiddenStoresNothing(t *testing.T) {

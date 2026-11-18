@@ -201,11 +201,11 @@ func (h *harness) view(t *testing.T, token string) attempt.View {
 
 func (h *harness) list(t *testing.T, examID int64) []attempt.Summary {
 	t.Helper()
-	rows, err := h.svc.List(context.Background(), examID)
+	res, err := h.svc.List(context.Background(), examID)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	return rows
+	return res.Attempts
 }
 
 // only returns the single attempt of examID.

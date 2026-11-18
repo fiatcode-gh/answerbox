@@ -149,7 +149,7 @@ func letter(i int) string { return string(rune('A' + i)) }
 func viewQuestions(questions []exam.Question, picked map[int64]int64) []ViewQuestion {
 	out := make([]ViewQuestion, len(questions))
 	for i, q := range questions {
-		vq := ViewQuestion{ID: q.ID, Number: i + 1, BodyHTML: q.BodyHTML}
+		vq := ViewQuestion{ID: q.ID, Number: i + 1, BodyHTML: q.BodyHTML, Section: q.Section}
 		for j, o := range q.Options {
 			vq.Options = append(vq.Options, ViewOption{
 				ID: o.ID, Letter: letter(j), BodyHTML: o.BodyHTML, Picked: picked[q.ID] == o.ID,
@@ -180,7 +180,7 @@ func result(questions []exam.Question, picked map[int64]int64, show examfile.Sho
 	r.Review = make([]ReviewQuestion, len(questions))
 	for i, q := range questions {
 		pick, answered := picked[q.ID]
-		rq := ReviewQuestion{Number: i + 1, BodyHTML: q.BodyHTML, Answered: answered}
+		rq := ReviewQuestion{Number: i + 1, BodyHTML: q.BodyHTML, Answered: answered, Section: q.Section}
 		for j, o := range q.Options {
 			rq.Options = append(rq.Options, ReviewOption{
 				Letter: letter(j), BodyHTML: o.BodyHTML, Picked: answered && pick == o.ID, Correct: o.Correct,

@@ -251,6 +251,71 @@ var roundTripTexts = map[string]string{
 		"- b",
 	),
 	"tabs and blank lines": "# T\r\n\r\n1. Q\r\n\tindented\r\n\r\n\t\tmore\r\n- a\t*\r\n- b\r\n\r\n",
+	"sections with instructions": lines(
+		"# T",
+		"shuffle: none",
+		"## Part A",
+		"Read **carefully**.",
+		"",
+		"- one",
+		"- two",
+		"```",
+		"## in a fence",
+		"1. in a fence",
+		"```",
+		"1. Q1",
+		"- a *",
+		"- b",
+		"## Part B: Essays",
+		"Text.",
+		"2. Q2",
+		"- c *",
+		"- d",
+		"3. Q3",
+		"- e",
+		"- f *",
+	),
+	"sections without instructions": "# T\n## A\n1. Q\n- a *\n- b\n##\tB  \n\n2. Q\n- c *\n- d",
+	"indented numbered instructions": lines(
+		"# T",
+		"## A",
+		"  1. first",
+		"  2. second",
+		"1. Q",
+		"- a *",
+		"- b",
+	),
+	"indented heading-like line in question": lines(
+		"# T",
+		"1. Q",
+		"    ## not a section",
+		"- a *",
+		"- b",
+	),
+	"instructions starting with indented code": lines(
+		"# T",
+		"## A",
+		"",
+		"    code",
+		"",
+		"text",
+		"1. Q",
+		"- a *",
+		"- b",
+	),
+	"option-like lines in a later section's instructions": lines(
+		"# T",
+		"## A",
+		"1. Q",
+		"- a *",
+		"- b",
+		"## B",
+		"- x",
+		"- y *",
+		"2. R",
+		"- c *",
+		"- d",
+	),
 }
 
 // roundTripFiles are the upload files and folder used with a round-trip text.
@@ -314,6 +379,14 @@ func TestFormat_RoundTrip(t *testing.T) {
 			t.Errorf("Format =\n%s\nwant it to contain\n%s", out, want)
 		}
 	})
+
+	t.Run("numbered instructions are indented", func(t *testing.T) {
+		out := string(Format(mustParse(t, textUpload(roundTripTexts["indented numbered instructions"]))))
+		want := "\n## A\n    1. first\n    2. second\n\n1. Q\n"
+		if !strings.Contains(out, want) {
+			t.Errorf("Format =\n%s\nwant it to contain\n%s", out, want)
+		}
+	})
 }
 
 func TestFormat_Layout(t *testing.T) {
@@ -366,6 +439,56 @@ func TestFormat_Layout(t *testing.T) {
 	ex.Shuffle = ShuffleQuestions
 	if got := string(Format(ex)); !strings.HasPrefix(got, "# Quiz\nshuffle: questions\n") {
 		t.Errorf("Format =\n%q", got)
+	}
+
+	sectioned := Exam{
+		Title:           "Quiz",
+		Shuffle:         ShuffleNone,
+		ShowResult:      ShowScore,
+		Monitor:         true,
+		DurationMinutes: 30,
+		Questions: []Question{
+			{Source: "Q1", Options: []Option{{Source: "a", Correct: true}, {Source: "b"}}},
+			{Source: "Q2", Options: []Option{{Source: "c", Correct: true}, {Source: "d"}}},
+		},
+		Sections: []Section{
+			{Title: "Part A", Source: "Read **carefully**.", Start: 1},
+			{Title: "Part B", Start: 2},
+		},
+	}
+	want = lines(
+		"# Quiz",
+		"shuffle: none",
+		"show_result: score",
+		"monitor: on",
+		"duration: 30",
+		"",
+		"## Part A",
+		"Read **carefully**.",
+		"",
+		"1. Q1",
+		"- a *",
+		"- b",
+		"",
+		"## Part B",
+		"",
+		"2. Q2",
+		"- c *",
+		"- d",
+		"",
+	)
+	if got := string(Format(sectioned)); got != want {
+		t.Errorf("Format =\n%q\nwant\n%q", got, want)
+	}
+
+	sectioned.Sections = []Section{{Title: "A", Source: "1. first\n## second", Start: 1}}
+	if got, want := string(Format(sectioned)), "\n## A\n    1. first\n    ## second\n\n1. Q1\n"; !strings.Contains(got, want) {
+		t.Errorf("Format =\n%q\nwant it to contain\n%q", got, want)
+	}
+
+	sectioned.Sections = []Section{{Title: "A", Start: 1}, {Title: "Late", Source: "x", Start: 3}}
+	if got, want := string(Format(sectioned)), "- d\n\n## Late\nx\n"; !strings.HasSuffix(got, want) {
+		t.Errorf("Format =\n%q\nwant suffix\n%q", got, want)
 	}
 }
 

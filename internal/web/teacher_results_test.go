@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -553,13 +554,13 @@ func TestAttempts_CSV(t *testing.T) {
 	requireNotFound(t, env, "GET", attemptsPath(id+1)+".csv", cookie)
 }
 
-func TestCSVName_FormulaGuard(t *testing.T) {
+func TestCSVText_FormulaGuard(t *testing.T) {
 	for in, want := range map[string]string{
 		"=SUM(A1)": "'=SUM(A1)", "+1": "'+1", "-2": "'-2", "@x": "'@x", "\tx": "'\tx", "\rx": "'\rx",
 		"Ayu": "Ayu", "a=b": "a=b", "": "",
 	} {
-		if got := csvName(in); got != want {
-			t.Errorf("csvName(%q) = %q, want %q", in, got, want)
+		if got := csvText(in); got != want {
+			t.Errorf("csvText(%q) = %q, want %q", in, got, want)
 		}
 	}
 }
@@ -768,7 +769,7 @@ func TestAttempt_Rename(t *testing.T) {
 		t.Fatalf("stored name = %q, want Ayu Lestari", after.StudentName)
 	}
 	after.StudentName = before.StudentName
-	if after != before {
+	if !reflect.DeepEqual(after, before) {
 		t.Fatalf("rename changed more than the name:\nbefore %+v\nafter  %+v", before, after)
 	}
 	body = getOK(t, env, path, cookie)

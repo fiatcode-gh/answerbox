@@ -39,25 +39,42 @@ type QuestionSource struct {
 	Image []byte
 }
 
+// SectionSource is a section's title and instructions as written.
+type SectionSource struct {
+	Title string
+	Text  string
+	// Start is the 1-based number of the section's first question. Source
+	// sets it; the save methods ignore it.
+	Start int
+	// Image is an image file to add with the save, nil for none. Its
+	// reference becomes the instructions' new last line.
+	Image []byte
+}
+
 // Source is the current revision of an exam as the editor shows it.
 type Source struct {
 	Revision  int
 	Settings  Settings
 	Questions []QuestionSource
+	Sections  []SectionSource // nil for an exam without sections
 }
 
 var (
-	errTitleLine   = &examfile.Error{Msg: "the title must be one line of text"}
-	errTooLarge    = &examfile.Error{Msg: "exam with its images is larger than 10 MB, the largest file that can be imported"}
-	errNotStorable = &examfile.Error{Msg: "this text cannot be stored in an exam file"}
-	errImageSize   = &examfile.Error{Msg: "image is larger than 5 MB"}
-	errImageType   = &examfile.Error{Msg: "image is not a PNG, JPEG, GIF or WebP file"}
-	errImageHidden = &examfile.Error{Msg: "the image line would not show at the end of this question text, " +
+	errTitleLine        = &examfile.Error{Msg: "the title must be one line of text"}
+	errSectionTitleLine = &examfile.Error{Msg: "the section title must be one line of text"}
+	errTooLarge         = &examfile.Error{Msg: "exam with its images is larger than 10 MB, the largest file that can be imported"}
+	errNotStorable      = &examfile.Error{Msg: "this text cannot be stored in an exam file"}
+	errImageSize        = &examfile.Error{Msg: "image is larger than 5 MB"}
+	errImageType        = &examfile.Error{Msg: "image is not a PNG, JPEG, GIF or WebP file"}
+	errImageHidden      = &examfile.Error{Msg: "the image line would not show at the end of the text, " +
 		"for example after raw HTML; change the end of the text and save again"}
 
-	lineStartRe = regexp.MustCompile(`^line \d+: `)
-	lineRefRe   = regexp.MustCompile(` \(line \d+\)`)
+	lineStartRe    = regexp.MustCompile(`^line \d+: `)
+	lineRefRe      = regexp.MustCompile(` \(line \d+\)`)
+	emptySectionRe = regexp.MustCompile(`^section (\d+) has no questions$`)
 )
+
+const lateFirstHeading = "the first section heading must come before question 1"
 
 // Source returns the current revision of an exam in actor's scope. An exam
 // outside the scope is ErrNotFound, one without a revision ErrNoRevision and
@@ -88,6 +105,12 @@ func (s *Service) Source(ctx context.Context, actor Actor, examID int64) (Source
 			qs.Options[j] = OptionSource{Text: o.Source, Correct: o.Correct}
 		}
 		src.Questions[i] = qs
+	}
+	if len(ex.Sections) > 0 {
+		src.Sections = make([]SectionSource, len(ex.Sections))
+		for i, s := range ex.Sections {
+			src.Sections[i] = SectionSource{Title: s.Title, Text: s.Source, Start: s.Start}
+		}
 	}
 	return src, nil
 }
@@ -169,7 +192,7 @@ func (s *Service) AddQuestion(ctx context.Context, actor Actor, examID int64, ba
 }
 
 // RemoveQuestion removes question position (1-based) from the exam's
-// revision base.
+// revision base. Every later section starts one question earlier.
 func (s *Service) RemoveQuestion(ctx context.Context, actor Actor, examID int64, base, position int) error {
 	return s.edit(ctx, actor, examID, base, nil,
 		func(next *examfile.Exam, _ string) error {
@@ -177,6 +200,11 @@ func (s *Service) RemoveQuestion(ctx context.Context, actor Actor, examID int64,
 				return ErrNotFound
 			}
 			next.Questions = slices.Delete(next.Questions, position-1, position)
+			for i := range next.Sections {
+				if next.Sections[i].Start > position {
+					next.Sections[i].Start--
+				}
+			}
 			return nil
 		},
 		func(_, _ examfile.Exam) string {
@@ -185,20 +213,49 @@ func (s *Service) RemoveQuestion(ctx context.Context, actor Actor, examID int64,
 }
 
 // MoveQuestion moves question position to number to (both 1-based) in the
-// exam's revision base.
+// exam's revision base. Inside one section it reorders the questions. Into
+// another section only a neighbour is accepted: the question keeps its
+// number and joins that section, the boundary moves.
 func (s *Service) MoveQuestion(ctx context.Context, actor Actor, examID int64, base, position, to int) error {
+	across := false
+	toSection := 0 // 1-based number of to's section before the move
 	return s.edit(ctx, actor, examID, base, nil,
 		func(next *examfile.Exam, _ string) error {
 			if !inRange(position, next) || !inRange(to, next) {
 				return ErrNotFound
 			}
-			q := next.Questions[position-1]
-			next.Questions = slices.Insert(slices.Delete(next.Questions, position-1, position), to-1, q)
+			from, dest := sectionOf(next, position), sectionOf(next, to)
+			switch {
+			case from == dest:
+				q := next.Questions[position-1]
+				next.Questions = slices.Insert(slices.Delete(next.Questions, position-1, position), to-1, q)
+				return nil
+			case to == position-1:
+				next.Sections[from].Start++
+			case to == position+1:
+				next.Sections[dest].Start--
+			default:
+				return ErrNotFound
+			}
+			across, toSection = true, dest+1
 			return nil
 		},
 		func(_, _ examfile.Exam) string {
+			if across {
+				return fmt.Sprintf("Question %d moved to section %d", position, toSection)
+			}
 			return fmt.Sprintf("Question %d moved to %d", position, to)
 		})
+}
+
+// sectionOf returns the index of the section that holds question number
+// (1-based) in ex, or -1 when no section does.
+func sectionOf(ex *examfile.Exam, number int) int {
+	i := len(ex.Sections) - 1
+	for i >= 0 && ex.Sections[i].Start > number {
+		i--
+	}
+	return i
 }
 
 // SaveSettings sets the title and header settings of the exam's revision
@@ -259,6 +316,7 @@ func (s *Service) edit(ctx context.Context, actor Actor, examID int64, base int,
 		q.Options = slices.Clone(q.Options)
 		next.Questions[i] = q
 	}
+	next.Sections = slices.Clone(cur.Exam.Sections)
 	if err := apply(&next, img.Name); err != nil {
 		return err
 	}
@@ -336,6 +394,11 @@ func parseEdited(next examfile.Exam, dir string, files map[string][]byte, mediaK
 	if strings.ContainsAny(next.Title, "\r\n") {
 		return examfile.Exam{}, errTitleLine
 	}
+	for _, sec := range next.Sections {
+		if strings.ContainsAny(sec.Title, "\r\n") {
+			return examfile.Exam{}, errSectionTitleLine
+		}
+	}
 	base := "/media/" + mediaKey
 	p1, err := examfile.Parse(examfile.Upload{Text: examfile.Format(next), Dir: dir, Files: files}, base)
 	if err != nil {
@@ -376,15 +439,21 @@ func parseEdited(next examfile.Exam, dir string, files map[string][]byte, mediaK
 }
 
 // editorError rewords a file rule refusal for a form: without line numbers,
-// and a missing title as such. Other errors are returned unchanged.
+// a missing title as such and the section rules as the editor breaks them.
+// Other errors are returned unchanged.
 func editorError(err error) error {
 	var fileErr *examfile.Error
 	if !errors.As(err, &fileErr) {
 		return err
 	}
 	msg := lineRefRe.ReplaceAllString(lineStartRe.ReplaceAllString(fileErr.Msg, ""), "")
-	if strings.HasSuffix(msg, `expected "# Title" as the first line`) {
+	switch {
+	case strings.HasSuffix(msg, `expected "# Title" as the first line`):
 		msg = "the exam needs a title"
+	case msg == lateFirstHeading:
+		msg = "the first section must start at question 1"
+	case emptySectionRe.MatchString(msg):
+		msg = emptySectionRe.ReplaceAllString(msg, "section $1 would be left without questions; remove the section first")
 	}
 	return &examfile.Error{Msg: msg}
 }
@@ -436,12 +505,19 @@ func sameText(a, b string) bool {
 	}
 }
 
-// sameExam reports whether a and b have the same title, settings, Sources
-// and correct flags, and with html also the same HTML.
+// sameExam reports whether a and b have the same title, settings, Sources,
+// correct flags and sections, and with html also the same HTML.
 func sameExam(a, b examfile.Exam, html bool) bool {
 	if a.Title != b.Title || a.Shuffle != b.Shuffle || a.ShowResult != b.ShowResult ||
-		a.Monitor != b.Monitor || a.DurationMinutes != b.DurationMinutes || len(a.Questions) != len(b.Questions) {
+		a.Monitor != b.Monitor || a.DurationMinutes != b.DurationMinutes || len(a.Questions) != len(b.Questions) ||
+		len(a.Sections) != len(b.Sections) {
 		return false
+	}
+	for i, sa := range a.Sections {
+		sb := b.Sections[i]
+		if sa.Title != sb.Title || sa.Source != sb.Source || sa.Start != sb.Start || html && sa.BodyHTML != sb.BodyHTML {
+			return false
+		}
 	}
 	for i, qa := range a.Questions {
 		qb := b.Questions[i]

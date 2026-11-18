@@ -40,12 +40,7 @@ func requireSameQuestions(t *testing.T, h *harness, a, b int64) {
 	t.Helper()
 	keyA, keyB := h.mediaKey(t, a), h.mediaKey(t, b)
 	qa, qb := flatten(h.mustQuestions(t, a)), flatten(h.mustQuestions(t, b))
-	for i := range qb {
-		qb[i].html = strings.ReplaceAll(qb[i].html, keyB, keyA)
-		for j := range qb[i].opts {
-			qb[i].opts[j].html = strings.ReplaceAll(qb[i].opts[j].html, keyB, keyA)
-		}
-	}
+	replaceKey(qb, keyB, keyA)
 	if !reflect.DeepEqual(qa, qb) {
 		t.Errorf("exam %d questions =\n%+v\nexam %d questions =\n%+v", a, qa, b, qb)
 	}

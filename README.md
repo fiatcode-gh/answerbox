@@ -1,6 +1,6 @@
 # go-exam
 
-go-exam is a small, self-hosted web app for classroom multiple-choice exams. Students type the exam's code and their name, or open a link that carries the code, and take that exam within its time limit, the exam's own length (60 minutes unless the exam file says otherwise); the teacher imports exams from text files or writes them in the browser, opens and closes them by hand or on a schedule, and reviews the results. Teachers can also see every change to an exam as a numbered revision, download an exam as a file, copy an exam and archive exams they no longer use.
+go-exam is a small, self-hosted web app for classroom multiple-choice exams. Students type the exam's code and their name, or open a link that carries the code, and take that exam within its time limit, the exam's own length (60 minutes unless the exam file says otherwise); the teacher imports exams from text files or writes them in the browser, opens and closes them by hand or on a schedule, and reviews the results. Teachers can also split an exam into named sections with instructions, see every change to an exam as a numbered revision, download an exam as a file, copy an exam and archive exams they no longer use.
 
 It is not a learning platform. Teachers sign in with their Google account, and only emails on the app's teacher list may sign in. Each teacher sees only their own exams and results; admins (the emails in `GOEXAM_ADMIN_EMAILS`) also see every exam and manage the teacher list. Students have no accounts. Several exams can be open at the same time.
 
@@ -74,9 +74,29 @@ A Google account can sign in only when its email is verified and on the teacher 
 - The text is the exam file format: `**bold**`, `*italics*`, `` `code` ``, fenced code blocks and image lines work as in a file, and the same rules refuse a save (for example an empty question or option). Write `\-` or `\*` for a line starting with `-` or an option ending with `*`. Text is stored as a file would be, without trailing spaces. A question or option that begins with a code block is stored with an empty first line and shows that way when opened again. A first line that starts with three backticks always opens a code block, so inline code there takes one backtick (`` `x` ``, not ```` ```x``` ````).
 - A save that changes nothing makes no revision.
 
+## Sections
+
+- A section is a named part of an exam: a title and, if the teacher writes them, instructions, shown above its first question. Question numbers run on across sections. An exam without sections works as before.
+- In an exam file a line `## Title` at the start of a line starts a section. The lines after it, up to the next question number, are its instructions, in the same text format as questions, images included; there a line starting with `- ` is a list item and a `shuffle:` line is text. The settings lines go before the first heading, and the first section starts at question 1. A `## ` line inside a code block, an indented one and `###` are ordinary text.
+- Students see each section's title and instructions above its first question, on the exam page and in the review. The navigator still lists the questions 1, 2, 3, … without sections.
+- With shuffling on, the questions are shuffled inside each section, and the sections keep their order. Options shuffle as before.
+- The score page shows the total only. The teacher's exam page, each revision and the attempt page show the headings.
+- For an exam with sections, the results list has one column per section after the Score column, headed by the section's title (`correct / questions in the section`), and the CSV one column per section after `total`, holding the number of correct answers. An exam without sections has no extra columns.
+- In the editor, a question that does not start a section has "Start a section here"; in an exam without sections only question 1 has it, because the first section starts there. Each section has Edit section (title, instructions and an image upload, like a question) and Remove section, which joins its questions to the section before (or, for section 1, to the next one).
+- Move up on a section's first question puts it at the end of the section before, and Move down on a section's last question puts it at the start of the next one; the question keeps its number and the boundary moves. A section's only question has no Move or Remove until the section is removed. Add question adds to the end of the last section.
+- A section is refused when it has no questions, an empty title, a title over 200 characters or a line break in the title, when there are more than 50 sections, and when other text comes before the first heading or question 1. The editor says, for example, "section 2 would be left without questions; remove the section first".
+- Sections are part of the questions: they are frozen once an attempt exists, and Download, Copy and every revision keep them.
+- Rolling back to the previous version (before sections): exams without sections work as before. An exam with sections shows no section titles or instructions there, its shuffle mixes all its questions, its results show the total only, and an attempt in progress gets another question order (answers and scores are safe). Its editor save or Replace on such an exam without attempts stores it without sections (the earlier revisions keep them), and its Download and Copy leave them out. Before rolling back, list the exams with sections:
+
+  ```sh
+  sqlite3 "$db" "SELECT DISTINCT e.code FROM exam e JOIN question q ON q.exam_id = e.id WHERE q.section_title IS NOT NULL"
+  ```
+
+  close each one, let its running attempts end, and do not edit, replace, copy or download them until this version is back.
+
 ## Revisions, download and copy
 
-- Importing an exam makes its revision 1; each Replace and each editor save makes the next one. A revision records its number, the time, the teacher and a summary: `Imported`, `Replaced from file`, `Copied from <title> (<code>), revision <N>`, or for an editor save `Created in the editor`, `Question N edited` (with `; correct option changed` when the correct option's text changed), `Question N added`, `Question N removed`, `Question N moved to M` or `Settings changed: ` and the changed settings.
+- Importing an exam makes its revision 1; each Replace and each editor save makes the next one. A revision records its number, the time, the teacher and a summary: `Imported`, `Replaced from file`, `Copied from <title> (<code>), revision <N>`, or for an editor save `Created in the editor`, `Question N edited` (with `; correct option changed` when the correct option's text changed), `Question N added`, `Question N removed`, `Question N moved to M`, `Question N moved to section K`, `Section K started at question N`, `Section K edited`, `Section K removed` or `Settings changed: ` and the changed settings. Sections are named by their position, as questions are.
 - History, on the exam page, lists the revisions newest first. Any revision opens read-only with its settings, questions, correct options and images.
 - Once an exam has an attempt it is frozen: no Replace, no editor save and no new revision. To change it, copy it.
 - Each attempt records the revision it started on; the attempt page shows it as a link to that revision. The results list and the CSV do not show it.
@@ -155,12 +175,33 @@ fmt.Println(2 + 3)
 - `2 + 3`
 ````
 
+An exam with two sections; the lines after a heading, up to the next question, are its instructions:
+
+```markdown
+# Chapter 4 quiz
+shuffle: questions
+
+## Part A: Multiple choice
+Choose **one** answer.
+
+1. What is 2 + 3?
+- 5 *
+- 6
+
+## Part B: Word problems
+
+2. Ann buys 4 pens at 2 dollars each. What does she pay?
+- 8 dollars *
+- 6 dollars
+```
+
 Rules:
 
 - The first line is the title: `# Title`.
 - Optional settings follow the title: `shuffle: none | questions | questions, options` (default `questions`), `show_result: none | score | review` (default `score`), `monitor: on | off` (default `on`) and `duration: <minutes>` (the time limit, a whole number from 5 to 240, default `60`). Like the questions, the length is fixed once an attempt exists.
 - With `monitor: on`, the exam page blocks copy, cut, paste and the right-click menu, and reports to the teacher when the student leaves the page for more than 3 seconds, tries one of those blocked actions or resizes the window. The student sees "Your teacher has been notified." after each event, and the page asks the browser to keep the screen on. The teacher sees the count in the results list (Flags) and CSV (`flags`), and each event on the attempt page. The monitor cannot see other apps, other devices, screenshots or browser extensions; it discourages cheating, it does not prevent it. Events never change answers, time or score.
 - Questions are numbered `1.`, `2.`, … at the start of a line.
+- A line `## Title` before a question starts a section; the lines after it, up to the next question number, are the section's instructions. See [Sections](#sections).
 - Options start with `- `. Each question needs at least two.
 - Mark exactly one option per question as correct with a trailing `*`.
 - Text supports bold (`**bold**`), italics (`*italics*`), inline `` `code` ``, line breaks, fenced code blocks (```` ``` ````) and images (`![description](file.png)`).
@@ -201,6 +242,9 @@ uv run e2e/editor.py --rollback --base-url http://localhost:8080 --admin-email a
 uv run e2e/archive.py    --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/archive
 # Rollback rehearsal: start the previous release's binary (5716eb8) on a copy of the data directory archive.py left, then:
 uv run e2e/archive.py --rollback --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/archive-rollback
+uv run e2e/sections.py   --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/sections
+# Rollback rehearsal: start the previous release's binary (293ab19) on a copy of the data directory sections.py left, then:
+uv run e2e/sections.py --rollback --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/sections-rollback
 # The server must run with GOEXAM_TIME_ZONE=Asia/Jakarta; the run waits about two minutes on the real clock:
 uv run e2e/scheduled_exams.py --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --time-zone Asia/Jakarta --out e2e/out/scheduled-exams
 

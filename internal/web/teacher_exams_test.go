@@ -630,7 +630,7 @@ func TestFormatHelp_ExampleImports(t *testing.T) {
 	if ex.Shuffle != examfile.ShuffleQuestionsOptions || ex.ShowResult != examfile.ShowReview {
 		t.Errorf("example headers parsed as %q / %q", ex.Shuffle, ex.ShowResult)
 	}
-	for _, rule := range []string{"<code># Title</code>", "shuffle:", "show_result:", "duration:", "trailing <code>*</code>", ".zip", "PNG, JPEG, GIF or WebP", "10 MB"} {
+	for _, rule := range []string{"<code># Title</code>", "<code>## Title</code>", "shuffle:", "show_result:", "duration:", "trailing <code>*</code>", ".zip", "PNG, JPEG, GIF or WebP", "10 MB"} {
 		if !strings.Contains(help[1], rule) {
 			t.Errorf("format help lacks %q", rule)
 		}

@@ -94,6 +94,9 @@ func (h *harness) editCalls(id int64) []editCall {
 		{"RemoveQuestion", func(a exam.Actor, base int) error { return h.svc.RemoveQuestion(ctx, a, id, base, 1) }},
 		{"MoveQuestion", func(a exam.Actor, base int) error { return h.svc.MoveQuestion(ctx, a, id, base, 2, 1) }},
 		{"SaveSettings", func(a exam.Actor, base int) error { return h.svc.SaveSettings(ctx, a, id, base, other) }},
+		{"StartSection", func(a exam.Actor, base int) error {
+			return h.svc.StartSection(ctx, a, id, base, 1, exam.SectionSource{Title: "Part"})
+		}},
 	}
 }
 

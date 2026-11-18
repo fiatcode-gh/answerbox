@@ -383,6 +383,19 @@ func questionRequests(detail string) []editorRequest {
 	}
 }
 
+// sectionRequests are the five section routes of exam detail with a form
+// that would save.
+func sectionRequests(detail string) []editorRequest {
+	form := url.Values{"revision": {"1"}, "title": {"Edited section"}, "text": {"Edited instructions"}}
+	return []editorRequest{
+		{"GET", detail + "/questions/1/section", nil},
+		{"POST", detail + "/questions/1/section", form},
+		{"GET", detail + "/sections/1", nil},
+		{"POST", detail + "/sections/1", form},
+		{"POST", detail + "/sections/1/remove", form},
+	}
+}
+
 // requireEditorRefused sends reqs for exam id and wants a 409 exam page with
 // notice for each, and the exam's revisions and questions unchanged.
 func requireEditorRefused(t *testing.T, env *testEnv, id int64, cookie http.Header, csrf, notice string, reqs []editorRequest) {

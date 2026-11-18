@@ -96,6 +96,17 @@ type Question struct {
 	Position int
 	BodyHTML template.HTML
 	Options  []Option
+	// Section is the section that starts at this question; nil when none
+	// does.
+	Section *Section
+}
+
+// Section is a named part of an exam: its title and rendered instructions
+// ("" for none). It holds the questions from the one it starts at up to the
+// next section's first question.
+type Section struct {
+	Title    string
+	BodyHTML template.HTML
 }
 
 // Option is a stored answer option in original file order.

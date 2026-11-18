@@ -50,7 +50,7 @@
   </section>
 
   {{range .Attempt.Questions}}
-  <section class="detail-question" id="q{{.Position}}">
+  {{with .Section}}{{template "section_head" .}}{{end}}<section class="detail-question" id="q{{.Position}}">
     <p class="eyebrow">Question {{.Position}}{{if not .Answered}} · <span class="no-answer">No answer</span>{{end}}</p>
     <div class="question-body">{{.BodyHTML}}</div>
     <ol class="preview-options detail-options">

@@ -9,7 +9,7 @@
 
 {{define "preview_questions"}}
   {{range .}}
-  <section class="preview-question" id="q{{.Position}}">
+  {{with .Section}}{{template "section_head" .}}{{end}}<section class="preview-question" id="q{{.Position}}">
     <p class="eyebrow">Question {{.Position}}</p>
     {{template "preview_question_body" .}}
   </section>

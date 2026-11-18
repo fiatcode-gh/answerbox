@@ -30,7 +30,21 @@ func layout(questions []exam.Question, mode examfile.Shuffle, seed int64) []exam
 	}
 	out := slices.Clone(original)
 	if mode != examfile.ShuffleNone {
-		shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
+		// One run per section, in file order. An exam without sections is a
+		// single run, which draws exactly what the shuffle drew before
+		// sections existed (TestLayout_Golden).
+		for start := 0; start < len(out); {
+			end := start + 1
+			for end < len(out) && out[end].Section == nil {
+				end++
+			}
+			run := out[start:end]
+			head := run[0].Section
+			run[0].Section = nil
+			shuffle(len(run), func(i, j int) { run[i], run[j] = run[j], run[i] })
+			run[0].Section = head // the heading stays above the run's first shown question
+			start = end
+		}
 	}
 	if mode == examfile.ShuffleQuestionsOptions {
 		// original and out share each question's Options backing array, so

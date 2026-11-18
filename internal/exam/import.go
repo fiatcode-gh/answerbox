@@ -52,7 +52,7 @@ func (s *Service) insertExam(ctx context.Context, ownerID int64, summary string,
 	if _, err := insertRevision(ctx, tx, id, ownerID, s.now(), summary, ex, key); err != nil {
 		return 0, err
 	}
-	if err := insertQuestions(ctx, tx, id, ex.Questions); err != nil {
+	if err := insertQuestions(ctx, tx, id, ex); err != nil {
 		return 0, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -121,7 +121,7 @@ func (s *Service) replaceContent(ctx context.Context, actor Actor, examID int64,
 		ex.Title, string(ex.Shuffle), string(ex.ShowResult), ex.Monitor, ex.DurationMinutes, key, examID); err != nil {
 		return fmt.Errorf("exam: update: %w", err)
 	}
-	if err := insertQuestions(ctx, tx, examID, ex.Questions); err != nil {
+	if err := insertQuestions(ctx, tx, examID, ex); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -192,11 +192,21 @@ func (s *Service) writeImages(key string, images []examfile.Image) (created []st
 	return created, nil
 }
 
-func insertQuestions(ctx context.Context, tx *sql.Tx, examID int64, questions []examfile.Question) error {
-	for i, q := range questions {
+// insertQuestions inserts the questions and options of ex; a question that
+// starts a section carries its title and HTML, every other one NULL.
+func insertQuestions(ctx context.Context, tx *sql.Tx, examID int64, ex examfile.Exam) error {
+	next := 0 // ex.Sections are in Start order
+	for i, q := range ex.Questions {
+		var title, html sql.NullString
+		if next < len(ex.Sections) && ex.Sections[next].Start == i+1 {
+			s := ex.Sections[next]
+			title = sql.NullString{String: s.Title, Valid: true}
+			html = sql.NullString{String: string(s.BodyHTML), Valid: true}
+			next++
+		}
 		res, err := tx.ExecContext(ctx,
-			`INSERT INTO question (exam_id, position, body_html) VALUES (?, ?, ?)`,
-			examID, i+1, string(q.BodyHTML))
+			`INSERT INTO question (exam_id, position, body_html, section_title, section_html) VALUES (?, ?, ?, ?, ?)`,
+			examID, i+1, string(q.BodyHTML), title, html)
 		if err != nil {
 			return fmt.Errorf("exam: insert question: %w", err)
 		}

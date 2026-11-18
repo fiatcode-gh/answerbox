@@ -37,6 +37,11 @@ const (
 	MaxTitleRunes    = 200
 )
 
+const (
+	MaxSections          = 50
+	MaxSectionTitleRunes = 200
+)
+
 // Exam length in whole minutes, set by the "duration:" header.
 const (
 	MinDurationMinutes     = 5
@@ -59,8 +64,12 @@ type Exam struct {
 	Monitor         bool // anti-cheat monitor; "monitor: on" by default
 	DurationMinutes int  // DefaultDurationMinutes without a "duration:" header
 	Questions       []Question
-	Images          []Image // referenced images only, unique by Name
-	Dir             string  // Upload.Dir: folder of the text file inside the upload
+	// Sections are the exam's named parts in file order; nil for an exam
+	// without sections. A section holds the questions from its Start up to the
+	// next section's Start; the first one starts at question 1.
+	Sections []Section
+	Images   []Image // referenced images only, unique by Name
+	Dir      string  // Upload.Dir: folder of the text file inside the upload
 	// ImagePaths maps the cleaned upload path of every referenced image to
 	// its Image.Name; nil without images.
 	ImagePaths map[string]string
@@ -72,6 +81,16 @@ type Question struct {
 	Source   string
 	BodyHTML template.HTML
 	Options  []Option
+}
+
+// Section is a named part of an exam. Source is its instructions as
+// written: the dedented lines after the heading, without leading blank
+// lines and trailing white space; "" for none.
+type Section struct {
+	Title    string
+	Source   string
+	BodyHTML template.HTML // "" without instructions
+	Start    int           // 1-based number of its first question
 }
 
 type Option struct {

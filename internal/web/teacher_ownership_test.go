@@ -19,7 +19,7 @@ import (
 type examRoute struct{ Method, Path string }
 
 // examRoutes returns every adminRoutes entry under /admin/exams/1. It fails
-// when fewer than today's twenty-six remain, so a route cannot drop out
+// when fewer than today's thirty-one remain, so a route cannot drop out
 // silently.
 func examRoutes(t *testing.T) []examRoute {
 	t.Helper()
@@ -29,8 +29,8 @@ func examRoutes(t *testing.T) []examRoute {
 			out = append(out, examRoute(r))
 		}
 	}
-	if len(out) < 26 {
-		t.Fatalf("adminRoutes has %d exam routes, want at least 26", len(out))
+	if len(out) < 31 {
+		t.Fatalf("adminRoutes has %d exam routes, want at least 31", len(out))
 	}
 	return out
 }
@@ -139,9 +139,7 @@ func TestOwnership_OwnerAndAdminCanUseEveryRoute(t *testing.T) {
 		t    teacher
 	}{{"owner", owner}, {"admin", admin}} {
 		for _, route := range examRoutes(t) {
-			// Replace and the editor refuse an exam with attempts.
-			noAttempt := strings.HasSuffix(route.Path, "/replace") || editorRoute(route.Path)
-			id, aid := env.ownedExam(t, owner.actor, "Algebra", !noAttempt)
+			id, aid := env.routeExam(t, route, owner.actor)
 			rec := env.call(t, route, id, aid, who.t)
 			want := http.StatusOK
 			if route.Method == "POST" {
@@ -158,9 +156,25 @@ func TestOwnership_OwnerAndAdminCanUseEveryRoute(t *testing.T) {
 	}
 }
 
+// routeExam imports the closed exam route runs on for owner: one section
+// over two questions for a section route, otherwise ownedExam's exam, with
+// an attempt unless route is Replace or an editor route, which refuse one.
+func (env *testEnv) routeExam(t *testing.T, route examRoute, owner exam.Actor) (examID, attemptID int64) {
+	t.Helper()
+	if !strings.Contains(route.Path, "/sections/") {
+		noAttempt := strings.HasSuffix(route.Path, "/replace") || editorRoute(route.Path)
+		return env.ownedExam(t, owner, "Algebra", !noAttempt)
+	}
+	id, err := env.exams.Import(context.Background(), owner, []byte("# Parts\n\n## Part\n\n1. Q one\n- a *\n- b\n\n2. Q two\n- c *\n- d\n"))
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	return id, 0
+}
+
 // editorRoute reports whether path is a route of the exam editor.
 func editorRoute(path string) bool {
-	return strings.Contains(path, "/edit") || strings.Contains(path, "/settings") || strings.Contains(path, "/questions/")
+	return strings.Contains(path, "/edit") || strings.Contains(path, "/settings") || strings.Contains(path, "/questions/") || strings.Contains(path, "/sections/")
 }
 
 // examRowIDs returns the exam ids of the rows of the exams table.

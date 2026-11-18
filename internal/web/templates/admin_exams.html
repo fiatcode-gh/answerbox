@@ -43,6 +43,7 @@ fmt.Println(2 + 3)
         <li>The first line is the title: <code># Title</code>.</li>
         <li>Optional settings follow the title: <code>shuffle: none | questions | questions, options</code> (default <code>questions</code>), <code>show_result: none | score | review</code> (default <code>score</code>), <code>monitor: on | off</code> (default <code>on</code>; flags leaving the page, copy, paste, right-click and resizing) and <code>duration: &lt;minutes&gt;</code> (a whole number from 5 to 240, default <code>60</code>).</li>
         <li>Questions are numbered <code>1.</code>, <code>2.</code>, … at the start of a line.</li>
+        <li>A line <code>## Title</code> starts a section. The lines after it, up to the next question, are its instructions, shown above the section's first question. Questions keep their running numbers, and the settings go before the first section.</li>
         <li>Options start with <code>- </code>. Each question needs at least two.</li>
         <li>Mark exactly one option per question as correct with a trailing <code>*</code>.</li>
         <li>Text supports <strong>bold</strong> (<code>**bold**</code>), <em>italics</em> (<code>*italics*</code>), inline <code>`code`</code>, line breaks, fenced code blocks (<code>```</code>) and images (<code>![description](file.png)</code>).</li>

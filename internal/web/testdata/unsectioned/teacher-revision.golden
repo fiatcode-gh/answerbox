@@ -1,0 +1,125 @@
+<main class="container admin revision-page" data-exam-id="1" data-revision="1">
+  <p class="back"><a href="/admin/exams/1/revisions">← History</a></p>
+  <h1>Revision 1</h1>
+  <p class="zone-note">Saved 2026-11-14 09:30 (UTC) by admin@example.test: Imported</p>
+
+  <dl class="settings">
+    <dt>Title</dt>
+    <dd>Exam questions, options review</dd>
+    <dt>Length</dt>
+    <dd>60 minutes</dd>
+    <dt>Shuffle</dt>
+    <dd>Questions and options shuffled</dd>
+    <dt>Result shown to students</dt>
+    <dd>Score and review</dd>
+    <dt>Monitor</dt>
+    <dd>On</dd>
+    <dt>Questions</dt>
+    <dd>5</dd>
+  </dl>
+
+  <h2>Questions</h2>
+  
+  
+  <section class="preview-question" id="q1">
+    <p class="eyebrow">Question 1</p>
+    
+    <div class="question-body"><p>Question 1</p>
+</div>
+    <ol class="preview-options">
+      
+      <li data-correct="true"><div class="option-body"><p>Option 1.1</p>
+</div><span class="correct-mark">✓ Correct</span></li>
+      
+      <li data-correct="false"><div class="option-body"><p>Option 1.2</p>
+</div></li>
+      
+      <li data-correct="false"><div class="option-body"><p>Option 1.3</p>
+</div></li>
+      
+    </ol>
+
+  </section>
+  
+  <section class="preview-question" id="q2">
+    <p class="eyebrow">Question 2</p>
+    
+    <div class="question-body"><p>Question 2</p>
+</div>
+    <ol class="preview-options">
+      
+      <li data-correct="true"><div class="option-body"><p>Option 2.1</p>
+</div><span class="correct-mark">✓ Correct</span></li>
+      
+      <li data-correct="false"><div class="option-body"><p>Option 2.2</p>
+</div></li>
+      
+      <li data-correct="false"><div class="option-body"><p>Option 2.3</p>
+</div></li>
+      
+    </ol>
+
+  </section>
+  
+  <section class="preview-question" id="q3">
+    <p class="eyebrow">Question 3</p>
+    
+    <div class="question-body"><p>Question 3</p>
+</div>
+    <ol class="preview-options">
+      
+      <li data-correct="true"><div class="option-body"><p>Option 3.1</p>
+</div><span class="correct-mark">✓ Correct</span></li>
+      
+      <li data-correct="false"><div class="option-body"><p>Option 3.2</p>
+</div></li>
+      
+      <li data-correct="false"><div class="option-body"><p>Option 3.3</p>
+</div></li>
+      
+    </ol>
+
+  </section>
+  
+  <section class="preview-question" id="q4">
+    <p class="eyebrow">Question 4</p>
+    
+    <div class="question-body"><p>Question 4</p>
+</div>
+    <ol class="preview-options">
+      
+      <li data-correct="true"><div class="option-body"><p>Option 4.1</p>
+</div><span class="correct-mark">✓ Correct</span></li>
+      
+      <li data-correct="false"><div class="option-body"><p>Option 4.2</p>
+</div></li>
+      
+      <li data-correct="false"><div class="option-body"><p>Option 4.3</p>
+</div></li>
+      
+    </ol>
+
+  </section>
+  
+  <section class="preview-question" id="q5">
+    <p class="eyebrow">Question 5</p>
+    
+    <div class="question-body"><p>Question 5</p>
+</div>
+    <ol class="preview-options">
+      
+      <li data-correct="true"><div class="option-body"><p>Option 5.1</p>
+</div><span class="correct-mark">✓ Correct</span></li>
+      
+      <li data-correct="false"><div class="option-body"><p>Option 5.2</p>
+</div></li>
+      
+      <li data-correct="false"><div class="option-body"><p>Option 5.3</p>
+</div></li>
+      
+    </ol>
+
+  </section>
+  
+
+</main>

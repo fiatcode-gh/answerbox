@@ -25,6 +25,17 @@ type revisionContent struct {
 	Dir       string             `json:"dir"`
 	Images    map[string]string  `json:"images,omitempty"`
 	Questions []revisionQuestion `json:"questions"`
+	// Sections is absent for an exam without sections.
+	Sections []revisionSection `json:"sections,omitempty"`
+}
+
+// revisionSection is a section's title, instructions as written and
+// rendered, and the 1-based number of its first question.
+type revisionSection struct {
+	Title  string `json:"title"`
+	Source string `json:"source"`
+	HTML   string `json:"html"`
+	Start  int    `json:"start"`
 }
 
 type revisionQuestion struct {
@@ -50,6 +61,12 @@ func insertRevision(ctx context.Context, tx *sql.Tx, examID, teacherID int64, at
 			rq.Options[j] = revisionOption{Source: o.Source, HTML: string(o.BodyHTML), Correct: o.Correct}
 		}
 		content.Questions[i] = rq
+	}
+	if len(ex.Sections) > 0 {
+		content.Sections = make([]revisionSection, len(ex.Sections))
+		for i, s := range ex.Sections {
+			content.Sections[i] = revisionSection{Title: s.Title, Source: s.Source, HTML: string(s.BodyHTML), Start: s.Start}
+		}
 	}
 	doc, err := json.Marshal(content)
 	if err != nil {
@@ -124,6 +141,13 @@ func (s *Service) Revision(ctx context.Context, examID int64, number int) (Revis
 			qq.Options[j] = Option{Position: j + 1, BodyHTML: template.HTML(o.HTML), Correct: o.Correct}
 		}
 		r.Questions[i] = qq
+	}
+	for _, s := range content.Sections {
+		if s.Start < 1 || s.Start > len(r.Questions) {
+			return Revision{}, fmt.Errorf("exam: revision %d of exam %d: section %q starts at question %d of %d",
+				number, examID, s.Title, s.Start, len(r.Questions))
+		}
+		r.Questions[s.Start-1].Section = &Section{Title: s.Title, BodyHTML: template.HTML(s.HTML)}
 	}
 	return r, nil
 }

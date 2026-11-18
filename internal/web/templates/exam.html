@@ -35,7 +35,7 @@
     <div class="exam-questions">
       {{$total := .Total}}
       {{range $q := .Questions}}
-      <section class="question" id="q{{$q.Number}}" data-question-id="{{$q.ID}}">
+      {{with $q.Section}}{{template "section_head" .}}{{end}}<section class="question" id="q{{$q.Number}}" data-question-id="{{$q.ID}}">
         <div class="question-head">
           <p class="eyebrow">Question {{$q.Number}} of {{$total}}</p>
           {{if $q.Answered}}<span class="q-state" data-state="saved">Saved</span>{{else}}<span class="q-state" data-state="idle"></span>{{end}}

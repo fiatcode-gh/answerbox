@@ -1,0 +1,136 @@
+<main class="container admin attempt-detail" data-exam-id="1" data-attempt-id="1">
+  <p class="back"><a href="/admin/exams/1/attempts">← Results: Exam questions, options review</a></p>
+  
+  <div class="exam-head">
+    <h1>Ayu</h1>
+    <span class="badge badge-ok">Submitted</span>
+  </div>
+  <dl class="settings attempt-summary">
+    <dt>Score</dt>
+    <dd class="numeric">0 / 5</dd>
+    <dt>Started</dt>
+    <dd class="numeric">2026-11-14 09:30</dd>
+    <dt>Finished</dt>
+    <dd class="numeric">2026-11-14 09:40</dd>
+    <dt>Exam content</dt>
+    <dd id="attempt-revision"><a href="/admin/exams/1/revisions/1">Revision 1</a></dd>
+  </dl>
+  <p class="zone-note">Times are shown in UTC. Questions and options are in the order of the exam file.</p>
+
+  <form id="rename-form" class="rename-form" method="post" action="/admin/exams/1/attempts/1/rename">
+    <input type="hidden" name="csrf_token" value="DNhydNZwhMqvDg02yEltt_71X-DhJXUKpgjV4g_8LRI">
+    <label for="rename-name">Student name</label>
+    <input type="text" id="rename-name" name="name" value="Ayu" maxlength="100" autocomplete="off" required>
+    <button type="submit" class="secondary">Rename</button>
+  </form>
+
+  <section id="flags" class="attempt-flags">
+    <h2>Flags</h2>
+    
+    <div class="overflow-auto">
+      <table id="events">
+        <thead>
+          <tr><th scope="col">Time</th><th scope="col">Event</th><th scope="col">Question</th></tr>
+        </thead>
+        <tbody>
+          
+          <tr class="event"><td class="numeric">2026-11-14 09:30</td><td>Tried to copy</td><td><a href="#q4">Question 2 on screen (file question 4)</a></td></tr>
+          
+        </tbody>
+      </table>
+    </div>
+    
+  </section>
+
+  
+  <section class="detail-question" id="q1">
+    <p class="eyebrow">Question 1 · <span class="no-answer">No answer</span></p>
+    <div class="question-body"><p>Question 1</p>
+</div>
+    <ol class="preview-options detail-options">
+      
+      <li data-correct="true" data-picked="false"><div class="option-body"><p>Option 1.1</p>
+</div><p class="option-marks"><span class="correct-mark">✓ Correct</span></p></li>
+      
+      <li data-correct="false" data-picked="false"><div class="option-body"><p>Option 1.2</p>
+</div></li>
+      
+      <li data-correct="false" data-picked="false"><div class="option-body"><p>Option 1.3</p>
+</div></li>
+      
+    </ol>
+  </section>
+  
+  <section class="detail-question" id="q2">
+    <p class="eyebrow">Question 2 · <span class="no-answer">No answer</span></p>
+    <div class="question-body"><p>Question 2</p>
+</div>
+    <ol class="preview-options detail-options">
+      
+      <li data-correct="true" data-picked="false"><div class="option-body"><p>Option 2.1</p>
+</div><p class="option-marks"><span class="correct-mark">✓ Correct</span></p></li>
+      
+      <li data-correct="false" data-picked="false"><div class="option-body"><p>Option 2.2</p>
+</div></li>
+      
+      <li data-correct="false" data-picked="false"><div class="option-body"><p>Option 2.3</p>
+</div></li>
+      
+    </ol>
+  </section>
+  
+  <section class="detail-question" id="q3">
+    <p class="eyebrow">Question 3</p>
+    <div class="question-body"><p>Question 3</p>
+</div>
+    <ol class="preview-options detail-options">
+      
+      <li data-correct="true" data-picked="false"><div class="option-body"><p>Option 3.1</p>
+</div><p class="option-marks"><span class="correct-mark">✓ Correct</span></p></li>
+      
+      <li data-correct="false" data-picked="false"><div class="option-body"><p>Option 3.2</p>
+</div></li>
+      
+      <li data-correct="false" data-picked="true"><div class="option-body"><p>Option 3.3</p>
+</div><p class="option-marks"><span class="pick-mark">✗ Student's pick</span></p></li>
+      
+    </ol>
+  </section>
+  
+  <section class="detail-question" id="q4">
+    <p class="eyebrow">Question 4 · <span class="no-answer">No answer</span></p>
+    <div class="question-body"><p>Question 4</p>
+</div>
+    <ol class="preview-options detail-options">
+      
+      <li data-correct="true" data-picked="false"><div class="option-body"><p>Option 4.1</p>
+</div><p class="option-marks"><span class="correct-mark">✓ Correct</span></p></li>
+      
+      <li data-correct="false" data-picked="false"><div class="option-body"><p>Option 4.2</p>
+</div></li>
+      
+      <li data-correct="false" data-picked="false"><div class="option-body"><p>Option 4.3</p>
+</div></li>
+      
+    </ol>
+  </section>
+  
+  <section class="detail-question" id="q5">
+    <p class="eyebrow">Question 5</p>
+    <div class="question-body"><p>Question 5</p>
+</div>
+    <ol class="preview-options detail-options">
+      
+      <li data-correct="true" data-picked="false"><div class="option-body"><p>Option 5.1</p>
+</div><p class="option-marks"><span class="correct-mark">✓ Correct</span></p></li>
+      
+      <li data-correct="false" data-picked="false"><div class="option-body"><p>Option 5.2</p>
+</div></li>
+      
+      <li data-correct="false" data-picked="true"><div class="option-body"><p>Option 5.3</p>
+</div><p class="option-marks"><span class="pick-mark">✗ Student's pick</span></p></li>
+      
+    </ol>
+  </section>
+  
+</main>

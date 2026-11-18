@@ -213,11 +213,16 @@ type attemptRow struct {
 	ResumeCode        string // in progress only
 	InProgress        bool
 	Flags             int
+	Sections          []sectionCell // parallel to attemptsData.Sections
 }
+
+// sectionCell is one section score of an attempts-table row.
+type sectionCell struct{ Score, Total int }
 
 type attemptsData struct {
 	adminPage
 	Exam                 exam.Exam
+	Sections             []attempt.ResultSection // nil without sections
 	Rows                 []attemptRow
 	Counts               string
 	Total                int // attempts before the name filter
@@ -235,11 +240,12 @@ func (s *server) attemptList(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	rows, err := s.deps.Attempts.List(r.Context(), e.ID)
+	res, err := s.deps.Attempts.List(r.Context(), e.ID)
 	if err != nil {
 		s.serverError(w, r, err)
 		return
 	}
+	rows := res.Attempts
 	total := len(rows)
 	filter := strings.TrimSpace(r.URL.Query().Get("name"))
 	rows = filterByName(rows, filter)
@@ -257,6 +263,7 @@ func (s *server) attemptList(w http.ResponseWriter, r *http.Request) {
 	data := attemptsData{
 		adminPage: adminPageFor(r),
 		Exam:      e,
+		Sections:  res.Sections,
 		Rows:      make([]attemptRow, len(rows)),
 		Counts:    countsLine(rows, total, filter != ""),
 		Total:     total,
@@ -283,6 +290,9 @@ func (s *server) attemptList(w http.ResponseWriter, r *http.Request) {
 			Score:   sum.Score,
 			Total:   sum.Total,
 			Flags:   sum.Flags,
+		}
+		for k, score := range sum.SectionScores {
+			row.Sections = append(row.Sections, sectionCell{Score: score, Total: res.Sections[k].Total})
 		}
 		if sum.Status == attempt.InProgress {
 			row.InProgress = true
@@ -332,30 +342,38 @@ var csvStatus = map[attempt.Status]string{
 	attempt.TimedOut:   "timed out",
 }
 
-// attemptsCSV exports every attempt of the exam in start order.
+// attemptsCSV exports every attempt of the exam in start order, with one
+// column of correct answers per section after the total.
 func (s *server) attemptsCSV(w http.ResponseWriter, r *http.Request) {
 	e, ok := s.resultsExam(w, r)
 	if !ok {
 		return
 	}
-	rows, err := s.deps.Attempts.List(r.Context(), e.ID)
+	res, err := s.deps.Attempts.List(r.Context(), e.ID)
 	if err != nil {
 		s.serverError(w, r, err)
 		return
 	}
 	var buf bytes.Buffer
 	cw := csv.NewWriter(&buf)
-	cw.Write([]string{"name", "status", "score", "total", "started", "finished", "flags"})
-	for _, sum := range rows {
+	header := []string{"name", "status", "score", "total"}
+	for _, sec := range res.Sections {
+		header = append(header, csvText(sec.Title))
+	}
+	cw.Write(append(header, "started", "finished", "flags"))
+	for _, sum := range res.Attempts {
 		finished := ""
 		if sum.Status != attempt.InProgress {
 			finished = s.csvTime(sum.FinishedAt)
 		}
-		cw.Write([]string{
-			csvName(sum.StudentName), csvStatus[sum.Status],
+		record := []string{
+			csvText(sum.StudentName), csvStatus[sum.Status],
 			strconv.Itoa(sum.Score), strconv.Itoa(sum.Total),
-			s.csvTime(sum.StartedAt), finished, strconv.Itoa(sum.Flags),
-		})
+		}
+		for _, score := range sum.SectionScores {
+			record = append(record, strconv.Itoa(score))
+		}
+		cw.Write(append(record, s.csvTime(sum.StartedAt), finished, strconv.Itoa(sum.Flags)))
 	}
 	cw.Flush()
 	if err := cw.Error(); err != nil {
@@ -371,12 +389,13 @@ func (s *server) csvTime(t time.Time) string {
 	return t.In(s.deps.Location).Format(time.RFC3339)
 }
 
-// csvName keeps a spreadsheet from reading a student name as a formula.
-func csvName(name string) string {
-	if name != "" && strings.ContainsRune("=+-@\t\r", rune(name[0])) {
-		return "'" + name
+// csvText keeps a spreadsheet from reading a student name or a section
+// title as a formula.
+func csvText(text string) string {
+	if text != "" && strings.ContainsRune("=+-@\t\r", rune(text[0])) {
+		return "'" + text
 	}
-	return name
+	return text
 }
 
 // resultsAttempt resolves the {id} exam and loads its {aid} attempt. On

@@ -35,11 +35,11 @@ func (env *testEnv) openExam(t *testing.T, text string) int64 {
 
 func (env *testEnv) list(t *testing.T, examID int64) []attempt.Summary {
 	t.Helper()
-	rows, err := env.attempts.List(context.Background(), examID)
+	res, err := env.attempts.List(context.Background(), examID)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	return rows
+	return res.Attempts
 }
 
 func studentCookie(token string) http.Header {

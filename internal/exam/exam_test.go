@@ -225,16 +225,26 @@ type flatOption struct {
 	correct bool
 }
 
+// flatSection is a section that starts at a flattened question.
+type flatSection struct {
+	title string
+	html  string
+}
+
 type flatQuestion struct {
 	position int
 	html     string
 	opts     []flatOption
+	section  *flatSection // nil unless a section starts here
 }
 
 func flatten(qs []exam.Question) []flatQuestion {
 	var out []flatQuestion
 	for _, q := range qs {
 		fq := flatQuestion{position: q.Position, html: string(q.BodyHTML)}
+		if q.Section != nil {
+			fq.section = &flatSection{title: q.Section.Title, html: string(q.Section.BodyHTML)}
+		}
 		for i, o := range q.Options {
 			if o.Position != i+1 {
 				fq.html += " BAD-OPTION-POSITION"
@@ -244,6 +254,19 @@ func flatten(qs []exam.Question) []flatQuestion {
 		out = append(out, fq)
 	}
 	return out
+}
+
+// replaceKey reads every media key from in the HTML of qs as to.
+func replaceKey(qs []flatQuestion, from, to string) {
+	for i := range qs {
+		qs[i].html = strings.ReplaceAll(qs[i].html, from, to)
+		if s := qs[i].section; s != nil {
+			s.html = strings.ReplaceAll(s.html, from, to)
+		}
+		for j := range qs[i].opts {
+			qs[i].opts[j].html = strings.ReplaceAll(qs[i].opts[j].html, from, to)
+		}
+	}
 }
 
 const simpleExam = "# Simple\n\n1. Q one\n- a *\n- b\n"
@@ -302,8 +325,8 @@ func TestImport_StoresExamAndImages(t *testing.T) {
 	}
 	got[0].html = ""
 	wantQs := []flatQuestion{
-		{1, "", []flatOption{{"<p>circle</p>\n", false}, {"<p>square</p>\n", true}}},
-		{2, "<p>Second?</p>\n", []flatOption{{"<p>yes</p>\n", true}, {"<p>no</p>\n", false}, {"<p>maybe</p>\n", false}}},
+		{1, "", []flatOption{{"<p>circle</p>\n", false}, {"<p>square</p>\n", true}}, nil},
+		{2, "<p>Second?</p>\n", []flatOption{{"<p>yes</p>\n", true}, {"<p>no</p>\n", false}, {"<p>maybe</p>\n", false}}, nil},
 	}
 	if !reflect.DeepEqual(got, wantQs) {
 		t.Errorf("questions =\n%+v\nwant\n%+v", got, wantQs)

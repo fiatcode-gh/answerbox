@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"html/template"
 	"io/fs"
 	"time"
 )
@@ -124,21 +125,45 @@ func (s *Service) Questions(ctx context.Context, examID int64) ([]Question, erro
 	return LoadQuestions(ctx, s.db, examID)
 }
 
+// questionColumns reads a question row with its section; the variant before
+// sections reads a database from before migration 0009 the same way, as a
+// question without a section.
+const (
+	questionColumns               = `SELECT id, position, body_html, section_title, COALESCE(section_html, '') FROM question`
+	questionColumnsBeforeSections = `SELECT id, position, body_html, NULL, '' FROM question`
+)
+
 // LoadQuestions reads an exam's questions and options in original order
 // through q, which may be an open transaction.
 func LoadQuestions(ctx context.Context, q Queryer, examID int64) ([]Question, error) {
-	rows, err := q.QueryContext(ctx,
-		`SELECT id, position, body_html FROM question WHERE exam_id = ? ORDER BY position`, examID)
+	return loadQuestions(ctx, q, examID, questionColumns)
+}
+
+// loadQuestionsBeforeSections is LoadQuestions without the section columns,
+// for the rebuild of exams that may sit in a copy at schema 6, 7 or 8.
+func loadQuestionsBeforeSections(ctx context.Context, q Queryer, examID int64) ([]Question, error) {
+	return loadQuestions(ctx, q, examID, questionColumnsBeforeSections)
+}
+
+func loadQuestions(ctx context.Context, q Queryer, examID int64, columns string) ([]Question, error) {
+	rows, err := q.QueryContext(ctx, columns+` WHERE exam_id = ? ORDER BY position`, examID)
 	if err != nil {
 		return nil, err
 	}
 	var questions []Question
 	index := map[int64]int{}
 	for rows.Next() {
-		var qq Question
-		if err := rows.Scan(&qq.ID, &qq.Position, &qq.BodyHTML); err != nil {
+		var (
+			qq           Question
+			sectionTitle sql.NullString
+			sectionHTML  string
+		)
+		if err := rows.Scan(&qq.ID, &qq.Position, &qq.BodyHTML, &sectionTitle, &sectionHTML); err != nil {
 			rows.Close()
 			return nil, err
+		}
+		if sectionTitle.Valid {
+			qq.Section = &Section{Title: sectionTitle.String, BodyHTML: template.HTML(sectionHTML)}
 		}
 		index[qq.ID] = len(questions)
 		questions = append(questions, qq)

@@ -14,6 +14,7 @@ var (
 	durationRe   = regexp.MustCompile(`^[1-9][0-9]{0,2}$`)
 	questionRe   = regexp.MustCompile(`^(\d{1,4})[.)](?:[ \t]+(.*))?$`)
 	optionRe     = regexp.MustCompile(`^[ \t]*-(?:[ \t]+(.*))?$`)
+	sectionRe    = regexp.MustCompile(`^##(?:[ \t]+(.*))?$`)
 	commaRe      = regexp.MustCompile(`\s*,\s*`)
 	markerSkipRe = regexp.MustCompile("`[^`]*`|\\\\.")
 )
@@ -36,6 +37,14 @@ type rawQuestion struct {
 	options []*rawOption
 }
 
+// rawSection is a section heading (block.line) and its instructions: the
+// lines after it up to the next question number or heading, in block.cont.
+type rawSection struct {
+	block
+	title string
+	start int // number of its first question
+}
+
 // NormalizeNewlines turns "\r\n" and a lone "\r" into "\n".
 func NormalizeNewlines(s string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\r", "\n")
@@ -45,13 +54,23 @@ func NormalizeNewlines(s string) string {
 // mediaBase + "/" + Image.Name. Errors are *Error; only the first is reported.
 func Parse(u Upload, mediaBase string) (Exam, error) {
 	src := NormalizeNewlines(string(u.Text))
-	ex, questions, err := scan(strings.Split(src, "\n"))
+	ex, questions, sections, err := scan(strings.Split(src, "\n"))
 	if err != nil {
 		return Exam{}, err
 	}
 
 	r := newRenderer(u, mediaBase)
+	next := 0
 	for i, q := range questions {
+		// A section is rendered just before its first question, so images
+		// and image errors come in file order.
+		for ; next < len(sections) && sections[next].start == i+1; next++ {
+			s, err := renderSection(r, next+1, sections[next])
+			if err != nil {
+				return Exam{}, err
+			}
+			ex.Sections = append(ex.Sections, s)
+		}
 		parsed, err := validate(r, i+1, q)
 		if err != nil {
 			return Exam{}, err
@@ -62,7 +81,21 @@ func Parse(u Upload, mediaBase string) (Exam, error) {
 	return ex, nil
 }
 
-func scan(lines []string) (Exam, []*rawQuestion, error) {
+// renderSection renders section k; empty instructions stay "" without
+// calling the renderer.
+func renderSection(r *renderer, k int, s *rawSection) (Section, error) {
+	out := Section{Title: s.title, Source: s.instructions(), Start: s.start}
+	if out.Source == "" {
+		return out, nil
+	}
+	var err error
+	if out.BodyHTML, err = r.render(out.Source, place{"section", k}); err != nil {
+		return Section{}, err
+	}
+	return out, nil
+}
+
+func scan(lines []string) (Exam, []*rawQuestion, []*rawSection, error) {
 	ex := Exam{Shuffle: ShuffleQuestions, ShowResult: ShowScore, Monitor: true, DurationMinutes: DefaultDurationMinutes}
 
 	i := 0
@@ -70,7 +103,7 @@ func scan(lines []string) (Exam, []*rawQuestion, error) {
 		i++
 	}
 	if i == len(lines) {
-		return ex, nil, errorf(`line 1: expected "# Title" as the first line`)
+		return ex, nil, nil, errorf(`line 1: expected "# Title" as the first line`)
 	}
 	// titleRe's \S is ASCII-only, so a title of Unicode spaces such as "\v"
 	// matches but trims to nothing; it is rejected like a missing title.
@@ -79,15 +112,17 @@ func scan(lines []string) (Exam, []*rawQuestion, error) {
 		ex.Title = strings.TrimSpace(m[1])
 	}
 	if ex.Title == "" {
-		return ex, nil, errorf(`line %d: expected "# Title" as the first line`, i+1)
+		return ex, nil, nil, errorf(`line %d: expected "# Title" as the first line`, i+1)
 	}
 	if utf8.RuneCountInString(ex.Title) > MaxTitleRunes {
-		return ex, nil, errorf("line %d: title is longer than %d characters", i+1, MaxTitleRunes)
+		return ex, nil, nil, errorf("line %d: title is longer than %d characters", i+1, MaxTitleRunes)
 	}
 
 	headers := map[string]bool{}
 	var questions []*rawQuestion
+	var sections []*rawSection
 	var cur *block
+	inSection := false // cur is a section's instructions
 	inFence, fenceLine := false, 0
 	for i++; i < len(lines); i++ {
 		line, n := lines[i], i+1
@@ -95,18 +130,18 @@ func scan(lines []string) (Exam, []*rawQuestion, error) {
 		// leaves at the end of a block, so "-\f" cannot hide an option there.
 		trimmed := strings.TrimRightFunc(line, unicode.IsSpace)
 
-		if len(questions) == 0 {
+		if len(questions) == 0 && len(sections) == 0 {
 			if isBlank(line) {
 				continue
 			}
 			if m := headerRe.FindStringSubmatch(line); m != nil {
 				if err := setHeader(&ex, headers, m[1], m[2], n); err != nil {
-					return ex, nil, err
+					return ex, nil, nil, err
 				}
 				continue
 			}
-			if !questionRe.MatchString(trimmed) {
-				return ex, nil, errorf(`line %d: expected "shuffle:", "show_result:", "monitor:", "duration:" or question 1`, n)
+			if !questionRe.MatchString(trimmed) && !sectionRe.MatchString(trimmed) {
+				return ex, nil, nil, errorf(`line %d: expected "shuffle:", "show_result:", "monitor:", "duration:", a "## " section heading or question 1`, n)
 			}
 		}
 
@@ -121,20 +156,43 @@ func scan(lines []string) (Exam, []*rawQuestion, error) {
 			}
 			continue
 		}
+		if m := sectionRe.FindStringSubmatch(trimmed); m != nil {
+			if len(sections) == 0 && len(questions) > 0 {
+				return ex, nil, nil, errorf("line %d: the first section heading must come before question 1", n)
+			}
+			if err := lastSectionHasQuestion(sections, len(questions)); err != nil {
+				return ex, nil, nil, err
+			}
+			title := strings.TrimSpace(m[1])
+			if title == "" {
+				return ex, nil, nil, errorf("line %d: section title is empty", n)
+			}
+			if utf8.RuneCountInString(title) > MaxSectionTitleRunes {
+				return ex, nil, nil, errorf("line %d: section title is longer than %d characters", n, MaxSectionTitleRunes)
+			}
+			if len(sections) == MaxSections {
+				return ex, nil, nil, errorf("exam has more than %d sections", MaxSections)
+			}
+			s := &rawSection{block: block{line: n}, title: title, start: len(questions) + 1}
+			sections = append(sections, s)
+			cur, inSection = &s.block, true
+			continue
+		}
 		if m := matchQuestion(line, trimmed); m != nil {
 			num, _ := strconv.Atoi(m[1])
 			if want := len(questions) + 1; num != want {
-				return ex, nil, errorf("line %d: expected question %d, found question %d", n, want, num)
+				return ex, nil, nil, errorf("line %d: expected question %d, found question %d", n, want, num)
 			}
 			if num > MaxQuestions {
-				return ex, nil, errorf("exam has more than %d questions", MaxQuestions)
+				return ex, nil, nil, errorf("exam has more than %d questions", MaxQuestions)
 			}
 			q := &rawQuestion{block: block{line: n, first: m[2]}}
 			questions = append(questions, q)
-			cur = &q.block
+			cur, inSection = &q.block, false
 			continue
 		}
-		if m := optionRe.FindStringSubmatch(trimmed); m != nil {
+		// In a section's instructions a line like an option is text.
+		if m := optionRe.FindStringSubmatch(trimmed); m != nil && !inSection {
 			q := questions[len(questions)-1]
 			o := &rawOption{block: block{line: n}}
 			o.first, o.correct = splitMarker(m[1])
@@ -145,12 +203,38 @@ func scan(lines []string) (Exam, []*rawQuestion, error) {
 		cur.cont = append(cur.cont, line)
 	}
 	if inFence {
-		return ex, nil, errorf("line %d: code block is never closed", fenceLine)
+		return ex, nil, nil, errorf("line %d: code block is never closed", fenceLine)
+	}
+	if err := lastSectionHasQuestion(sections, len(questions)); err != nil {
+		return ex, nil, nil, err
 	}
 	if len(questions) == 0 {
-		return ex, nil, errorf("exam has no questions")
+		return ex, nil, nil, errorf("exam has no questions")
 	}
-	return ex, questions, nil
+	return ex, questions, sections, nil
+}
+
+// lastSectionHasQuestion refuses the last of sections when no question came
+// after its heading; questions is the number of questions read so far.
+func lastSectionHasQuestion(sections []*rawSection, questions int) error {
+	if len(sections) == 0 {
+		return nil
+	}
+	if last := sections[len(sections)-1]; last.start > questions {
+		return errorf("section %d (line %d) has no questions", len(sections), last.line)
+	}
+	return nil
+}
+
+// instructions is the dedented instructions text without leading empty
+// lines and trailing white space; the first kept line keeps its own
+// indentation.
+func (s *rawSection) instructions() string {
+	lines := dedent(s.cont)
+	for len(lines) > 0 && lines[0] == "" {
+		lines = lines[1:]
+	}
+	return strings.TrimRightFunc(strings.Join(lines, "\n"), unicode.IsSpace)
 }
 
 // matchQuestion matches questionRe against trimmed, the right-trimmed line,
@@ -259,13 +343,14 @@ func validate(r *renderer, k int, q *rawQuestion) (Question, error) {
 	}
 
 	out := Question{Source: body, Options: make([]Option, len(q.options))}
+	at := place{"question", k}
 	var err error
-	if out.BodyHTML, err = r.render(body, k); err != nil {
+	if out.BodyHTML, err = r.render(body, at); err != nil {
 		return Question{}, err
 	}
 	for m, o := range q.options {
 		out.Options[m].Source, out.Options[m].Correct = texts[m], o.correct
-		if out.Options[m].BodyHTML, err = r.render(texts[m], k); err != nil {
+		if out.Options[m].BodyHTML, err = r.render(texts[m], at); err != nil {
 			return Question{}, err
 		}
 	}

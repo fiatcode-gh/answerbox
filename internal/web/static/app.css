@@ -594,6 +594,37 @@ small.schedule {
   padding: 0 var(--ge-space-2);
 }
 
+/* Editor: section headings and the section form. */
+.section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2);
+  margin-top: var(--ge-space-3);
+}
+
+.section-actions form {
+  margin: 0;
+}
+
+.section-actions button {
+  width: auto;
+  margin: 0;
+  min-height: var(--ge-touch);
+}
+
+.question-actions .start-section,
+.section-actions .edit-section {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ge-touch);
+  padding: 0 var(--ge-space-2);
+}
+
+#section-form #save {
+  width: auto;
+  min-height: var(--ge-touch);
+}
+
 .upload-row [role="button"] {
   margin: 0;
   min-height: var(--ge-touch);
@@ -1356,6 +1387,38 @@ main.result {
 
 .review-option[data-picked="true"][data-correct="false"] .review-mark {
   color: var(--ge-danger);
+}
+
+/* Sections: a heading between question cards, in the paper voice, with an
+   accent rule instead of a card so it does not read as a question. */
+.section-head {
+  min-width: 0;
+  margin: var(--ge-space-6) 0 var(--ge-space-4);
+  padding: var(--ge-space-1) 0 var(--ge-space-1) var(--ge-space-4);
+  border-left: 4px solid var(--ge-accent);
+  overflow-wrap: anywhere;
+}
+
+.section-head:first-child {
+  margin-top: var(--ge-space-4);
+}
+
+.section-title {
+  margin: 0;
+  font-family: var(--ge-font-paper);
+  font-size: 1.375rem;
+  line-height: 1.3;
+}
+
+.section-body {
+  margin-top: var(--ge-space-2);
+  color: var(--ge-ink);
+}
+
+/* Section titles wrap in the results header; the cells stay on one line
+   (#attempts td.numeric). */
+#attempts th.section-score {
+  max-width: 10rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

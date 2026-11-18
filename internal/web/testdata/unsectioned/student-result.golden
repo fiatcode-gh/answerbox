@@ -1,0 +1,177 @@
+<main id="result" class="container result" data-show="review" data-status="submitted">
+  <h1>Exam submitted</h1>
+  <p class="result-meta">Exam questions, options review · Ayu</p>
+  
+  <div class="score-block">
+    <p id="score">0 / 5</p>
+    <p class="score-caption">correct answers</p>
+  </div>
+  
+  
+  <div class="review">
+    
+    
+    <section class="review-question">
+      <p class="eyebrow">Question 1 of 5</p>
+      <div class="question-body"><p>Question 3</p>
+</div>
+      
+      <ul class="review-options">
+        
+        <li class="review-option" data-picked="true" data-correct="false">
+          <span class="bubble">A</span>
+          <span class="option-body"><p>Option 3.3</p>
+</span>
+          <span class="review-mark">✗ Your answer</span>
+        </li>
+        
+        <li class="review-option" data-picked="false" data-correct="false">
+          <span class="bubble">B</span>
+          <span class="option-body"><p>Option 3.2</p>
+</span>
+          
+        </li>
+        
+        <li class="review-option" data-picked="false" data-correct="true">
+          <span class="bubble">C</span>
+          <span class="option-body"><p>Option 3.1</p>
+</span>
+          <span class="review-mark">✓ Correct answer</span>
+          
+        </li>
+        
+      </ul>
+    </section>
+    
+    <section class="review-question">
+      <p class="eyebrow">Question 2 of 5</p>
+      <div class="question-body"><p>Question 4</p>
+</div>
+      <p class="no-answer">No answer</p>
+      <ul class="review-options">
+        
+        <li class="review-option" data-picked="false" data-correct="false">
+          <span class="bubble">A</span>
+          <span class="option-body"><p>Option 4.2</p>
+</span>
+          
+        </li>
+        
+        <li class="review-option" data-picked="false" data-correct="true">
+          <span class="bubble">B</span>
+          <span class="option-body"><p>Option 4.1</p>
+</span>
+          <span class="review-mark">✓ Correct answer</span>
+          
+        </li>
+        
+        <li class="review-option" data-picked="false" data-correct="false">
+          <span class="bubble">C</span>
+          <span class="option-body"><p>Option 4.3</p>
+</span>
+          
+        </li>
+        
+      </ul>
+    </section>
+    
+    <section class="review-question">
+      <p class="eyebrow">Question 3 of 5</p>
+      <div class="question-body"><p>Question 5</p>
+</div>
+      
+      <ul class="review-options">
+        
+        <li class="review-option" data-picked="false" data-correct="false">
+          <span class="bubble">A</span>
+          <span class="option-body"><p>Option 5.2</p>
+</span>
+          
+        </li>
+        
+        <li class="review-option" data-picked="true" data-correct="false">
+          <span class="bubble">B</span>
+          <span class="option-body"><p>Option 5.3</p>
+</span>
+          <span class="review-mark">✗ Your answer</span>
+        </li>
+        
+        <li class="review-option" data-picked="false" data-correct="true">
+          <span class="bubble">C</span>
+          <span class="option-body"><p>Option 5.1</p>
+</span>
+          <span class="review-mark">✓ Correct answer</span>
+          
+        </li>
+        
+      </ul>
+    </section>
+    
+    <section class="review-question">
+      <p class="eyebrow">Question 4 of 5</p>
+      <div class="question-body"><p>Question 2</p>
+</div>
+      <p class="no-answer">No answer</p>
+      <ul class="review-options">
+        
+        <li class="review-option" data-picked="false" data-correct="false">
+          <span class="bubble">A</span>
+          <span class="option-body"><p>Option 2.3</p>
+</span>
+          
+        </li>
+        
+        <li class="review-option" data-picked="false" data-correct="false">
+          <span class="bubble">B</span>
+          <span class="option-body"><p>Option 2.2</p>
+</span>
+          
+        </li>
+        
+        <li class="review-option" data-picked="false" data-correct="true">
+          <span class="bubble">C</span>
+          <span class="option-body"><p>Option 2.1</p>
+</span>
+          <span class="review-mark">✓ Correct answer</span>
+          
+        </li>
+        
+      </ul>
+    </section>
+    
+    <section class="review-question">
+      <p class="eyebrow">Question 5 of 5</p>
+      <div class="question-body"><p>Question 1</p>
+</div>
+      <p class="no-answer">No answer</p>
+      <ul class="review-options">
+        
+        <li class="review-option" data-picked="false" data-correct="false">
+          <span class="bubble">A</span>
+          <span class="option-body"><p>Option 1.2</p>
+</span>
+          
+        </li>
+        
+        <li class="review-option" data-picked="false" data-correct="true">
+          <span class="bubble">B</span>
+          <span class="option-body"><p>Option 1.1</p>
+</span>
+          <span class="review-mark">✓ Correct answer</span>
+          
+        </li>
+        
+        <li class="review-option" data-picked="false" data-correct="false">
+          <span class="bubble">C</span>
+          <span class="option-body"><p>Option 1.3</p>
+</span>
+          
+        </li>
+        
+      </ul>
+    </section>
+    
+  </div>
+  
+  <p class="result-home"><a href="/">Back to the start page</a></p>
+</main>
