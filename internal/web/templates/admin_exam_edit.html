@@ -1,0 +1,48 @@
+{{define "title"}}Edit questions: {{.Exam.Title}} · go-exam{{end}}
+
+{{define "header"}}{{template "admin_header" .}}{{end}}
+
+{{define "main"}}
+<main class="container admin editor-page" data-exam-id="{{.Exam.ID}}" data-revision="{{.Revision}}">
+  <p class="back"><a href="/admin/exams/{{.Exam.ID}}">← {{.Exam.Title}}</a></p>
+  <h1>Edit questions</h1>
+  {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
+  <p class="zone-note">Revision {{.Revision}}. Every save makes a new revision. Earlier revisions stay readable in <a href="/admin/exams/{{.Exam.ID}}/revisions">History</a>.</p>
+  <div class="exam-actions">
+    <a id="add-question" role="button" href="/admin/exams/{{.Exam.ID}}/questions/new">Add question</a>
+    <a id="settings-link" role="button" class="secondary" href="/admin/exams/{{.Exam.ID}}/settings">Settings</a>
+  </div>
+  {{range .Questions}}
+  <section class="preview-question" id="q{{.Position}}">
+    <p class="eyebrow">Question {{.Position}}</p>
+    {{template "preview_question_body" .}}
+    <div class="question-actions">
+      <a class="edit-question" href="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}">Edit</a>
+      {{if .CanMoveUp}}
+      <form class="move-up" method="post" action="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}/move">
+        <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+        <input type="hidden" name="revision" value="{{$.Revision}}">
+        <input type="hidden" name="to" value="{{.Up}}">
+        <button type="submit" class="secondary">Move up</button>
+      </form>
+      {{end}}
+      {{if .CanMoveDown}}
+      <form class="move-down" method="post" action="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}/move">
+        <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+        <input type="hidden" name="revision" value="{{$.Revision}}">
+        <input type="hidden" name="to" value="{{.Down}}">
+        <button type="submit" class="secondary">Move down</button>
+      </form>
+      {{end}}
+      {{if .Remove}}
+      <form class="remove-question" method="post" action="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}/remove">
+        <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+        <input type="hidden" name="revision" value="{{$.Revision}}">
+        <button type="submit" class="secondary">Remove</button>
+      </form>
+      {{end}}
+    </div>
+  </section>
+  {{end}}
+</main>
+{{end}}

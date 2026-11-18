@@ -36,11 +36,15 @@ type rawQuestion struct {
 	options []*rawOption
 }
 
+// NormalizeNewlines turns "\r\n" and a lone "\r" into "\n".
+func NormalizeNewlines(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\r", "\n")
+}
+
 // Parse validates the exam text of u and renders it. Image sources become
 // mediaBase + "/" + Image.Name. Errors are *Error; only the first is reported.
 func Parse(u Upload, mediaBase string) (Exam, error) {
-	src := strings.ReplaceAll(string(u.Text), "\r\n", "\n")
-	src = strings.ReplaceAll(src, "\r", "\n")
+	src := NormalizeNewlines(string(u.Text))
 	ex, questions, err := scan(strings.Split(src, "\n"))
 	if err != nil {
 		return Exam{}, err
@@ -106,7 +110,7 @@ func scan(lines []string) (Exam, []*rawQuestion, error) {
 			}
 		}
 
-		fence := isFence(line)
+		fence := IsFence(line)
 		if inFence || fence {
 			cur.cont = append(cur.cont, line)
 			if fence {
@@ -312,7 +316,9 @@ func indent(l string) (width int, rest string) {
 	return width, ""
 }
 
-func isFence(line string) bool {
+// IsFence reports whether line opens or closes a fenced code block: its
+// first non-blank characters are three backticks.
+func IsFence(line string) bool {
 	return strings.HasPrefix(strings.TrimLeft(line, " \t"), "```")
 }
 

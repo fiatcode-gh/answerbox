@@ -17,7 +17,7 @@ const baseTemplate = "base.html"
 
 // partials only define named templates shared by pages; they are parsed into
 // every page set and are not pages themselves.
-var partials = []string{"admin_header.html", "admin_questions.html"}
+var partials = []string{"admin_header.html", "admin_questions.html", "admin_editor_fields.html"}
 
 // renderer holds one template set per page: base.html and the partials plus
 // that page file, parsed once at startup.

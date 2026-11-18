@@ -10,6 +10,7 @@ import (
 	"html/template"
 	"io"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/fiatcode-gh/go-exam/internal/examfile"
@@ -19,6 +20,7 @@ var (
 	ErrNotFound   = errors.New("exam: not found")
 	ErrFrozen     = errors.New("exam: content is frozen because attempts exist")
 	ErrNoRevision = errors.New("exam: has no revision yet")
+	ErrStale      = errors.New("exam: changed since the form was opened")
 )
 
 // Actor is the signed-in teacher a catalog call acts for. An admin may act
@@ -109,6 +111,11 @@ type Service struct {
 	media  *os.Root
 	now    func() time.Time
 	random io.Reader
+
+	// imageSaves serialises editor saves that carry an image, from the
+	// media folder check to the end of cleanup, so a failed save never
+	// removes a file another save's revision uses.
+	imageSaves sync.Mutex
 }
 
 // NewService returns a Service. media is a root opened on <data>/media.

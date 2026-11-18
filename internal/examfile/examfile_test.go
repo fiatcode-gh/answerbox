@@ -128,3 +128,42 @@ func mustParse(t *testing.T, u Upload) Exam {
 	}
 	return ex
 }
+
+func TestImageName(t *testing.T) {
+	accepted := []struct {
+		kind string
+		data []byte
+		ext  string
+	}{
+		{"PNG", pngBytes(t, colorRGB(1, 2, 3)), ".png"},
+		{"JPEG", jpegBytes(t), ".jpg"},
+		{"GIF", gifBytes(t), ".gif"},
+		{"WebP", webpBytes(), ".webp"},
+	}
+	for _, c := range accepted {
+		name, ok := ImageName(c.data)
+		if !ok || name != imageName(c.data, c.ext) {
+			t.Errorf("ImageName(%s) = %q, %v; want %q, true", c.kind, name, ok, imageName(c.data, c.ext))
+		}
+		ex := mustParse(t, Upload{
+			Text:  []byte("# T\n\n1. Q ![x](f)\n- a *\n- b\n"),
+			Dir:   ".",
+			Files: map[string][]byte{"f": c.data},
+		})
+		if len(ex.Images) != 1 || ex.Images[0].Name != name {
+			t.Errorf("%s: Parse images = %+v, want one named %q", c.kind, ex.Images, name)
+		}
+	}
+	for _, c := range []struct {
+		kind string
+		data []byte
+	}{
+		{"SVG", []byte(`<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>`)},
+		{"text", []byte("just some text\n")},
+		{"empty", nil},
+	} {
+		if name, ok := ImageName(c.data); ok || name != "" {
+			t.Errorf("ImageName(%s) = %q, %v; want \"\", false", c.kind, name, ok)
+		}
+	}
+}

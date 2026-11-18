@@ -1,13 +1,17 @@
-{{define "preview_questions"}}
-  {{range .}}
-  <section class="preview-question" id="q{{.Position}}">
-    <p class="eyebrow">Question {{.Position}}</p>
+{{define "preview_question_body"}}
     <div class="question-body">{{.BodyHTML}}</div>
     <ol class="preview-options">
       {{range .Options}}
       <li data-correct="{{.Correct}}"><div class="option-body">{{.BodyHTML}}</div>{{if .Correct}}<span class="correct-mark">✓ Correct</span>{{end}}</li>
       {{end}}
     </ol>
+{{end}}
+
+{{define "preview_questions"}}
+  {{range .}}
+  <section class="preview-question" id="q{{.Position}}">
+    <p class="eyebrow">Question {{.Position}}</p>
+    {{template "preview_question_body" .}}
   </section>
   {{end}}
 {{end}}

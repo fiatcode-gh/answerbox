@@ -19,7 +19,8 @@ import (
 type examRoute struct{ Method, Path string }
 
 // examRoutes returns every adminRoutes entry under /admin/exams/1. It fails
-// when fewer than today's fifteen remain, so a route cannot drop out silently.
+// when fewer than today's twenty-four remain, so a route cannot drop out
+// silently.
 func examRoutes(t *testing.T) []examRoute {
 	t.Helper()
 	var out []examRoute
@@ -28,8 +29,8 @@ func examRoutes(t *testing.T) []examRoute {
 			out = append(out, examRoute(r))
 		}
 	}
-	if len(out) < 15 {
-		t.Fatalf("adminRoutes has %d exam routes, want at least 15", len(out))
+	if len(out) < 24 {
+		t.Fatalf("adminRoutes has %d exam routes, want at least 24", len(out))
 	}
 	return out
 }
@@ -56,13 +57,13 @@ func (env *testEnv) adminTeacher(t *testing.T) teacher {
 	return teacher{actor: env.owner, cookie: cookie, csrf: csrf}
 }
 
-// ownedExam imports a closed exam for owner; with an attempt, it opens the
-// exam, starts one attempt by "Ayu" and closes it again. It returns the exam
-// and attempt ids (0 without an attempt).
+// ownedExam imports a closed exam of two questions for owner; with an
+// attempt, it opens the exam, starts one attempt by "Ayu" and closes it
+// again. It returns the exam and attempt ids (0 without an attempt).
 func (env *testEnv) ownedExam(t *testing.T, owner exam.Actor, title string, withAttempt bool) (examID, attemptID int64) {
 	t.Helper()
 	ctx := context.Background()
-	id, err := env.exams.Import(ctx, owner, []byte("# "+title+"\n\n1. Q one\n- a *\n- b\n"))
+	id, err := env.exams.Import(ctx, owner, []byte("# "+title+"\n\n1. Q one\n- a *\n- b\n\n2. Q two\n- c *\n- d\n"))
 	if err != nil {
 		t.Fatalf("Import: %v", err)
 	}
@@ -94,7 +95,12 @@ func (env *testEnv) call(t *testing.T, route examRoute, examID, attemptID int64,
 	case strings.HasSuffix(target, "/replace"):
 		return serve(env.h, uploadRequest(t, target, who.csrf, "exam.md", []byte("# Replaced\n\n1. Q\n- a *\n- b\n"), who.cookie))
 	default:
-		return postForm(env.h, target, url.Values{"csrf_token": {who.csrf}, "name": {"Renamed"}, "opens_at": {"2026-11-20T08:00"}}, who.cookie)
+		return postForm(env.h, target, url.Values{
+			"csrf_token": {who.csrf}, "name": {"Renamed"}, "opens_at": {"2026-11-20T08:00"},
+			"revision": {"1"}, "to": {"2"}, "title": {"Edited"}, "shuffle": {"questions"},
+			"show_result": {"score"}, "monitor": {"on"}, "duration": {"45"},
+			"do": {"save"}, "text": {"Edited question"}, "option": {"a", "b"}, "correct": {"0"},
+		}, who.cookie)
 	}
 }
 
@@ -133,8 +139,9 @@ func TestOwnership_OwnerAndAdminCanUseEveryRoute(t *testing.T) {
 		t    teacher
 	}{{"owner", owner}, {"admin", admin}} {
 		for _, route := range examRoutes(t) {
-			replace := strings.HasSuffix(route.Path, "/replace")
-			id, aid := env.ownedExam(t, owner.actor, "Algebra", !replace)
+			// Replace and the editor refuse an exam with attempts.
+			noAttempt := strings.HasSuffix(route.Path, "/replace") || editorRoute(route.Path)
+			id, aid := env.ownedExam(t, owner.actor, "Algebra", !noAttempt)
 			rec := env.call(t, route, id, aid, who.t)
 			want := http.StatusOK
 			if route.Method == "POST" {
@@ -149,6 +156,11 @@ func TestOwnership_OwnerAndAdminCanUseEveryRoute(t *testing.T) {
 			}
 		}
 	}
+}
+
+// editorRoute reports whether path is a route of the exam editor.
+func editorRoute(path string) bool {
+	return strings.Contains(path, "/edit") || strings.Contains(path, "/settings") || strings.Contains(path, "/questions/")
 }
 
 // examRowIDs returns the exam ids of the rows of the exams table.

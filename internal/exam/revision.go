@@ -15,6 +15,7 @@ import (
 const (
 	summaryImported = "Imported"
 	summaryReplaced = "Replaced from file"
+	summaryCreated  = "Created in the editor"
 )
 
 // revisionContent is the JSON document of exam_revision.content: the source

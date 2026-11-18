@@ -14,11 +14,11 @@ import (
 // exam). Attempts are not copied. It returns the new exam's id. An exam
 // outside the scope is ErrNotFound; one without a revision is ErrNoRevision.
 func (s *Service) Copy(ctx context.Context, actor Actor, examID int64) (int64, error) {
-	cur, err := s.currentUpload(ctx, actor, examID)
+	cur, upload, err := s.currentUpload(ctx, actor, examID)
 	if err != nil {
 		return 0, err
 	}
-	ex, key, err := s.store(cur.Upload)
+	ex, key, err := s.store(upload)
 	if fileErr := (*examfile.Error)(nil); errors.As(err, &fileErr) {
 		// %v, not %w: a stored revision that does not parse is a server
 		// fault, never an invalid upload.
@@ -27,7 +27,7 @@ func (s *Service) Copy(ctx context.Context, actor Actor, examID int64) (int64, e
 	if err != nil {
 		return 0, err
 	}
-	id, err := s.insertExam(ctx, actor.TeacherID, copiedSummary(cur.Title, cur.Code, cur.Number), ex, key)
+	id, err := s.insertExam(ctx, actor.TeacherID, copiedSummary(cur.Exam.Title, cur.Code, cur.Number), ex, key)
 	if err != nil {
 		s.media.RemoveAll(key)
 		return 0, err

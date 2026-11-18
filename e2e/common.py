@@ -46,6 +46,13 @@ def _png(width: int, height: int) -> bytes:
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(bytes(rows))) + chunk(b"IEND", b"")
 
 
+def write_png(path, width: int, height: int) -> Path:
+    """Write a width × height PNG (the fixture triangle) to path; returns path."""
+    path = Path(path)
+    path.write_bytes(_png(width, height))
+    return path
+
+
 def build_fixture_zip(dir, title="Geometry check", show_result="review", monitor=None, duration=None, image_size=(160, 120)):
     """Write a 6-question exam zip (exam.md + triangle.png) into dir.
 

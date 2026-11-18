@@ -89,12 +89,10 @@ func (r *renderer) resolveImage(ref string, question int) (string, error) {
 	if !ok {
 		return "", errorf(`question %d: image "%s" not found in upload`, question, ref)
 	}
-	ext, ok := imageExts[http.DetectContentType(data)]
+	name, ok := ImageName(data)
 	if !ok {
 		return "", errorf(`question %d: image "%s" is not a PNG, JPEG, GIF or WebP file`, question, ref)
 	}
-	sum := sha256.Sum256(data)
-	name := hex.EncodeToString(sum[:])[:32] + ext
 	if r.paths == nil {
 		r.paths = map[string]string{}
 	}
@@ -104,4 +102,16 @@ func (r *renderer) resolveImage(ref string, question int) (string, error) {
 		r.images = append(r.images, Image{Name: name, Data: data})
 	}
 	return name, nil
+}
+
+// ImageName returns the content-addressed file name of an accepted image
+// (PNG, JPEG, GIF or WebP by content): the first 32 hex characters of its
+// SHA-256 plus the type's extension. ok is false for any other content.
+func ImageName(data []byte) (name string, ok bool) {
+	ext, ok := imageExts[http.DetectContentType(data)]
+	if !ok {
+		return "", false
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])[:32] + ext, true
 }

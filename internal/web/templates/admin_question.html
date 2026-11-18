@@ -1,0 +1,19 @@
+{{define "title"}}{{.Heading}}: {{.ExamTitle}} · go-exam{{end}}
+
+{{define "header"}}{{template "admin_header" .}}{{end}}
+
+{{define "main"}}
+<main class="container admin question-page" data-exam-id="{{.ExamID}}">
+  <p class="back"><a href="/admin/exams/{{.ExamID}}/edit">← Edit questions: {{.ExamTitle}}</a></p>
+  <h1>{{.Heading}}</h1>
+  {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
+  <form id="question-form" method="post" enctype="multipart/form-data" action="{{.Action}}">
+    <button type="submit" name="do" value="save" class="visually-hidden" tabindex="-1" aria-hidden="true">Save</button>
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="revision" value="{{.Revision}}">
+    {{template "question_fields" .Fields}}
+    <button type="submit" id="save" name="do" value="save">Save question</button>
+  </form>
+  <p class="zone-note">Saving makes a new revision. Earlier revisions stay readable in <a href="/admin/exams/{{.ExamID}}/revisions">History</a>.</p>
+</main>
+{{end}}

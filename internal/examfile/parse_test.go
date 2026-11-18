@@ -412,3 +412,26 @@ func TestParse_Images(t *testing.T) {
 		}
 	})
 }
+
+func TestNormalizeNewlines(t *testing.T) {
+	if got, want := NormalizeNewlines("a\r\nb\rc\n"), "a\nb\nc\n"; got != want {
+		t.Errorf("NormalizeNewlines = %q, want %q", got, want)
+	}
+}
+
+func TestIsFence(t *testing.T) {
+	for line, want := range map[string]bool{
+		"```":   true,
+		"```go": true,
+		"  ```": true,
+		"\t```": true,
+		"":      false,
+		"x ```": false,
+		"~~~":   false,
+		"``":    false,
+	} {
+		if got := IsFence(line); got != want {
+			t.Errorf("IsFence(%q) = %v, want %v", line, got, want)
+		}
+	}
+}

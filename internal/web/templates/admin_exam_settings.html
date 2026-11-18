@@ -1,0 +1,18 @@
+{{define "title"}}Settings: {{.ExamTitle}} · go-exam{{end}}
+
+{{define "header"}}{{template "admin_header" .}}{{end}}
+
+{{define "main"}}
+<main class="container admin settings-page" data-exam-id="{{.ExamID}}">
+  <p class="back"><a href="/admin/exams/{{.ExamID}}/edit">← Edit questions: {{.ExamTitle}}</a></p>
+  <h1>Settings</h1>
+  {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
+  <form id="settings-form" method="post" action="/admin/exams/{{.ExamID}}/settings">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="revision" value="{{.Revision}}">
+    {{template "settings_fields" .Input}}
+    <button type="submit">Save settings</button>
+  </form>
+  <p class="zone-note">Saving makes a new revision. Earlier revisions stay readable in <a href="/admin/exams/{{.ExamID}}/revisions">History</a>.</p>
+</main>
+{{end}}

@@ -1,6 +1,6 @@
 # go-exam
 
-go-exam is a small, self-hosted web app for classroom multiple-choice exams. Students type the exam's code and their name, or open a link that carries the code, and take that exam within its time limit, the exam's own length (60 minutes unless the exam file says otherwise); the teacher imports exams from text files, opens and closes them by hand or on a schedule, and reviews the results. Teachers can also see every change to an exam as a numbered revision, download an exam as a file and copy an exam.
+go-exam is a small, self-hosted web app for classroom multiple-choice exams. Students type the exam's code and their name, or open a link that carries the code, and take that exam within its time limit, the exam's own length (60 minutes unless the exam file says otherwise); the teacher imports exams from text files or writes them in the browser, opens and closes them by hand or on a schedule, and reviews the results. Teachers can also see every change to an exam as a numbered revision, download an exam as a file and copy an exam.
 
 It is not a learning platform. Teachers sign in with their Google account, and only emails on the app's teacher list may sign in. Each teacher sees only their own exams and results; admins (the emails in `GOEXAM_ADMIN_EMAILS`) also see every exam and manage the teacher list. Students have no accounts. Several exams can be open at the same time.
 
@@ -53,16 +53,27 @@ A Google account can sign in only when its email is verified and on the teacher 
 - Open and Close remove the schedule and leave the exam open or closed. Saving a schedule on an exam opened with the button hands it to the schedule.
 - Times are typed and shown in `GOEXAM_TIME_ZONE`.
 
+## Editor
+
+- New exam, on the exams page, writes an exam in the browser: its title, settings and first question. The new exam is closed and opens on its editor page.
+- Edit questions, on the exam page, lists the questions with Edit, Move up, Move down and Remove, plus Add question and Settings (title, shuffle, result shown, monitor, length). A question form holds the question text, two to ten options and the correct one; Add option, Remove, Up and Down change the list without saving, and Enter in a text field saves.
+- The editor works only for an exam without attempts. Once a student has started, the exam is frozen as before.
+- A form opened before another save of the same exam (in another tab or by another teacher) is refused: "This exam changed since you opened this page. Nothing was saved." The typed text stays in the form; reopen the question to see the current version.
+- A question form can add an image (PNG, JPEG, GIF or WebP, up to 5 MB). Saving adds a line such as `![](3f2a….png)` (a name made from the file's content) at the end of the question text; move that line to place the image elsewhere, also into an option. When the end of the question text would hide that line (for example raw HTML there), the save is refused and no file is kept. A refused save cannot keep the chosen file, so choose it again.
+- The text is the exam file format: `**bold**`, `*italics*`, `` `code` ``, fenced code blocks and image lines work as in a file, and the same rules refuse a save (for example an empty question or option). Write `\-` or `\*` for a line starting with `-` or an option ending with `*`. Text is stored as a file would be, without trailing spaces. A question or option that begins with a code block is stored with an empty first line and shows that way when opened again. A first line that starts with three backticks always opens a code block, so inline code there takes one backtick (`` `x` ``, not ```` ```x``` ````).
+- A save that changes nothing makes no revision.
+
 ## Revisions, download and copy
 
-- Importing an exam makes its revision 1; each Replace makes the next one. A revision records its number, the time, the teacher and a summary: `Imported`, `Replaced from file` or `Copied from <title> (<code>), revision <N>`.
+- Importing an exam makes its revision 1; each Replace and each editor save makes the next one. A revision records its number, the time, the teacher and a summary: `Imported`, `Replaced from file`, `Copied from <title> (<code>), revision <N>`, or for an editor save `Created in the editor`, `Question N edited` (with `; correct option changed` when the correct option's text changed), `Question N added`, `Question N removed`, `Question N moved to M` or `Settings changed: ` and the changed settings.
 - History, on the exam page, lists the revisions newest first. Any revision opens read-only with its settings, questions, correct options and images.
-- Once an exam has an attempt it is frozen: no Replace and no new revision. To change it, copy it.
+- Once an exam has an attempt it is frozen: no Replace, no editor save and no new revision. To change it, copy it.
 - Each attempt records the revision it started on; the attempt page shows it as a link to that revision. The results list and the CSV do not show it.
 - Download gives the current revision as `exam-<CODE>.md`, or `exam-<CODE>.zip` when the exam has images, also for a frozen exam. The file is in a standard layout: all four settings lines, questions numbered from 1, the correct option marked ` *`; the words of questions and options stay as typed. Importing it gives an equal exam.
 - Copy exam makes a new closed exam with a new code and the same title, owned by whoever pressed Copy, starting at revision 1. Attempts, schedule and the open state are not copied.
 - Exams imported before this version get revision 1 `Imported` the first time the new version starts, dated at their import, and their existing attempts are put on it. Their text is rebuilt from the stored pages, so a special character may come back with a backslash (for example `2\*3`), which shows the same; their images are named by content hash in a download. An exam whose text cannot be rebuilt exactly (it uses a list, link, quote, heading or raw HTML, bold-and-italic text written as `**_x_**` or `__*x*__`, or a paragraph ending in a no-break space) keeps working but has no history, download or copy; the exam page says so and the server log names the exam and the question at every start.
-- Rolling back to the previous version: everything keeps working except Replace on an exam that has a revision, which is refused and changes nothing.
+- Rolling back to the previous version (before the editor): edited exams keep working there like replaced ones (student pages, results, History, Download and Copy); it has no editor, so New exam and Edit questions are gone and their pages answer 404.
+- Rolling back to the version before revisions: everything keeps working except Replace on an exam that has a revision, which is refused and changes nothing.
 
 ## Run with a container
 
@@ -173,6 +184,9 @@ uv run e2e/monitor.py    --base-url http://localhost:8080 --admin-email admin@ex
 uv run e2e/teachers.py   --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/teachers
 uv run e2e/exam_codes.py --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/exam-codes
 uv run e2e/revisions.py  --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/revisions
+uv run e2e/editor.py     --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/editor
+# Rollback rehearsal: start the previous release's binary on a copy of the data directory editor.py left, then:
+uv run e2e/editor.py --rollback --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/editor-rollback
 # The server must run with GOEXAM_TIME_ZONE=Asia/Jakarta; the run waits about two minutes on the real clock:
 uv run e2e/scheduled_exams.py --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --time-zone Asia/Jakarta --out e2e/out/scheduled-exams
 

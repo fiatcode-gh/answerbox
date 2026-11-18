@@ -80,7 +80,7 @@ func writeBlock(b *strings.Builder, lead, source, marker string) {
 func startsQuestion(cont []string) bool {
 	inFence := false
 	for _, l := range cont {
-		if isFence(l) {
+		if IsFence(l) {
 			inFence = !inFence
 			continue
 		}

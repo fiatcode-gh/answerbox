@@ -1,0 +1,20 @@
+{{define "title"}}New exam · go-exam{{end}}
+
+{{define "header"}}{{template "admin_header" .}}{{end}}
+
+{{define "main"}}
+<main class="container admin new-exam-page">
+  <p class="back"><a href="/admin/exams">← All exams</a></p>
+  <h1>New exam</h1>
+  {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
+  <form id="new-exam-form" method="post" enctype="multipart/form-data" action="/admin/exams/new">
+    <button type="submit" name="do" value="save" class="visually-hidden" tabindex="-1" aria-hidden="true">Save</button>
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    {{template "settings_fields" .Input}}
+    <h2>Question 1</h2>
+    {{template "question_fields" .Fields}}
+    <button type="submit" id="save" name="do" value="save">Create exam</button>
+  </form>
+  <p class="zone-note">The new exam is closed. Add more questions on its editor page.</p>
+</main>
+{{end}}

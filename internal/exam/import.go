@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 
 	"github.com/fiatcode-gh/go-exam/internal/examfile"
 )
@@ -70,23 +71,31 @@ func (s *Service) Replace(ctx context.Context, actor Actor, examID int64, data [
 	if err != nil {
 		return err
 	}
-	if err := s.replaceExam(ctx, actor, examID, ex, key); err != nil {
+	if err := s.replaceContent(ctx, actor, examID, 0, summaryReplaced, ex, key); err != nil {
 		s.media.RemoveAll(key)
 		return err
 	}
 	return nil
 }
 
-func (s *Service) replaceExam(ctx context.Context, actor Actor, examID int64, ex examfile.Exam, key string) error {
+// replaceContent stores ex as the next revision of an exam in actor's scope
+// and makes it the exam's content, in one transaction. A base above 0 must
+// be the current revision's number, else ErrStale; Replace passes 0.
+func (s *Service) replaceContent(ctx context.Context, actor Actor, examID int64, base int, summary string, ex examfile.Exam, key string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	var frozen bool
+	var (
+		frozen bool
+		number int
+	)
 	err = tx.QueryRowContext(ctx,
-		`SELECT EXISTS(SELECT 1 FROM attempt WHERE exam_id = exam.id) FROM exam WHERE id = ? AND `+inScope,
-		scoped(examID, actor)...).Scan(&frozen)
+		`SELECT EXISTS(SELECT 1 FROM attempt WHERE exam_id = exam.id),
+			(SELECT COALESCE(MAX(number), 0) FROM exam_revision WHERE exam_id = exam.id)
+		FROM exam WHERE id = ? AND `+inScope,
+		scoped(examID, actor)...).Scan(&frozen, &number)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrNotFound
 	}
@@ -96,9 +105,12 @@ func (s *Service) replaceExam(ctx context.Context, actor Actor, examID int64, ex
 	if frozen {
 		return ErrFrozen
 	}
+	if base > 0 && base != number {
+		return ErrStale
+	}
 	// The revision comes first: exam_content_matches_revision refuses an
 	// exam update that does not match the latest revision.
-	if _, err := insertRevision(ctx, tx, examID, actor.TeacherID, s.now(), summaryReplaced, ex, key); err != nil {
+	if _, err := insertRevision(ctx, tx, examID, actor.TeacherID, s.now(), summary, ex, key); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM question WHERE exam_id = ?`, examID); err != nil {
@@ -128,11 +140,10 @@ func (s *Service) prepare(data []byte) (examfile.Exam, string, error) {
 // store renders u under a fresh media key and writes its images. Nothing is
 // written unless u is valid.
 func (s *Service) store(u examfile.Upload) (examfile.Exam, string, error) {
-	var raw [16]byte
-	if _, err := io.ReadFull(s.random, raw[:]); err != nil {
-		return examfile.Exam{}, "", fmt.Errorf("exam: media key: %w", err)
+	key, err := s.newMediaKey()
+	if err != nil {
+		return examfile.Exam{}, "", err
 	}
-	key := hex.EncodeToString(raw[:])
 	ex, err := examfile.Parse(u, "/media/"+key)
 	if err != nil {
 		return examfile.Exam{}, "", err
@@ -140,23 +151,45 @@ func (s *Service) store(u examfile.Upload) (examfile.Exam, string, error) {
 	if len(ex.Images) == 0 {
 		return ex, key, nil
 	}
-	if err := s.writeImages(key, ex.Images); err != nil {
+	if _, err := s.writeImages(key, ex.Images); err != nil {
 		s.media.RemoveAll(key)
 		return examfile.Exam{}, "", err
 	}
 	return ex, key, nil
 }
 
-func (s *Service) writeImages(key string, images []examfile.Image) error {
-	if err := s.media.Mkdir(key, 0o750); err != nil {
-		return fmt.Errorf("exam: media folder: %w", err)
+// newMediaKey draws a fresh media folder name: 16 random bytes in hex.
+func (s *Service) newMediaKey() (string, error) {
+	var raw [16]byte
+	if _, err := io.ReadFull(s.random, raw[:]); err != nil {
+		return "", fmt.Errorf("exam: media key: %w", err)
+	}
+	return hex.EncodeToString(raw[:]), nil
+}
+
+// writeImages writes every image the media folder key does not hold yet,
+// creating the folder when it is missing, and returns the names it wrote.
+// A failed write leaves no partial file behind.
+func (s *Service) writeImages(key string, images []examfile.Image) (created []string, err error) {
+	if err := s.media.Mkdir(key, 0o750); err != nil && !errors.Is(err, fs.ErrExist) {
+		return nil, fmt.Errorf("exam: media folder: %w", err)
 	}
 	for _, img := range images {
-		if err := s.media.WriteFile(key+"/"+img.Name, img.Data, 0o640); err != nil {
-			return fmt.Errorf("exam: write image: %w", err)
+		p := key + "/" + img.Name
+		_, err := s.media.Stat(p)
+		if err == nil {
+			continue
 		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			return created, fmt.Errorf("exam: image %s: %w", p, err)
+		}
+		if err := s.media.WriteFile(p, img.Data, 0o640); err != nil {
+			s.media.Remove(p)
+			return created, fmt.Errorf("exam: write image: %w", err)
+		}
+		created = append(created, img.Name)
 	}
-	return nil
+	return created, nil
 }
 
 func insertQuestions(ctx context.Context, tx *sql.Tx, examID int64, questions []examfile.Question) error {

@@ -129,7 +129,9 @@ img {
   max-width: 28rem;
 }
 
-.visually-hidden {
+/* The second selector outranks Pico's button[type=submit] { width: 100% }. */
+.visually-hidden,
+button[type="submit"].visually-hidden {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -541,6 +543,114 @@ small.schedule {
   margin-top: var(--ge-space-1);
   color: var(--ge-ok);
   font-size: 0.875rem;
+  font-weight: 600;
+}
+
+/* Editor: question actions and the settings form. */
+.question-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2);
+  margin-top: var(--ge-space-3);
+}
+
+.question-actions form {
+  margin: 0;
+}
+
+.question-actions button {
+  width: auto;
+  margin: 0;
+  min-height: var(--ge-touch);
+}
+
+.settings-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--ge-space-4);
+}
+
+.settings-fields label {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.settings-fields .settings-title,
+.settings-fields .settings-monitor {
+  flex-basis: 100%;
+}
+
+#settings-form button[type="submit"],
+#question-form #save,
+#new-exam-form #save {
+  width: auto;
+  min-height: var(--ge-touch);
+}
+
+.question-actions .edit-question {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ge-touch);
+  padding: 0 var(--ge-space-2);
+}
+
+.upload-row [role="button"] {
+  margin: 0;
+  min-height: var(--ge-touch);
+}
+
+/* Question form: option rows with their buttons. */
+.option-list {
+  min-width: 0;
+  margin: var(--ge-space-4) 0 var(--ge-space-2);
+  padding: 0;
+  border: 0;
+}
+
+.option-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2) var(--ge-space-3);
+  align-items: flex-start;
+  padding: var(--ge-space-3) 0;
+  border-top: 1px solid var(--ge-rule);
+}
+
+.option-row .option-correct {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--ge-space-2);
+  min-height: var(--ge-touch);
+  margin: 0;
+}
+
+.option-row textarea {
+  flex: 1 1 12rem;
+  min-width: 0;
+  margin: 0;
+}
+
+.option-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2);
+}
+
+.option-buttons button,
+.option-add button {
+  width: auto;
+  margin: 0;
+  min-height: var(--ge-touch);
+}
+
+.option-add {
+  margin-bottom: var(--ge-space-4);
+}
+
+.image-dropped {
+  margin: var(--ge-space-2) 0;
+  color: var(--ge-warn);
   font-weight: 600;
 }
 
