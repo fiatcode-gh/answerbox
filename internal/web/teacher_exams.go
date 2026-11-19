@@ -21,6 +21,7 @@ func (s *server) mountTeacherExams(admin *http.ServeMux) {
 	admin.HandleFunc("GET /admin/exams", s.examList)
 	admin.HandleFunc("POST /admin/exams", s.importExam)
 	admin.HandleFunc("GET /admin/exams/{id}", s.examDetail)
+	admin.HandleFunc("GET /admin/exams/{id}/projector", s.examProjector)
 	admin.HandleFunc("POST /admin/exams/{id}/replace", s.replaceExam)
 	admin.HandleFunc("POST /admin/exams/{id}/open", s.examAction(s.deps.Exams.Open, openCloseLanding))
 	admin.HandleFunc("POST /admin/exams/{id}/close", s.examAction(s.deps.Exams.Close, openCloseLanding))
@@ -234,6 +235,39 @@ func (s *server) renderExamDetail(w http.ResponseWriter, r *http.Request, status
 		ScheduleOpen:     e.Schedule.Set() || typed != nil,
 		Zone:             s.deps.Location.String(),
 		ArchivedOn:       archivedOn,
+	})
+}
+
+// projectorData is the page a teacher shows the room: the exam's title, the
+// address to open and the code to type.
+type projectorData struct {
+	adminPage
+	Exam        exam.Exam
+	Host        string // the public address without its scheme, as students type it
+	StudentLink string
+}
+
+func (s *server) examProjector(w http.ResponseWriter, r *http.Request) {
+	id, ok := examID(r)
+	if !ok {
+		s.notFound(w, r)
+		return
+	}
+	e, err := s.deps.Exams.Get(r.Context(), actorFrom(r), id)
+	if errors.Is(err, exam.ErrNotFound) {
+		s.notFound(w, r)
+		return
+	}
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	host := strings.TrimPrefix(strings.TrimPrefix(s.deps.PublicURL, "https://"), "http://")
+	s.page(w, r, http.StatusOK, "admin_projector.html", projectorData{
+		adminPage:   adminPageFor(r),
+		Exam:        e,
+		Host:        host,
+		StudentLink: s.deps.PublicURL + "/?code=" + e.Code,
 	})
 }
 

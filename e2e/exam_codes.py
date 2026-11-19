@@ -104,7 +104,7 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
                 expect(a.locator("#teachers tbody tr").filter(has_text=email)).to_have_count(1)
 
         t1 = new_context(**DESKTOP).new_page()
-        with step("2 teacher 1 opens Biology check and sees its code large with the student link"):
+        with step("2 teacher 1 opens Biology check, sees its code with the student link and the projector view"):
             (Path(tmp) / "biology").mkdir()
             biology_zip, _ = build_fixture_zip(Path(tmp) / "biology", title=BIOLOGY)
             teacher_login(t1, base_url, TEACHER1, "Tia One")
@@ -113,8 +113,8 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
             t1.goto(f"{base_url}/admin/exams/{biology_id}")
             expect(t1.locator("#exam-code")).to_have_text(code1)
             size = t1.locator("#exam-code").evaluate("e => parseFloat(getComputedStyle(e).fontSize)")
-            if size < 96:
-                raise AssertionError(f"exam code font-size is {size}px, want at least 96px")
+            if size < 40:
+                raise AssertionError(f"exam code font-size is {size}px, want at least 40px")
             link = f"{base_url}/?code={code1}"
             expect(t1.locator("#student-link")).to_have_text(link)
             expect(t1.locator("#student-link")).to_have_attribute("href", link)
@@ -123,6 +123,21 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
             no_page_overflow(t1)
             t1.screenshot(path=out / "phone-exam-code.png", full_page=True, animations="disabled")
             t1.set_viewport_size(DESKTOP["viewport"])
+            t1.locator("#projector-link").click()
+            expect(t1).to_have_url(re.compile(rf"/admin/exams/{biology_id}/projector$"))
+            expect(t1.locator("#projector-code")).to_have_text(code1)
+            size = t1.locator("#projector-code").evaluate("e => parseFloat(getComputedStyle(e).fontSize)")
+            if size < 96:
+                raise AssertionError(f"projector code font-size is {size}px, want at least 96px")
+            print(f"projector code font-size at 1280px: {size}px", flush=True)
+            no_page_overflow(t1)
+            t1.screenshot(path=out / "desktop-projector.png", full_page=True, animations="disabled")
+            t1.set_viewport_size(PHONE_VIEWPORT)
+            no_page_overflow(t1)
+            t1.screenshot(path=out / "phone-projector.png", full_page=True, animations="disabled")
+            t1.set_viewport_size(DESKTOP["viewport"])
+            t1.go_back()
+            expect(t1).to_have_url(re.compile(rf"/admin/exams/{biology_id}$"))
 
         with step("2b teacher 1 copies the student link with Copy link, by pointer and by keyboard"):
             t1.context.grant_permissions(["clipboard-read", "clipboard-write"])

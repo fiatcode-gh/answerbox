@@ -33,6 +33,7 @@ var adminRoutes = []struct{ Method, Path string }{
 	{"GET", "/admin/exams"},
 	{"POST", "/admin/exams"},
 	{"GET", "/admin/exams/1"},
+	{"GET", "/admin/exams/1/projector"},
 	{"POST", "/admin/exams/1/replace"},
 	{"POST", "/admin/exams/1/open"},
 	{"POST", "/admin/exams/1/close"},

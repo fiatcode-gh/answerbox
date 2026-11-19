@@ -42,7 +42,7 @@
     <h2>Exam code</h2>
     <p id="exam-code" class="exam-code">{{.Exam.Code}}</p>
     <p class="student-link">Student link: <a id="student-link" href="{{.StudentLink}}">{{.StudentLink}}</a></p>
-    <p class="join-actions"><button type="button" id="copy-link" class="secondary" data-copy="{{.StudentLink}}" data-done="Copied" data-failed="Could not copy. Select the link and copy it." hidden>Copy link</button> <span id="copy-status" class="copy-status" role="status"></span></p>
+    <p class="join-actions"><button type="button" id="copy-link" class="secondary" data-copy="{{.StudentLink}}" data-done="Copied" data-failed="Could not copy. Select the link and copy it." hidden>Copy link</button> <a id="projector-link" class="button secondary" href="/admin/exams/{{.Exam.ID}}/projector">Projector view</a> <span id="copy-status" class="copy-status" role="status"></span></p>
     {{if not .Exam.Open}}<p class="join-note">Students can start with this code only while the exam is open.</p>{{end}}
   </section>
 

@@ -1,0 +1,13 @@
+{{define "title"}}{{.Exam.Title}} · Answerbox{{end}}
+
+{{define "header"}}<header class="brand-header"><span class="brand"><img class="mark" src="{{static "mark.svg"}}" alt="" width="28" height="28"><span class="wordmark">Answerbox</span></span> <a class="quiet" href="/admin/exams/{{.Exam.ID}}">← Back to the exam</a></header>{{end}}
+
+{{define "main"}}
+<main class="projector" id="projector" data-exam-id="{{.Exam.ID}}">
+  <h1 class="projector-title">{{.Exam.Title}}</h1>
+  <p class="projector-step">Go to <strong class="projector-host">{{.Host}}</strong> and type the code</p>
+  <p id="projector-code" class="exam-code projector-code">{{.Exam.Code}}</p>
+  {{if not .Exam.Open}}<p id="projector-closed" class="frozen-notice">Students can start once the exam is open.</p>{{end}}
+  <p class="projector-link">{{.StudentLink}}</p>
+</main>
+{{end}}

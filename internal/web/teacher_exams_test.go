@@ -1292,7 +1292,8 @@ func TestExamPage_CopyLink(t *testing.T) {
 	body := f.page(t)
 	link := "http://app.test/?code=" + f.env.examCode(t, f.id)
 	button := `<p class="join-actions"><button type="button" id="copy-link" class="secondary" data-copy="` + link +
-		`" data-done="Copied" data-failed="Could not copy. Select the link and copy it." hidden>Copy link</button> <span id="copy-status" class="copy-status" role="status"></span></p>`
+		`" data-done="Copied" data-failed="Could not copy. Select the link and copy it." hidden>Copy link</button> <a id="projector-link" class="button secondary" href="` +
+		examPath(f.id) + `/projector">Projector view</a> <span id="copy-status" class="copy-status" role="status"></span></p>`
 	if !strings.Contains(body, button) {
 		t.Errorf("page lacks %s:\n%s", button, body)
 	}
@@ -1308,6 +1309,51 @@ func TestExamPage_CopyLink(t *testing.T) {
 		if body := do(f.env.h, "GET", path, f.cookie).Body.String(); strings.Contains(body, "<script") {
 			t.Errorf("%s loads a script", path)
 		}
+	}
+}
+
+func TestProjector_Page(t *testing.T) {
+	f := newScheduleFixture(t)
+	code := f.env.examCode(t, f.id)
+	projector := examPath(f.id) + "/projector"
+	link := "http://app.test/?code=" + code
+	closed := `id="projector-closed"`
+
+	body := getOK(t, f.env, projector, f.cookie)
+	for _, want := range []string{
+		`<h1 class="projector-title">Geometry &amp; Co</h1>`,
+		`<strong class="projector-host">app.test</strong>`,
+		`<p id="projector-code" class="exam-code projector-code">` + code + `</p>`,
+		closed,
+		`<p class="projector-link">` + link + `</p>`,
+		`<a class="quiet" href="` + examPath(f.id) + `">← Back to the exam</a>`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("closed projector lacks %q:\n%s", want, body)
+		}
+	}
+	for _, absent := range []string{"<form", "<script"} {
+		if strings.Contains(body, absent) {
+			t.Errorf("projector has %s:\n%s", absent, body)
+		}
+	}
+
+	if err := f.env.exams.Open(context.Background(), f.env.owner, f.id); err != nil {
+		t.Fatal(err)
+	}
+	if body := getOK(t, f.env, projector, f.cookie); strings.Contains(body, closed) {
+		t.Errorf("open projector still says the exam is closed:\n%s", body)
+	}
+
+	for _, path := range []string{"/admin/exams/999/projector", "/admin/exams/x/projector"} {
+		if rec := do(f.env.h, "GET", path, f.cookie); rec.Code != http.StatusNotFound {
+			t.Errorf("GET %s = %d, want 404", path, rec.Code)
+		}
+	}
+
+	button := `<a id="projector-link" class="button secondary" href="` + projector + `">Projector view</a>`
+	if page := f.page(t); !strings.Contains(page, button) {
+		t.Errorf("exam page lacks %s:\n%s", button, page)
 	}
 }
 
