@@ -43,7 +43,7 @@ func questionSection(t *testing.T, body string, n int) string {
 
 // answerBox is the rendered box of a fill-in question.
 func answerBox(id int64, number int, value string) string {
-	return fmt.Sprintf(`<div class="answer-box"><label class="visually-hidden" for="t%d">Answer for question %d</label>`+
+	return fmt.Sprintf(`<div class="answer-box"><label class="answer-label" for="t%d">Type your answer<span class="visually-hidden"> for question %d</span></label>`+
 		`<input type="text" class="answer-text" id="t%d" name="t%d" value="%s" maxlength="200" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done"></div>`,
 		id, number, id, id, value)
 }

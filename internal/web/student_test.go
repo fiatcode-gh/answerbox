@@ -1288,6 +1288,51 @@ func TestResult_ByShowResult(t *testing.T) {
 	})
 }
 
+func TestExamPage_ToggleAndMark(t *testing.T) {
+	env := newTestEnv(t)
+	env.openExam(t, simpleExam("score"))
+	body := env.examPage(t, env.start(t, "Ada"))
+	if want := `id="nav-toggle" aria-expanded="false" aria-controls="question-nav" hidden class="secondary"`; !strings.Contains(body, want) {
+		t.Errorf("exam page lacks %q", want)
+	}
+	mark, main := strings.Index(body, `<img class="mark"`), strings.Index(body, "<main")
+	if mark < 0 || main < 0 || mark > main {
+		t.Errorf("exam page has no mark before <main (mark at %d, main at %d)", mark, main)
+	}
+}
+
+func TestResult_OutcomeFirst(t *testing.T) {
+	finished := func(t *testing.T, show string) string {
+		env := newTestEnv(t)
+		env.openExam(t, simpleExam(show))
+		cookie := env.start(t, "Ada")
+		qs := pageQuestions(t, env.examPage(t, cookie))
+		requireJSON(t, env.answer(cookie, qs[0].ID, qs[0].Options[0]), http.StatusOK, `{"saved":true,"remaining_ms":3600000}`)
+		requireRedirect(t, postForm(env.h, "/exam/submit", nil, cookie), "/exam")
+		return env.examPage(t, cookie)
+	}
+	t.Run("review", func(t *testing.T) {
+		body := finished(t, "review")
+		if !strings.Contains(body, `class="brand-header"`) {
+			t.Error("result page lacks the brand header")
+		}
+		last := -1
+		for _, want := range []string{`<h1>`, `class="result-meta"`, `id="score"`, `class="review-heading"`, `class="review-question"`, `class="result-home"`} {
+			at := strings.Index(body, want)
+			if at <= last {
+				t.Errorf("%q at %d, want after %d", want, at, last)
+			}
+			last = at
+		}
+	})
+	t.Run("none", func(t *testing.T) {
+		body := finished(t, "none")
+		if strings.Contains(body, `id="score"`) || strings.Contains(body, "review-heading") || !strings.Contains(body, "Your answers are recorded.") {
+			t.Errorf("none result:\n%s", body)
+		}
+	})
+}
+
 // aboutHTML marks the "What is Answerbox?" part of the plain landing page.
 const aboutHTML = `class="about"`
 

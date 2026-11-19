@@ -1127,25 +1127,39 @@ main.login .button {
   padding: 0 var(--ge-space-4);
 }
 
+/* Mark, title and name on one row from 360 px: a long title wraps inside
+   its own column, the mark keeps its size. */
 .exam-header-inner {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-1) var(--ge-space-4);
-  align-items: baseline;
-  justify-content: space-between;
+  gap: var(--ge-space-3);
+  align-items: center;
   padding-top: var(--ge-space-3);
-  padding-bottom: var(--ge-space-2);
+  padding-bottom: var(--ge-space-3);
+}
+
+.exam-header-inner .mark {
+  flex: none;
+  width: 24px;
+  height: 24px;
 }
 
 .exam-title {
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
   font-size: var(--ge-text-lg);
+  overflow-wrap: anywhere;
 }
 
+/* A name breaks between words; only a word wider than the column breaks. */
 .student-name {
+  flex: 0 0 auto;
+  max-width: 40%;
   margin: 0;
   color: var(--ge-muted);
   font-size: var(--ge-text-sm);
+  text-align: right;
+  overflow-wrap: break-word;
 }
 
 /* Sticky top bar: timer, save state, navigator toggle; one 56 px row. */
@@ -1384,15 +1398,28 @@ main[data-monitor="on"] .exam-questions {
   opacity: 0.7;
 }
 
-/* Fill-in: one text box the full width of the question. 16px or more keeps
-   phones from zooming in on focus. */
+/* Fill-in: a visible label over one text box the full width of the
+   question, with a heavier edge so it reads as a place to type. 16px or more
+   keeps phones from zooming in on focus. */
 .answer-box {
   margin: var(--ge-space-4) 0 0;
 }
 
+.answer-label {
+  margin: 0 0 var(--ge-space-1);
+  font-weight: 600;
+}
+
 .answer-box .answer-text {
+  height: 48px;
   min-height: 48px;
   margin: 0;
+  border: 2px solid var(--ge-edge);
+  background: var(--ge-surface);
+}
+
+.answer-box .answer-text:focus {
+  border-color: var(--ge-accent);
 }
 
 /* The box stays editable under the monitor's user-select: none above. */
@@ -1475,9 +1502,10 @@ main.result {
   font-size: var(--ge-text-lg);
 }
 
+/* The outcome leads the page: the score card, centred, before the review. */
 .score-block {
-  margin: var(--ge-space-5) 0;
-  padding: var(--ge-space-4) var(--ge-space-5);
+  margin: var(--ge-space-5) 0 var(--ge-space-6);
+  padding: var(--ge-space-5);
   text-align: center;
 }
 
@@ -1493,13 +1521,22 @@ main.result {
   color: var(--ge-muted);
 }
 
+.result-home {
+  margin: var(--ge-space-6) 0 0;
+}
+
+.review-heading {
+  margin: var(--ge-space-6) 0 var(--ge-space-3);
+}
+
 .review-question {
   margin: var(--ge-space-4) 0 var(--ge-space-5);
 }
 
+/* Never colour alone: the words "No answer" carry the state. */
 .no-answer {
   margin: var(--ge-space-3) 0 0;
-  color: var(--ge-muted);
+  color: var(--ge-danger);
   font-weight: 600;
 }
 

@@ -2,7 +2,7 @@
 
 {{define "header"}}
 <header class="exam-header">
-  <div class="exam-header-inner">
+  <div class="exam-header-inner"><img class="mark" src="{{static "mark.svg"}}" alt="" width="24" height="24">
     <h1 class="exam-title">{{.ExamTitle}}</h1>
     <p class="student-name"><span class="visually-hidden">Student: </span>{{.StudentName}}</p>
   </div>
@@ -14,7 +14,7 @@
   <div class="exam-bar">
     <p class="timer-box"><span class="visually-hidden">Time remaining</span><span id="timer" role="timer" data-level="{{.Level}}">{{.Timer}}</span></p>
     <span id="save-state" role="status" data-state="saved">✓ All answers saved</span>
-    <button type="button" id="nav-toggle" aria-expanded="false" aria-controls="question-nav" hidden>Questions</button>
+    <button type="button" id="nav-toggle" aria-expanded="false" aria-controls="question-nav" hidden class="secondary">Questions</button>
     <div id="monitor-banner" class="banner banner-warn" role="alert" hidden>Your teacher has been notified.</div>
   </div>
   <p id="timer-announce" class="visually-hidden" aria-live="polite"></p>
@@ -41,7 +41,7 @@
           {{if $q.Answered}}<span class="q-state" data-state="saved">Saved</span>{{else}}<span class="q-state" data-state="idle"></span>{{end}}
         </div>
         <div class="question-body">{{$q.BodyHTML}}</div>
-        {{if $q.FillIn}}<div class="answer-box"><label class="visually-hidden" for="t{{$q.ID}}">Answer for question {{$q.Number}}</label><input type="text" class="answer-text" id="t{{$q.ID}}" name="t{{$q.ID}}" value="{{$q.Typed}}" maxlength="200" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done"></div>{{else}}<fieldset class="options">
+        {{if $q.FillIn}}<div class="answer-box"><label class="answer-label" for="t{{$q.ID}}">Type your answer<span class="visually-hidden"> for question {{$q.Number}}</span></label><input type="text" class="answer-text" id="t{{$q.ID}}" name="t{{$q.ID}}" value="{{$q.Typed}}" maxlength="200" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done"></div>{{else}}<fieldset class="options">
           <legend class="visually-hidden">Answer for question {{$q.Number}}</legend>
           {{range $q.Options}}
           <label class="option" for="o{{.ID}}">

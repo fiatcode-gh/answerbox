@@ -1,5 +1,7 @@
 {{define "title"}}{{.ExamTitle}} · Answerbox{{end}}
 
+{{define "header"}}{{template "brand_header" .}}{{end}}
+
 {{define "main"}}
 <main id="result" class="container result" data-show="{{.Show}}" data-status="{{.Status}}">
   <h1>{{if .TimedOut}}Time is up{{else}}Exam submitted{{end}}</h1>
@@ -14,6 +16,7 @@
   {{end}}
   {{if .Review}}
   <div class="review">
+    <h2 class="review-heading">Your answers</h2>
     {{$total := len .Review}}
     {{range .Review}}
     {{with .Section}}{{template "section_head" .}}{{end}}<section class="review-question">
@@ -35,6 +38,6 @@
     {{end}}
   </div>
   {{end}}
-  <p class="result-home"><a href="/">Back to the start page</a></p>
+  <p class="result-home"><a class="button secondary" href="/">Back to the start page</a></p>
 </main>
 {{end}}
