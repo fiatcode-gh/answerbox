@@ -2243,8 +2243,7 @@ th[aria-sort] {
   margin: var(--ge-space-2) 0 0 calc(-1 * var(--ge-space-2));
 }
 
-.question-actions form,
-.section-actions form {
+.question-actions form {
   margin: 0;
 }
 
@@ -2382,14 +2381,43 @@ th[aria-sort] {
 
 /* 17. Teacher: confirm, teachers, history, revision */
 
+/* Confirmation page: the question, what follows from it in muted notes, the
+   question a removal takes away, then the confirm button and Cancel. */
+.confirm-question {
+  font-size: var(--ge-text-lg);
+}
+
+.confirm-note {
+  color: var(--ge-muted);
+}
+
+.confirm .preview-question {
+  margin: var(--ge-space-5) 0;
+}
+
 .confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-3);
+  align-items: center;
+  margin-top: var(--ge-space-5);
+}
+
+.confirm-actions form {
+  margin: 0;
+}
+
+/* Teachers: the email field and Add teacher on one row under the label. */
+.add-teacher-row {
   display: flex;
   flex-wrap: wrap;
   gap: var(--ge-space-3);
   align-items: center;
 }
 
-.confirm-actions form {
+.add-teacher-row input {
+  flex: 1 1 16rem;
+  max-width: 24rem;
   margin: 0;
 }
 

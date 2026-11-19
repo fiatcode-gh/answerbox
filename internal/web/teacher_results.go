@@ -565,18 +565,21 @@ func (s *server) attemptOverride(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type attemptDeleteData struct {
-	adminPage
-	Exam    exam.Exam
-	Attempt attempt.Detail
-}
-
 func (s *server) attemptDeleteConfirm(w http.ResponseWriter, r *http.Request) {
 	e, d, ok := s.resultsAttempt(w, r)
 	if !ok {
 		return
 	}
-	s.page(w, r, http.StatusOK, "admin_attempt_delete.html", attemptDeleteData{adminPage: adminPageFor(r), Exam: e, Attempt: d})
+	s.confirmPage(w, r, confirmData{
+		adminPage: adminPageFor(r),
+		Heading:   "Delete attempt",
+		Question:  "Delete the attempt by ‘" + d.StudentName + "’? This cannot be undone.",
+		FormID:    "delete-attempt-form",
+		Action:    attemptPath(e.ID, d.ID) + "/delete",
+		Submit:    "Delete attempt",
+		Danger:    true,
+		Cancel:    attemptsPath(e.ID),
+	})
 }
 
 func (s *server) attemptDelete(w http.ResponseWriter, r *http.Request) {

@@ -4,13 +4,15 @@
 
 {{define "main"}}
 <main class="container admin teachers-page">
-  <h1>Teachers</h1>
+  <div class="page-head"><h1>Teachers</h1></div>
   {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
   <form id="add-teacher-form" method="post" action="/admin/teachers">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <label for="add-teacher-email">Email address of the teacher's Google account</label>
-    <input type="email" id="add-teacher-email" name="email" value="{{.AddEmail}}" maxlength="254" autocomplete="off" required>
-    <button type="submit">Add teacher</button>
+    <div class="add-teacher-row">
+      <input type="email" id="add-teacher-email" name="email" value="{{.AddEmail}}" maxlength="254" autocomplete="off" required>
+      <button type="submit">Add teacher</button>
+    </div>
   </form>
   <div class="overflow-auto">
     <table id="teachers">
@@ -30,7 +32,7 @@
           <td>{{.Name}}</td>
           <td>{{.LastLogin}}</td>
           <td class="numeric">{{.Exams}}</td>
-          <td class="row-actions">{{if not .Admin}}<form method="post" action="/admin/teachers/{{.ID}}/remove"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit" class="secondary">Remove</button></form>{{end}}</td>
+          <td class="row-actions">{{if not .Admin}}<a class="danger-link" href="/admin/teachers/{{.ID}}/remove">Remove</a>{{end}}</td>
         </tr>
         {{end}}
       </tbody>

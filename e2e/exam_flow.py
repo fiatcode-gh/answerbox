@@ -457,7 +457,7 @@ def flow(run: Run, email: str) -> None:
 
         with step("18 teacher deletes B's attempt"):
             attempt_row(teacher, BUDI).get_by_role("link", name="Delete").click()
-            expect(teacher.locator(".delete-question")).to_contain_text(BUDI)
+            expect(teacher.locator(".confirm-question")).to_contain_text(BUDI)
             run.shot(teacher, "desktop-admin-delete.png")
             teacher.get_by_role("button", name="Delete attempt").click()
             expect(teacher).to_have_url(re.compile(rf"/admin/exams/{exam_id}/attempts$"))

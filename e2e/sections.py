@@ -36,6 +36,7 @@ from playwright.sync_api import Locator, Page, expect, sync_playwright
 from common import (
     add_sign_in_args,
     build_fixture_zip,
+    confirm,
     exam_code,
     foreign_requests,
     import_exam,
@@ -431,12 +432,14 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
             latest(a, base_url, exam_id, "Question 2 moved to section 1", 4)
             editor(a, base_url, exam_id)
             want_heads_before(a, {"#q3": "s2"})
-            for form in ("move-up", "move-down", "remove-question"):
-                expect(a.locator(f"#q3 form.{form}")).to_have_count(0)
+            for selector in ("form.move-up", "form.move-down", "a.remove-question"):
+                expect(a.locator(f"#q3 {selector}")).to_have_count(0)
             shot(a, "desktop-editor.png")
 
         with step("7 Remove section 2: two headings again; editor and section form fit a phone"):
-            press_in_editor(a, exam_id, "#s2 form.remove-section button")
+            a.locator("#s2 a.remove-section").click()
+            confirm(a, "remove-section-form")
+            expect(a).to_have_url(re.compile(rf"/admin/exams/{exam_id}/edit$"))
             latest(a, base_url, exam_id, "Section 2 removed", 5)
             editor(a, base_url, exam_id)
             expect(a.locator(".section-head")).to_have_count(2)

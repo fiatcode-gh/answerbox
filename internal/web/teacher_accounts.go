@@ -3,6 +3,7 @@ package web
 import (
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"github.com/fiatcode-gh/answerbox/internal/adminauth"
@@ -17,6 +18,7 @@ const (
 func (s *server) mountTeacherAccounts(admin *http.ServeMux) {
 	admin.HandleFunc("GET /admin/teachers", s.adminOnly(s.teacherList))
 	admin.HandleFunc("POST /admin/teachers", s.adminOnly(s.addTeacher))
+	admin.HandleFunc("GET /admin/teachers/{tid}/remove", s.adminOnly(s.removeTeacherConfirm))
 	admin.HandleFunc("POST /admin/teachers/{tid}/remove", s.adminOnly(s.removeTeacher))
 }
 
@@ -86,6 +88,45 @@ func (s *server) addTeacher(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Redirect(w, r, "/admin/teachers", http.StatusSeeOther)
 	}
+}
+
+// removeTeacherConfirm asks before Remove: 404 for a teacher not on the
+// list, the Teachers page with 409 for an admin, as the POST answers.
+func (s *server) removeTeacherConfirm(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("tid"), 10, 64)
+	if err != nil {
+		s.notFound(w, r)
+		return
+	}
+	list, err := s.deps.Admin.Teachers(r.Context())
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	i := slices.IndexFunc(list, func(t adminauth.Teacher) bool { return t.ID == id })
+	switch {
+	case i < 0:
+		s.notFound(w, r)
+		return
+	case list[i].Admin:
+		s.renderTeachers(w, r, http.StatusConflict, "", adminEmailMessage)
+		return
+	}
+	s.confirmPage(w, r, confirmData{
+		adminPage: adminPageFor(r),
+		Heading:   "Remove teacher",
+		Question:  "Remove ‘" + list[i].Email + "’ from the teacher list?",
+		Notes: []string{
+			"They are signed out at once and cannot sign in again.",
+			"Their exams (" + strconv.Itoa(list[i].ExamCount) + ") stay, and admins keep seeing them. An exam that is open stays open until an admin closes it.",
+			"Adding the same email again gives back the access and the exams.",
+		},
+		FormID: "remove-teacher-form",
+		Action: "/admin/teachers/" + strconv.FormatInt(id, 10) + "/remove",
+		Submit: "Remove teacher",
+		Danger: true,
+		Cancel: "/admin/teachers",
+	})
 }
 
 func (s *server) removeTeacher(w http.ResponseWriter, r *http.Request) {

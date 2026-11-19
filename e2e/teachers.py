@@ -21,6 +21,7 @@ from playwright.sync_api import Page, expect, sync_playwright
 from common import (
     add_sign_in_args,
     build_fixture_zip,
+    confirm,
     foreign_requests,
     import_and_open,
     import_exam,
@@ -96,7 +97,7 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
             expect(row).to_contain_text("Never")
             admin_row = teacher_row(a, admin_email)
             expect(admin_row.locator(".badge")).to_have_text("Admin")
-            expect(admin_row.get_by_role("button", name="Remove")).to_have_count(0)
+            expect(admin_row.get_by_role("link", name="Remove")).to_have_count(0)
             a.screenshot(path=out / "desktop-teachers.png", full_page=True, animations="disabled")
 
         with step("3 admin imports an exam"):
@@ -144,7 +145,8 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
             expect(row.locator("td").nth(3)).to_have_text("1")
 
         with step("8 admin removes the teacher"):
-            teacher_row(a, TEACHER_EMAIL).get_by_role("button", name="Remove").click()
+            teacher_row(a, TEACHER_EMAIL).get_by_role("link", name="Remove").click()
+            confirm(a, "remove-teacher-form")
             expect(a).to_have_url(re.compile(r"/admin/teachers$"))
             expect(teacher_row(a, TEACHER_EMAIL)).to_have_count(0)
 

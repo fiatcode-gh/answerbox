@@ -28,6 +28,7 @@ func (s *server) mountTeacherExams(admin *http.ServeMux) {
 	admin.HandleFunc("POST /admin/exams/{id}/schedule", s.setExamSchedule)
 	admin.HandleFunc("GET /admin/exams/{id}/download", s.downloadExam)
 	admin.HandleFunc("POST /admin/exams/{id}/copy", s.copyExam)
+	admin.HandleFunc("GET /admin/exams/{id}/archive", s.archiveConfirm)
 	admin.HandleFunc("POST /admin/exams/{id}/archive", s.examAction(s.deps.Exams.Archive, toExamPage))
 	admin.HandleFunc("POST /admin/exams/{id}/unarchive", s.examAction(s.deps.Exams.Unarchive, toExamPage))
 }
@@ -451,4 +452,41 @@ func (s *server) examAction(change func(context.Context, exam.Actor, int64) erro
 			http.Redirect(w, r, next(r, id), http.StatusSeeOther)
 		}
 	}
+}
+
+// archiveConfirm asks before Archive; an exam already archived has nothing
+// to ask, so it leads back to its page.
+func (s *server) archiveConfirm(w http.ResponseWriter, r *http.Request) {
+	id, ok := examID(r)
+	if !ok {
+		s.notFound(w, r)
+		return
+	}
+	e, err := s.deps.Exams.Get(r.Context(), actorFrom(r), id)
+	switch {
+	case errors.Is(err, exam.ErrNotFound):
+		s.notFound(w, r)
+		return
+	case err != nil:
+		s.serverError(w, r, err)
+		return
+	case e.Archived():
+		http.Redirect(w, r, examPath(id), http.StatusSeeOther)
+		return
+	}
+	s.confirmPage(w, r, confirmData{
+		adminPage: adminPageFor(r),
+		Heading:   "Archive exam",
+		Question:  "Archive ‘" + e.Title + "’?",
+		Notes: []string{
+			"The exam closes now and its schedule is removed. Students in a running attempt keep their time.",
+			"It leaves the exams list. Show archived brings it back into view.",
+			"Results, History, Download and Copy keep working.",
+			"Unarchive returns it closed, without a schedule.",
+		},
+		FormID: "archive-form",
+		Action: examPath(id) + "/archive",
+		Submit: "Archive",
+		Cancel: examPath(id),
+	})
 }

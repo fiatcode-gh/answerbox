@@ -1,0 +1,21 @@
+{{define "title"}}{{.Heading}} · Answerbox{{end}}
+
+{{define "header"}}{{template "admin_header" .}}{{end}}
+
+{{define "main"}}
+<main class="container narrow confirm" id="confirm">
+  <h1>{{.Heading}}</h1>
+  <p class="confirm-question">{{.Question}}</p>
+  {{range .Notes}}<p class="confirm-note">{{.}}</p>
+  {{end}}
+  {{with .Preview}}<section class="preview-question">{{template "preview_question_body" .}}</section>{{end}}
+  <div class="confirm-actions">
+    <form id="{{.FormID}}" method="post" action="{{.Action}}">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      {{with .Revision}}<input type="hidden" name="revision" value="{{.}}">{{end}}
+      <button type="submit"{{if .Danger}} class="danger"{{end}}>{{.Submit}}</button>
+    </form>
+    <a class="button secondary" href="{{.Cancel}}">Cancel</a>
+  </div>
+</main>
+{{end}}

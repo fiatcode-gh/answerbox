@@ -27,9 +27,11 @@ func (s *server) mountTeacherEditor(admin *http.ServeMux) {
 	admin.HandleFunc("POST /admin/exams/{id}/questions/{n}/move", s.editorAction(func(ctx context.Context, a exam.Actor, id int64, base, n int, r *http.Request) error {
 		return s.deps.Exams.MoveQuestion(ctx, a, id, base, n, formInt(r, "to"))
 	}))
+	admin.HandleFunc("GET /admin/exams/{id}/questions/{n}/remove", s.removeQuestionConfirm)
 	admin.HandleFunc("POST /admin/exams/{id}/questions/{n}/remove", s.editorAction(func(ctx context.Context, a exam.Actor, id int64, base, n int, _ *http.Request) error {
 		return s.deps.Exams.RemoveQuestion(ctx, a, id, base, n)
 	}))
+	admin.HandleFunc("GET /admin/exams/{id}/sections/{n}/remove", s.removeSectionConfirm)
 	admin.HandleFunc("POST /admin/exams/{id}/sections/{n}/remove", s.editorAction(func(ctx context.Context, a exam.Actor, id int64, base, n int, _ *http.Request) error {
 		return s.deps.Exams.RemoveSection(ctx, a, id, base, n)
 	}))
@@ -129,28 +131,40 @@ func (s *server) editorPage(w http.ResponseWriter, r *http.Request) {
 	s.renderEditor(w, r, http.StatusOK, id, "")
 }
 
-// renderEditor renders the editor page of the exam's current revision. The
-// questions and the revision number the forms post come from one revision
-// row, so they agree even when a save lands between the two reads.
-func (s *server) renderEditor(w http.ResponseWriter, r *http.Request, status int, id int64, alert string) {
+// editorRevision loads exam id and its current revision for an editor page:
+// it answers 404 out of scope, the 409 exam page for an exam without a
+// revision or with attempts, and 500 on a failed read. It reports whether
+// the caller goes on.
+func (s *server) editorRevision(w http.ResponseWriter, r *http.Request, id int64) (exam.Exam, exam.Revision, bool) {
 	e, err := s.deps.Exams.Get(r.Context(), actorFrom(r), id)
 	switch {
 	case errors.Is(err, exam.ErrNotFound):
 		s.notFound(w, r)
-		return
+		return exam.Exam{}, exam.Revision{}, false
 	case err != nil:
 		s.serverError(w, r, err)
-		return
+		return exam.Exam{}, exam.Revision{}, false
 	case e.Revision == 0:
 		s.renderExamDetail(w, r, http.StatusConflict, id, noRevisionNotice, nil)
-		return
+		return exam.Exam{}, exam.Revision{}, false
 	case e.AttemptCount > 0:
 		s.renderExamDetail(w, r, http.StatusConflict, id, frozenNotice, nil)
-		return
+		return exam.Exam{}, exam.Revision{}, false
 	}
 	rev, err := s.deps.Exams.Revision(r.Context(), id, e.Revision)
 	if err != nil {
 		s.serverError(w, r, err)
+		return exam.Exam{}, exam.Revision{}, false
+	}
+	return e, rev, true
+}
+
+// renderEditor renders the editor page of the exam's current revision. The
+// questions and the revision number the forms post come from one revision
+// row, so they agree even when a save lands between the two reads.
+func (s *server) renderEditor(w http.ResponseWriter, r *http.Request, status int, id int64, alert string) {
+	e, rev, ok := s.editorRevision(w, r, id)
+	if !ok {
 		return
 	}
 	data := editorData{
@@ -193,6 +207,89 @@ func (s *server) renderEditor(w http.ResponseWriter, r *http.Request, status int
 		data.Questions[i] = eq
 	}
 	s.page(w, r, status, "admin_exam_edit.html", data)
+}
+
+// editorConfirmTarget reads the exam and number {n} of an editor
+// confirmation and loads the exam's current revision, answering as
+// editorRevision does and 404 for an {n} that is not a number. It reports
+// whether the caller goes on.
+func (s *server) editorConfirmTarget(w http.ResponseWriter, r *http.Request) (exam.Exam, exam.Revision, int, bool) {
+	id, ok := examID(r)
+	if !ok {
+		s.notFound(w, r)
+		return exam.Exam{}, exam.Revision{}, 0, false
+	}
+	n, err := strconv.Atoi(r.PathValue("n"))
+	if err != nil {
+		s.notFound(w, r)
+		return exam.Exam{}, exam.Revision{}, 0, false
+	}
+	e, rev, ok := s.editorRevision(w, r, id)
+	return e, rev, n, ok
+}
+
+func (s *server) removeQuestionConfirm(w http.ResponseWriter, r *http.Request) {
+	e, rev, n, ok := s.editorConfirmTarget(w, r)
+	if !ok {
+		return
+	}
+	if n < 1 || n > len(rev.Questions) {
+		s.notFound(w, r)
+		return
+	}
+	num := strconv.Itoa(n)
+	s.confirmPage(w, r, confirmData{
+		adminPage: adminPageFor(r),
+		Heading:   "Remove question " + num,
+		Question:  "Remove question " + num + " from ‘" + e.Title + "’?",
+		Notes:     []string{"This makes a new revision. The question stays readable in earlier revisions, but it cannot be restored from there."},
+		Preview:   &rev.Questions[n-1],
+		FormID:    "remove-question-form",
+		Action:    questionPath(e.ID, n) + "/remove",
+		Revision:  strconv.Itoa(rev.Number),
+		Submit:    "Remove question",
+		Danger:    true,
+		Cancel:    editPath(e.ID) + "#q" + num,
+	})
+}
+
+func (s *server) removeSectionConfirm(w http.ResponseWriter, r *http.Request) {
+	e, rev, k, ok := s.editorConfirmTarget(w, r)
+	if !ok {
+		return
+	}
+	var sections []*exam.Section
+	for _, q := range rev.Questions {
+		if q.Section != nil {
+			sections = append(sections, q.Section)
+		}
+	}
+	if k < 1 || k > len(sections) {
+		s.notFound(w, r)
+		return
+	}
+	var first string
+	switch {
+	case k > 1:
+		first = "Its questions join the section before it."
+	case len(sections) > 1:
+		first = "Its questions join the next section, which then starts at question 1."
+	default:
+		first = "The questions stay. The exam has no sections after this."
+	}
+	num := strconv.Itoa(k)
+	s.confirmPage(w, r, confirmData{
+		adminPage: adminPageFor(r),
+		Heading:   "Remove section " + num,
+		Question:  "Remove section " + num + ", ‘" + sections[k-1].Title + "’, from ‘" + e.Title + "’?",
+		Notes:     []string{first, "This makes a new revision. The section stays readable in earlier revisions."},
+		FormID:    "remove-section-form",
+		Action:    sectionPath(e.ID, k) + "/remove",
+		Revision:  strconv.Itoa(rev.Number),
+		Submit:    "Remove section",
+		Danger:    true,
+		Cancel:    editPath(e.ID) + "#s" + num,
+	})
 }
 
 // editorAction returns the handler of a question or section action of the

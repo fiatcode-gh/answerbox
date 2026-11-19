@@ -115,6 +115,9 @@ func TestArchive_Flow(t *testing.T) {
 			t.Errorf("archived exam page has the %s form", action)
 		}
 	}
+	if strings.Contains(body, `id="archive-link"`) {
+		t.Errorf("archived exam page has the archive link")
+	}
 	if !regexp.MustCompile(fmt.Sprintf(`<form id="unarchive-form" method="post" action="/admin/exams/%d/unarchive">`, id)).MatchString(body) {
 		t.Errorf("unarchive form missing:\n%s", body)
 	}
@@ -250,7 +253,7 @@ func TestUnarchive_Flow(t *testing.T) {
 		t.Errorf("exam head = %q, want Closed", examHead(body))
 	}
 	requireForms(t, "unarchived page", body, id, true, false)
-	for _, want := range []string{`id="schedule-form"`, fmt.Sprintf(`<form id="archive-form" method="post" action="/admin/exams/%d/archive">`, id)} {
+	for _, want := range []string{`id="schedule-form"`, fmt.Sprintf(`<a id="archive-link" class="quiet" href="/admin/exams/%d/archive">Archive</a>`, id)} {
 		if !strings.Contains(body, want) {
 			t.Errorf("unarchived page lacks %q", want)
 		}
@@ -400,7 +403,9 @@ func TestArchived_EveryOtherRouteWorks(t *testing.T) {
 		switch {
 		case strings.HasSuffix(route.Path, "/open") || strings.HasSuffix(route.Path, "/schedule"):
 			want = http.StatusConflict
-		case route.Method == "POST":
+		case route.Method == "POST", strings.HasSuffix(route.Path, "/archive"):
+			// Every POST redirects; so does the Archive confirmation, which
+			// has nothing to ask of an archived exam.
 			want = http.StatusSeeOther
 		}
 		if rec.Code != want {

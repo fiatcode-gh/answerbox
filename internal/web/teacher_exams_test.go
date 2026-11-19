@@ -1278,7 +1278,7 @@ func TestExamPage_MoreActions(t *testing.T) {
 	for _, want := range []*regexp.Regexp{
 		regexp.MustCompile(`id="download-link" class="quiet"`),
 		regexp.MustCompile(`(?s)<form id="copy-form"[^>]*>.*?<button type="submit" class="quiet">Copy exam</button>.*?</form>`),
-		regexp.MustCompile(`(?s)<form id="archive-form"[^>]*>.*?<button type="submit" class="quiet">Archive</button>.*?</form>`),
+		regexp.MustCompile(`<a id="archive-link" class="quiet" href="` + examPath(f.id) + `/archive">Archive</a>`),
 		regexp.MustCompile(`(?s)<form id="replace-form"[^>]*>.*?<button type="submit" class="secondary">Replace exam</button>.*?</form>`),
 	} {
 		if !want.MatchString(more) {

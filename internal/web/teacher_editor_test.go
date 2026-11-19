@@ -35,7 +35,7 @@ const oneQuestionExam = "# One\n\n1. Only question\n- yes *\n- no\n"
 
 var (
 	editorSectionRe = regexp.MustCompile(`(?s)<section class="preview-question" id="q(\d+)">(.*?)</section>`)
-	editorFormRe    = regexp.MustCompile(`(?s)<form class="(move-up|move-down|remove-question)"[^>]*>.*?</form>`)
+	editorFormRe    = regexp.MustCompile(`(?s)<form class="(move-up|move-down)"[^>]*>.*?</form>`)
 )
 
 // revisionCount is the number of stored revisions of exam id.
@@ -110,8 +110,8 @@ func TestEditor_PageListsQuestions(t *testing.T) {
 		if up != (i > 0) || down != (i < len(want)-1) {
 			t.Errorf("question %d: move-up %v, move-down %v", i+1, up, down)
 		}
-		if !strings.Contains(s[2], `class="remove-question"`) {
-			t.Errorf("question %d has no remove form", i+1)
+		if !strings.Contains(s[2], `class="remove-question quiet danger"`) {
+			t.Errorf("question %d has no remove link", i+1)
 		}
 	}
 	middle := sections[1][2]
@@ -119,15 +119,19 @@ func TestEditor_PageListsQuestions(t *testing.T) {
 		`action="` + detail + `/questions/2/move"`,
 		`name="to" value="1"`,
 		`name="to" value="3"`,
-		`action="` + detail + `/questions/2/remove"`,
+		`href="` + detail + `/questions/2/remove"`,
 	} {
 		if !strings.Contains(middle, want) {
 			t.Errorf("question 2 lacks %s:\n%s", want, middle)
 		}
 	}
 	forms := editorFormRe.FindAllString(body, -1)
-	if len(forms) != 7 {
-		t.Errorf("editor has %d question forms, want 7", len(forms))
+	if len(forms) != 4 {
+		t.Errorf("editor has %d question forms, want 4", len(forms))
+	}
+	removeLinkRe := regexp.MustCompile(`<a class="remove-question quiet danger" href="[^"]*/questions/\d+/remove">Remove</a>`)
+	if n := len(removeLinkRe.FindAllString(body, -1)); n != 3 {
+		t.Errorf("editor has %d remove links, want 3", n)
 	}
 	for _, f := range forms {
 		if !strings.Contains(f, `name="csrf_token" value="`+csrf+`"`) || !strings.Contains(f, `name="revision" value="1"`) {
@@ -146,8 +150,8 @@ func TestEditor_PageListsQuestions(t *testing.T) {
 	}
 
 	one := importExam(t, env, cookie, csrf, "one.md", []byte(oneQuestionExam))
-	if body := getOK(t, env, one+"/edit", cookie); strings.Contains(body, `class="remove-question"`) {
-		t.Errorf("one-question exam has a remove form:\n%s", body)
+	if body := getOK(t, env, one+"/edit", cookie); strings.Contains(body, `class="remove-question quiet danger"`) {
+		t.Errorf("one-question exam has a remove link:\n%s", body)
 	}
 }
 
@@ -358,7 +362,7 @@ type editorRequest struct {
 	form         url.Values
 }
 
-// editorRequests are the five editor-page and settings routes of exam
+// editorRequests are the six editor-page and settings routes of exam
 // detail with a form that would pass validation.
 func editorRequests(detail string) []editorRequest {
 	form := url.Values{"revision": {"1"}, "to": {"2"}, "title": {"Edited"}, "shuffle": {"none"}, "show_result": {"score"}, "monitor": {"on"}, "duration": {"30"}}
@@ -367,6 +371,7 @@ func editorRequests(detail string) []editorRequest {
 		{"GET", detail + "/settings", nil},
 		{"POST", detail + "/settings", form},
 		{"POST", detail + "/questions/1/move", form},
+		{"GET", detail + "/questions/1/remove", nil},
 		{"POST", detail + "/questions/1/remove", form},
 	}
 }
@@ -383,7 +388,7 @@ func questionRequests(detail string) []editorRequest {
 	}
 }
 
-// sectionRequests are the five section routes of exam detail with a form
+// sectionRequests are the six section routes of exam detail with a form
 // that would save.
 func sectionRequests(detail string) []editorRequest {
 	form := url.Values{"revision": {"1"}, "title": {"Edited section"}, "text": {"Edited instructions"}}
@@ -392,6 +397,7 @@ func sectionRequests(detail string) []editorRequest {
 		{"POST", detail + "/questions/1/section", form},
 		{"GET", detail + "/sections/1", nil},
 		{"POST", detail + "/sections/1", form},
+		{"GET", detail + "/sections/1/remove", nil},
 		{"POST", detail + "/sections/1/remove", form},
 	}
 }
@@ -1050,14 +1056,14 @@ func TestEditor_ActionLevels(t *testing.T) {
 		t.Fatalf("editor has %d questions, want 3", len(qs))
 	}
 	middle := qs[1][2]
-	order := []string{`class="edit-question button secondary"`, `class="move-up"`, `class="move-down"`, `class="remove-question"`}
+	order := []string{`class="edit-question button secondary"`, `class="move-up"`, `class="move-down"`, `class="remove-question quiet danger"`}
 	for i := 1; i < len(order); i++ {
 		requireBefore(t, middle, order[i-1], order[i])
 	}
 	for _, want := range []string{
 		`<button type="submit" class="quiet">Move up</button>`,
 		`<button type="submit" class="quiet">Move down</button>`,
-		`<button type="submit" class="quiet danger">Remove</button>`,
+		`<a class="remove-question quiet danger" href="` + detail + `/questions/2/remove">Remove</a>`,
 	} {
 		if !strings.Contains(middle, want) {
 			t.Errorf("question 2 lacks %s:\n%s", want, middle)

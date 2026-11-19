@@ -151,6 +151,13 @@ def open_exam(page: Page, exam_id: int) -> None:
     expect(page.locator(f"#exams tr[data-exam-id='{exam_id}']")).to_contain_text("Open")
 
 
+def confirm(page: Page, form_id: str) -> None:
+    """Press the confirm button of the confirmation page whose form is #form_id."""
+    form = page.locator(f"#{form_id}")
+    expect(form).to_be_visible()
+    form.locator("button[type=submit]").click()
+
+
 def import_and_open(page: Page, zip_path) -> int:
     """Import the exam file from the exams page and open it; returns its id."""
     exam_id = import_exam(page, zip_path)

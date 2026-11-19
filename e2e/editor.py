@@ -29,6 +29,7 @@ from playwright.sync_api import Locator, Page, expect, sync_playwright
 from common import (
     EXAM_CODE,
     add_sign_in_args,
+    confirm,
     exam_code,
     foreign_requests,
     import_exam,
@@ -390,7 +391,10 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
             press_in_editor(a, exam_id, "#q4 form.move-up button")
             latest(a, base_url, exam_id, "Question 4 moved to 3", 7)
             editor(a, base_url, exam_id)
-            press_in_editor(a, exam_id, "#q1 form.remove-question button")
+            a.locator("#q1 a.remove-question").click()
+            expect(a).to_have_url(re.compile(rf"/admin/exams/{exam_id}/questions/1/remove$"))
+            confirm(a, "remove-question-form")
+            expect(a).to_have_url(re.compile(rf"/admin/exams/{exam_id}/edit$"))
             latest(a, base_url, exam_id, "Question 1 removed", 8)
             editor(a, base_url, exam_id)
             a.locator("#settings-link").click()

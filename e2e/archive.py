@@ -33,6 +33,7 @@ from common import (
     REFUSED,
     add_sign_in_args,
     build_fixture_zip,
+    confirm,
     exam_code,
     foreign_requests,
     import_exam,
@@ -258,7 +259,8 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
 
         with step("4 Archive: the exam page shows Archived with the date and no Open, Close or schedule"):
             exam_page(a, base_url, exam_a)
-            a.locator("#archive-form button[type=submit]").click()
+            a.locator("#archive-link").click()
+            confirm(a, "archive-form")
             expect(a).to_have_url(re.compile(rf"/admin/exams/{exam_a}$"))
             expect(head_badge(a)).to_have_text("Archived")
             expect(a.locator("#archived-note")).to_have_text(ARCHIVED_NOTE)
@@ -266,6 +268,7 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
                 expect(action_form(a, exam_a, action)).to_have_count(0)
             expect(a.locator("#schedule-form")).to_have_count(0)
             expect(a.locator("#archive-form")).to_have_count(0)
+            expect(a.locator("#archive-link")).to_have_count(0)
             expect(a.locator("#unarchive-form")).to_be_visible()
             expect(a.locator(f"a[href='/admin/exams/{exam_a}/attempts']")).to_be_visible()
             expect(a.locator("#history-link")).to_be_visible()
@@ -365,7 +368,7 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
             a.locator("#schedule-details > summary").click()
             expect(a.locator("#schedule-form")).to_be_visible()
             expect(a.locator("#schedule-times")).to_have_text(NO_SCHEDULE)
-            expect(a.locator("#archive-form")).to_be_visible()
+            expect(a.locator("#archive-link")).to_be_visible()
             expect(a.locator("#archived-note")).to_have_count(0)
             exams_list(a, base_url)
             expect(row(a, exam_a).locator(".badge")).to_have_text("Closed")
@@ -387,7 +390,8 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
             citra = new_context(**phone).new_page()
             take(citra, base_url, code_b, CITRA)
             exam_page(a, base_url, exam_b)
-            a.locator("#archive-form button[type=submit]").click()
+            a.locator("#archive-link").click()
+            confirm(a, "archive-form")
             expect(a).to_have_url(re.compile(rf"/admin/exams/{exam_b}$"))
             expect(head_badge(a)).to_have_text("Archived")
             exams_list(a, base_url)

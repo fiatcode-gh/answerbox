@@ -98,12 +98,7 @@
         <button type="submit" class="quiet">Copy exam</button>
       </form>
       {{end}}
-      {{if not .Exam.Archived}}
-      <form id="archive-form" method="post" action="/admin/exams/{{.Exam.ID}}/archive">
-        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-        <button type="submit" class="quiet">Archive</button>
-      </form>
-      {{end}}
+      {{if not .Exam.Archived}}<a id="archive-link" class="quiet" href="/admin/exams/{{.Exam.ID}}/archive">Archive</a>{{end}}
     </div>
     <section class="replace">
       <h3>Replace questions</h3>

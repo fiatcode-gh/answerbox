@@ -15,11 +15,7 @@
     {{with .Section.BodyHTML}}<div class="section-body question-body">{{.}}</div>{{end}}
     <div class="section-actions">
       <a class="edit-section quiet" href="/admin/exams/{{$.Exam.ID}}/sections/{{.SectionNumber}}">Edit section</a>
-      <form class="remove-section" method="post" action="/admin/exams/{{$.Exam.ID}}/sections/{{.SectionNumber}}/remove">
-        <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-        <input type="hidden" name="revision" value="{{$.Revision}}">
-        <button type="submit" class="quiet danger">Remove section</button>
-      </form>
+      <a class="remove-section quiet danger" href="/admin/exams/{{$.Exam.ID}}/sections/{{.SectionNumber}}/remove">Remove section</a>
     </div>
   </div>
   {{- end}}
@@ -45,13 +41,7 @@
       </form>
       {{end}}
       {{if .StartSection}}<a class="start-section quiet" href="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}/section">Start a section here</a>{{end}}
-      {{if .Remove}}
-      <form class="remove-question" method="post" action="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}/remove">
-        <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-        <input type="hidden" name="revision" value="{{$.Revision}}">
-        <button type="submit" class="quiet danger">Remove</button>
-      </form>
-      {{end}}
+      {{if .Remove}}<a class="remove-question quiet danger" href="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}/remove">Remove</a>{{end}}
     </div>
   </section>
   {{end}}

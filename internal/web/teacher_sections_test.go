@@ -118,12 +118,12 @@ func TestEditor_SectionsOnPage(t *testing.T) {
 			`<h2 class="section-title">Part A</h2>`,
 			`<div class="section-body question-body"><p>Read <strong>carefully</strong>.</p>`,
 			`<a class="edit-section quiet" href="` + detail + `/sections/1">Edit section</a>`,
-			`<form class="remove-section" method="post" action="` + detail + `/sections/1/remove">`,
+			`<a class="remove-section quiet danger" href="` + detail + `/sections/1/remove">Remove section</a>`,
 		},
 		"2": {
 			`<h2 class="section-title">Part B</h2>`,
 			`<a class="edit-section quiet" href="` + detail + `/sections/2">Edit section</a>`,
-			`<form class="remove-section" method="post" action="` + detail + `/sections/2/remove">`,
+			`<a class="remove-section quiet danger" href="` + detail + `/sections/2/remove">Remove section</a>`,
 		},
 	} {
 		head := editorHead(body, k)
@@ -131,10 +131,6 @@ func TestEditor_SectionsOnPage(t *testing.T) {
 			if !strings.Contains(head, w) {
 				t.Errorf("section %s heading lacks %s:\n%s", k, w, head)
 			}
-		}
-		form := regexp.MustCompile(`(?s)<form class="remove-section".*?</form>`).FindString(head)
-		if !strings.Contains(form, `name="csrf_token" value="`+csrf+`"`) || !strings.Contains(form, `name="revision" value="1"`) || !strings.Contains(form, `>Remove section</button>`) {
-			t.Errorf("section %s remove form lacks the CSRF token, revision 1 or its button:\n%s", k, form)
 		}
 	}
 	if strings.Contains(editorHead(body, "2"), `section-body`) {
@@ -154,7 +150,7 @@ func TestEditor_SectionsOnPage(t *testing.T) {
 		q := qs[i][2]
 		start := strings.Contains(q, `class="start-section quiet"`)
 		up, down := strings.Contains(q, `class="move-up"`), strings.Contains(q, `class="move-down"`)
-		remove := strings.Contains(q, `class="remove-question"`)
+		remove := strings.Contains(q, `class="remove-question quiet danger"`)
 		if start != w.start || up != w.up || down != w.down || remove != w.remove {
 			t.Errorf("question %d: start %v up %v down %v remove %v, want %+v", i+1, start, up, down, remove, w)
 		}
@@ -189,7 +185,7 @@ func TestEditor_AloneQuestionInEarlierSection(t *testing.T) {
 		t.Fatalf("editor has %d questions, want 3", len(qs))
 	}
 	q := qs[0][2]
-	for _, class := range []string{"move-up", "move-down", "remove-question"} {
+	for _, class := range []string{"move-up", "move-down", "remove-question quiet danger"} {
 		if strings.Contains(q, `class="`+class+`"`) {
 			t.Errorf("only question of section A, before section B, shows %s:\n%s", class, q)
 		}

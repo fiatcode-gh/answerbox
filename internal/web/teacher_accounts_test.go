@@ -105,7 +105,7 @@ func TestTeachersPage_List(t *testing.T) {
 		t.Errorf("admin row lacks the badge or has a remove form:\n%s", adminRow)
 	}
 	row := teacherRowHTML(body, id)
-	for _, want := range []string{"<td>—</td>", "<td>Never</td>", `<td class="numeric">0</td>`, `action="` + removePath(id) + `"`} {
+	for _, want := range []string{"<td>—</td>", "<td>Never</td>", `<td class="numeric">0</td>`, `href="` + removePath(id) + `"`} {
 		if !strings.Contains(row, want) {
 			t.Errorf("new teacher's row lacks %q:\n%s", want, row)
 		}
