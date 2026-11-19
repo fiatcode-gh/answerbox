@@ -1526,46 +1526,53 @@ main.login .button {
   background: var(--ge-surface);
 }
 
-.exam-header-inner,
-.exam-layout {
+/* The mark spans two rows; the title and the name share the other column,
+   where a long title or name wraps and the mark keeps its size. */
+.exam-header-inner {
+  display: grid;
   max-width: var(--ge-column);
   margin: 0 auto;
-  padding: 0 var(--ge-space-4);
-}
-
-/* Mark, title and name on one row from 360 px: a long title wraps inside
-   its own column, the mark keeps its size. */
-.exam-header-inner {
-  display: flex;
-  gap: var(--ge-space-3);
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px var(--ge-space-3);
   align-items: center;
-  padding-top: var(--ge-space-3);
-  padding-bottom: var(--ge-space-3);
+  padding: 14px var(--ge-space-4) var(--ge-space-3);
 }
 
 .exam-header-inner .mark {
-  flex: none;
-  width: 24px;
-  height: 24px;
+  grid-row: span 2;
+  width: 34px;
+  height: 34px;
 }
 
 .exam-title {
-  flex: 1 1 auto;
-  min-width: 0;
   margin: 0;
   font-size: var(--ge-text-lg);
+  line-height: 1.25;
   overflow-wrap: anywhere;
 }
 
 /* A name breaks between words; only a word wider than the column breaks. */
 .student-name {
-  flex: 0 0 auto;
-  max-width: 40%;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
   margin: 0;
   color: var(--ge-muted);
-  font-size: var(--ge-text-sm);
-  text-align: right;
-  overflow-wrap: break-word;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.student-name::before {
+  content: "";
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  background: currentColor;
+  -webkit-mask: var(--ge-i-person) center / contain no-repeat;
+  mask: var(--ge-i-person) center / contain no-repeat;
 }
 
 /* Sticky top bar, a chalkboard: timer, save state, navigator toggle; one
@@ -1575,14 +1582,14 @@ main.login .button {
   top: 0;
   z-index: 10;
   display: flex;
-  gap: var(--ge-space-3);
+  gap: 6px;
   align-items: center;
-  justify-content: space-between;
   height: var(--ge-bar);
-  padding: 0 max(var(--ge-space-4), calc((100% - var(--ge-column)) / 2 + var(--ge-space-4)));
+  padding: 0 max(10px, calc((100% - var(--ge-column)) / 2 + 10px));
 }
 
 .timer-box {
+  display: flex;
   flex: none;
   margin: 0;
 }
@@ -1590,9 +1597,11 @@ main.login .button {
 /* A chalk pill; every level keeps its 2 px chalk border so the pill stands
    off the board. */
 #timer {
-  display: inline-block;
-  min-width: 4.5ch;
-  padding: 6px 10px;
+  display: inline-flex;
+  gap: var(--ge-space-1);
+  align-items: center;
+  min-height: var(--ge-touch);
+  padding: 0 10px;
   border: 2px solid var(--ge-chalk);
   border-radius: var(--ge-r-md);
   background: var(--ge-chalk);
@@ -1600,7 +1609,16 @@ main.login .button {
   font-size: 1.3125rem;
   font-weight: 800;
   line-height: 1;
-  text-align: center;
+}
+
+#timer::before {
+  content: "";
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  background: currentColor;
+  -webkit-mask: var(--ge-i-clock) center / contain no-repeat;
+  mask: var(--ge-i-clock) center / contain no-repeat;
 }
 
 #timer[data-level="warn"] {
@@ -1616,12 +1634,10 @@ main.login .button {
 #save-state {
   flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
   font-size: var(--ge-text-sm);
   font-weight: 600;
-  line-height: 1.25;
-  text-align: center;
-  text-wrap: balance;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 #save-state[data-state="saved"] {
@@ -1644,7 +1660,35 @@ main.login .button {
 
 #nav-toggle {
   flex: none;
-  padding: 0 var(--ge-space-3);
+  margin-left: auto;
+  padding: 0 10px;
+  font-size: 0.9375rem;
+}
+
+/* A 360 px phone keeps "✓ All answers saved" on one line: no clock, tighter
+   gaps and paddings, a smaller save text. */
+@media (max-width: 400px) {
+  .exam-bar {
+    gap: var(--ge-space-1);
+    padding: 0 var(--ge-space-2);
+  }
+
+  #timer {
+    padding: 0 var(--ge-space-2);
+    font-size: 1.1875rem;
+  }
+
+  #timer::before {
+    display: none;
+  }
+
+  #save-state {
+    font-size: 0.8125rem;
+  }
+
+  #nav-toggle {
+    padding: 0 var(--ge-space-2);
+  }
 }
 
 /* The monitor warning hangs under the sticky exam bar and overlays the page:
@@ -1661,16 +1705,21 @@ main.login .button {
   margin: 0 auto;
 }
 
+.exam-layout {
+  max-width: var(--ge-column);
+  margin: 0 auto;
+}
+
 #question-nav {
   display: block;
-  margin: var(--ge-space-4) 0;
-  padding: var(--ge-space-3);
+  margin: var(--ge-space-4) var(--ge-space-3);
+  padding: var(--ge-space-4);
 }
 
 #answered-count {
-  margin-bottom: var(--ge-space-2);
-  font-size: var(--ge-text-sm);
-  font-weight: 600;
+  margin-bottom: var(--ge-space-3);
+  font-size: 0.9375rem;
+  font-weight: 700;
 }
 
 .nav-grid {
@@ -1712,13 +1761,24 @@ main.login .button {
     margin-top: 0;
     overflow-y: auto;
     border-top: 0;
-    border-radius: 0 0 var(--ge-r-md) var(--ge-r-md);
+    border-radius: 0 0 var(--ge-r-lg) var(--ge-r-lg);
   }
+}
+
+.exam-questions {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 var(--ge-space-3) var(--ge-space-6);
 }
 
 .question {
   scroll-margin-top: calc(var(--ge-bar) + var(--ge-space-2) + var(--ge-monitor-offset, 0px));
-  margin: var(--ge-space-4) 0 var(--ge-space-5);
+  margin: 0 0 14px;
+  padding: 18px var(--ge-space-4) var(--ge-space-4);
+}
+
+.exam-questions > .question:first-child {
+  margin-top: var(--ge-space-4);
 }
 
 /* With the monitor on, a long-press must not select text or open Chrome's
@@ -1731,51 +1791,97 @@ main[data-monitor="on"] .exam-questions {
 
 .question-head {
   display: flex;
-  gap: var(--ge-space-3);
-  align-items: baseline;
+  gap: var(--ge-space-2);
+  align-items: center;
   justify-content: space-between;
+  min-height: 28px;
 }
 
 .question-head .eyebrow {
-  margin: 0 0 var(--ge-space-2);
+  margin: 0;
 }
 
+/* Saved: a chip with a check; Saving: muted words; Not saved: a danger
+   chip with the alert icon; idle: nothing. */
 .q-state {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--ge-r-pill);
   font-size: var(--ge-text-sm);
-  font-weight: 600;
+  font-weight: 700;
+  line-height: 1.2;
   white-space: nowrap;
 }
 
+.q-state[data-state="saved"]::before,
+.q-state[data-state="error"]::before {
+  content: "";
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  background: currentColor;
+  -webkit-mask: var(--ge-i-check) center / contain no-repeat;
+  mask: var(--ge-i-check) center / contain no-repeat;
+}
+
 .q-state[data-state="saved"] {
+  background: var(--ge-brand-soft);
   color: var(--ge-brand-strong);
 }
 
 .q-state[data-state="saving"] {
   color: var(--ge-muted);
+  font-weight: 600;
 }
 
 .q-state[data-state="error"] {
+  background: var(--ge-danger-soft);
   color: var(--ge-danger);
 }
 
+.q-state[data-state="error"]::before {
+  -webkit-mask-image: var(--ge-i-alert);
+  mask-image: var(--ge-i-alert);
+}
+
+.q-state[data-state="idle"] {
+  display: none;
+}
+
+#exam .question-body {
+  margin: 10px 0 var(--ge-space-4);
+  font-size: 1.3125rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
 .options {
-  margin: var(--ge-space-4) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
 }
 
 .option {
   position: relative;
   display: flex;
-  gap: var(--ge-space-3);
+  gap: 14px;
   align-items: center;
   width: 100%;
-  min-height: 48px;
-  margin: 0 0 var(--ge-space-2);
-  padding: var(--ge-space-2) var(--ge-space-3);
-  border: 1px solid var(--ge-line);
-  border-radius: var(--ge-r-md);
+  min-height: 64px;
+  margin: 0;
+  padding: 10px 14px 10px 10px;
+  border: 2px solid var(--ge-line);
+  border-radius: 16px;
   background: var(--ge-surface);
+  font-size: var(--ge-text-xl);
   cursor: pointer;
-  transition: background-color var(--ge-transition), border-color var(--ge-transition);
+}
+
+.option:hover {
+  border-color: var(--ge-edge);
 }
 
 /* The native radio stays focusable and announced, but is not drawn: the
@@ -1788,49 +1894,107 @@ main[data-monitor="on"] .exam-questions {
   opacity: 0;
 }
 
-.option:has(input:checked) {
-  padding: calc(var(--ge-space-2) - 1px) calc(var(--ge-space-3) - 1px);
-  border: 2px solid var(--ge-brand);
-  background: var(--ge-brand-soft);
+.option .bubble {
+  width: 44px;
+  height: 44px;
+  font-size: var(--ge-text-lg);
 }
 
-.option:has(input:checked) .bubble {
+/* Room on the right for the check of a picked option. */
+.option .option-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-right: 40px;
+  font-size: var(--ge-text-xl);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* Works without :has(): the three cues a student needs. */
+.option input:checked ~ .bubble {
   border-color: var(--ge-brand);
   background: var(--ge-brand);
   color: var(--ge-on-brand);
 }
 
+.option input:checked ~ .option-body {
+  font-weight: 800;
+}
+
+.option input:checked ~ .option-body::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 28px;
+  height: 28px;
+  margin-top: -14px;
+  background: var(--ge-brand);
+  -webkit-mask: var(--ge-i-check) center / contain no-repeat;
+  mask: var(--ge-i-check) center / contain no-repeat;
+}
+
+.option input:focus-visible ~ .bubble {
+  outline: 3px solid var(--ge-focus);
+  outline-offset: 3px;
+}
+
+.option input:disabled ~ .bubble,
+.option input:disabled ~ .option-body {
+  opacity: 0.7;
+}
+
+/* Adds the row tint where :has() exists. */
+.option:has(input:checked) {
+  border-color: var(--ge-brand);
+  background: var(--ge-brand-soft);
+  box-shadow: inset 0 0 0 1px var(--ge-brand);
+}
+
 .option:has(input:focus-visible) {
-  outline: 3px solid var(--ge-brand);
-  outline-offset: 2px;
+  outline: 3px solid var(--ge-focus);
+  outline-offset: 3px;
+}
+
+.option:has(input:focus-visible) .bubble {
+  outline: none;
 }
 
 .option:has(input:disabled) {
   cursor: not-allowed;
-  opacity: 0.7;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .option {
+    transition: background-color var(--ge-transition), border-color var(--ge-transition);
+  }
 }
 
 /* Fill-in: a visible label over one text box the full width of the
    question, with a heavier edge so it reads as a place to type. 16px or more
    keeps phones from zooming in on focus. */
 .answer-box {
-  margin: var(--ge-space-4) 0 0;
+  margin: 0;
 }
 
 .answer-label {
-  margin: 0 0 var(--ge-space-1);
+  margin: 0 0 var(--ge-space-2);
+  font-weight: 700;
+}
+
+#exam .answer-text {
+  min-height: 56px;
+  margin: 0;
+  padding: 0 var(--ge-space-4);
+  border: 2px solid var(--ge-edge);
+  border-radius: var(--ge-r-md);
+  background: var(--ge-surface);
+  font-size: 1.375rem;
   font-weight: 600;
 }
 
-.answer-box .answer-text {
-  height: 48px;
-  min-height: 48px;
-  margin: 0;
-  border: 2px solid var(--ge-edge);
-  background: var(--ge-surface);
-}
-
-.answer-box .answer-text:focus {
+#exam .answer-text:focus {
   border-color: var(--ge-brand);
 }
 
@@ -1841,17 +2005,29 @@ main[data-monitor="on"] .exam-questions .answer-text {
 }
 
 .exam-footer {
-  margin-top: var(--ge-space-6);
-  padding: var(--ge-space-4) 0 var(--ge-space-6);
-  border-top: 1px solid var(--ge-line);
+  margin-top: 22px;
+  padding: 18px var(--ge-space-4);
+  border: 1px solid var(--ge-line);
+  border-radius: var(--ge-r-lg);
+  background: var(--ge-surface);
+  box-shadow: var(--ge-shadow);
 }
 
 .answered-summary {
-  font-weight: 600;
+  margin: 0 0 14px;
+  font-size: var(--ge-text-lg);
+  font-weight: 800;
+}
+
+#submit-form {
+  margin: 0;
 }
 
 #submit-open {
   width: 100%;
+  min-height: 56px;
+  border-radius: 16px;
+  font-size: var(--ge-text-lg);
 }
 
 .dialog-actions {
@@ -1871,6 +2047,15 @@ main[data-monitor="on"] .exam-questions .answer-text {
     --ge-column: calc(220px + var(--ge-space-6) + 720px);
   }
 
+  /* The mark, the timer and the navigator share one left edge. */
+  .exam-header-inner {
+    padding-inline: 0;
+  }
+
+  .exam-bar {
+    padding-inline: max(10px, calc((100% - var(--ge-column)) / 2));
+  }
+
   .banner {
     max-width: var(--ge-column);
   }
@@ -1882,19 +2067,21 @@ main[data-monitor="on"] .exam-questions .answer-text {
     align-items: start;
   }
 
+  .exam-questions {
+    width: 100%;
+    padding-inline: 0;
+  }
+
   #question-nav {
     position: sticky;
     top: calc(var(--ge-bar) + var(--ge-space-4) + var(--ge-monitor-offset, 0px));
     max-height: calc(100vh - var(--ge-bar) - var(--ge-space-5) - var(--ge-monitor-offset, 0px));
+    margin: var(--ge-space-4) 0;
     overflow-y: auto;
   }
 
   #nav-toggle {
     display: none;
-  }
-
-  #submit-open {
-    width: auto;
   }
 }
 
@@ -1903,11 +2090,17 @@ main[data-monitor="on"] .exam-questions .answer-text {
 main.result {
   max-width: 720px;
   padding-top: var(--ge-space-6);
-  padding-bottom: var(--ge-space-6);
+  padding-bottom: var(--ge-space-7);
+}
+
+main.result h1 {
+  margin-bottom: var(--ge-space-1);
 }
 
 .result-meta {
   color: var(--ge-muted);
+  font-size: var(--ge-text-md);
+  font-weight: 600;
 }
 
 .result-recorded {
@@ -1917,24 +2110,25 @@ main.result {
 /* The outcome leads the page: the score card, centred, before the review. */
 .score-block {
   margin: var(--ge-space-5) 0 var(--ge-space-6);
-  padding: var(--ge-space-5);
   text-align: center;
 }
 
 #score {
   margin: 0;
-  font-size: 3rem;
-  font-weight: 700;
+  color: var(--ge-brand-strong);
+  font-size: 3.5rem;
+  font-weight: 800;
   line-height: 1.1;
 }
 
 .score-caption {
-  margin: 0;
+  margin: var(--ge-space-1) 0 0;
   color: var(--ge-muted);
+  font-weight: 600;
 }
 
 .result-home {
-  margin: var(--ge-space-6) 0 0;
+  margin: var(--ge-space-5) 0 0;
 }
 
 .review-heading {
@@ -1942,37 +2136,64 @@ main.result {
 }
 
 .review-question {
-  margin: var(--ge-space-4) 0 var(--ge-space-5);
+  margin: 0 0 14px;
+  padding: 18px var(--ge-space-4) var(--ge-space-4);
+}
+
+.review-question .eyebrow {
+  margin: 0;
+}
+
+.review-question .question-body {
+  margin: 10px 0 var(--ge-space-4);
+  font-size: 1.3125rem;
+  font-weight: 500;
+  line-height: 1.45;
 }
 
 /* Never colour alone: the words "No answer" carry the state. */
 .no-answer {
-  margin: var(--ge-space-3) 0 0;
+  margin: 0 0 var(--ge-space-3);
   color: var(--ge-danger);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .review-options {
-  margin: var(--ge-space-4) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
   padding: 0;
 }
 
-.review-option {
+/* A row like the exam's options: picked = filled bubble; right = tinted row
+   with a mark chip; wrong pick = danger row with the mark in danger. */
+.review-option,
+.review-typed {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--ge-space-2) var(--ge-space-3);
+  gap: var(--ge-space-2) 14px;
   align-items: center;
-  min-height: 48px;
-  margin: 0 0 var(--ge-space-2);
-  padding: var(--ge-space-2) var(--ge-space-3);
-  border: 1px solid var(--ge-line);
-  border-radius: var(--ge-r-md);
+  min-height: 56px;
+  margin: 0;
+  padding: var(--ge-space-2) 14px var(--ge-space-2) 10px;
+  border: 2px solid var(--ge-line);
+  border-radius: 16px;
   background: var(--ge-surface);
   list-style: none;
 }
 
+.review-option .bubble {
+  width: 36px;
+  height: 36px;
+  font-size: var(--ge-text-base);
+}
+
 .review-option .option-body {
-  flex: 1 1 12rem;
+  flex: 1 1 6rem;
+  font-size: var(--ge-text-xl);
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .review-option[data-picked="true"] .bubble {
@@ -1981,64 +2202,54 @@ main.result {
   color: var(--ge-on-brand);
 }
 
-.review-option[data-correct="true"] {
-  border-color: var(--ge-brand-strong);
+.review-mark {
+  margin-left: auto;
+  font-size: var(--ge-text-sm);
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.review-option[data-correct="true"],
+.review-fill-in[data-correct="true"] .review-typed {
+  border-color: var(--ge-brand);
   background: var(--ge-brand-soft);
 }
 
-.review-option[data-picked="true"][data-correct="false"] {
+.review-option[data-correct="true"] .review-mark,
+.review-fill-in[data-correct="true"] .review-typed .review-mark {
+  padding: 3px 10px;
+  border-radius: var(--ge-r-pill);
+  background: var(--ge-surface);
+  color: var(--ge-brand-strong);
+}
+
+.review-option[data-picked="true"][data-correct="false"],
+.review-fill-in[data-correct="false"] .review-typed {
   border-color: var(--ge-danger);
   background: var(--ge-danger-soft);
 }
 
-.review-mark {
-  font-size: var(--ge-text-sm);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.review-option[data-correct="true"] .review-mark {
-  color: var(--ge-brand-strong);
-}
-
-.review-option[data-picked="true"][data-correct="false"] .review-mark {
+.review-option[data-picked="true"][data-correct="false"] .review-mark,
+.review-fill-in[data-correct="false"] .review-typed .review-mark {
   color: var(--ge-danger);
 }
 
 .review-fill-in {
-  margin: var(--ge-space-4) 0 0;
+  margin: 0;
 }
 
 .review-typed {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-2) var(--ge-space-3);
-  align-items: center;
   margin: 0 0 var(--ge-space-3);
-  padding: var(--ge-space-2) var(--ge-space-3);
-  border: 1px solid var(--ge-danger);
-  border-radius: var(--ge-r-md);
-  background: var(--ge-danger-soft);
+  padding-left: 14px;
 }
 
 .typed-text {
-  flex: 1 1 12rem;
-  font-weight: 600;
+  flex: 1 1 6rem;
+  font-size: var(--ge-text-xl);
+  font-weight: 700;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
-}
-
-.review-typed .review-mark {
-  color: var(--ge-danger);
-}
-
-.review-fill-in[data-correct="true"] .review-typed {
-  border-color: var(--ge-brand-strong);
-  background: var(--ge-brand-soft);
-}
-
-.review-fill-in[data-correct="true"] .review-typed .review-mark {
-  color: var(--ge-brand-strong);
 }
 
 /* 13. Teacher: exams list */
