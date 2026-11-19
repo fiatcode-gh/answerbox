@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/platform/sqlite"
-	"github.com/fiatcode-gh/go-exam/internal/platform/sqlite/sqlitetest"
-	"github.com/fiatcode-gh/go-exam/internal/shortcode"
+	"github.com/fiatcode-gh/answerbox/internal/platform/sqlite"
+	"github.com/fiatcode-gh/answerbox/internal/platform/sqlite/sqlitetest"
+	"github.com/fiatcode-gh/answerbox/internal/shortcode"
 )
 
 func openFile(t *testing.T, path string) *sql.DB {
@@ -120,7 +120,7 @@ func openBuilt(t *testing.T, path string, version int) *sql.DB {
 }
 
 func TestOpen_WAL(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "go-exam.db")
+	path := filepath.Join(t.TempDir(), "answerbox.db")
 	db := openFile(t, path)
 
 	for name, want := range map[string]string{
@@ -161,7 +161,7 @@ func TestOpen_WAL(t *testing.T) {
 }
 
 func TestOpen_MigratesOnce(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "go-exam.db")
+	path := filepath.Join(t.TempDir(), "answerbox.db")
 	db, err := sqlite.Open(path)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -188,7 +188,7 @@ func TestOpen_MigratesOnce(t *testing.T) {
 // the monitor migration keeps every row, turns the monitor on for the
 // existing exam and leaves the freeze triggers working.
 func TestMigrate_0002KeepsVersion1Data(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "go-exam.db")
+	path := filepath.Join(t.TempDir(), "answerbox.db")
 	schema, err := os.ReadFile("migrations/0001_init.sql")
 	if err != nil {
 		t.Fatal(err)
@@ -241,7 +241,7 @@ func TestMigrate_0002KeepsVersion1Data(t *testing.T) {
 // left it and checks that the teacher migration keeps every exam row, drops
 // the ownerless sessions and makes sessions belong to a teacher.
 func TestMigrate_0003KeepsVersion2Data(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "go-exam.db")
+	path := filepath.Join(t.TempDir(), "answerbox.db")
 	old := openVersion2(t, path)
 	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor) VALUES (1,'Old','none','score',1,'k1',5,0)`)
 	mustExec(t, old, `INSERT INTO question (id, exam_id, position, body_html) VALUES (1,1,1,'q1')`)
@@ -309,7 +309,7 @@ func TestMigrate_0003KeepsVersion2Data(t *testing.T) {
 // the exam as it was (owner still unset until startup assigns one) and that
 // from then on an exam cannot be stored or left without an owner.
 func TestMigrate_0004KeepsExamsAndRequiresOwner(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "go-exam.db")
+	path := filepath.Join(t.TempDir(), "answerbox.db")
 	old := openVersion2(t, path)
 	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor) VALUES (1,'Old','none','score',1,'k1',5,0)`)
 	mustExec(t, old, `INSERT INTO attempt (id, exam_id, student_name, token_hash, resume_code, shuffle_seed, started_at, deadline_at) VALUES (1,1,'Ayu',x'01','ABCDEFGH',7,10,20)`)
@@ -367,7 +367,7 @@ func TestSchema_SeveralOpenExams(t *testing.T) {
 // from then on an exam cannot be stored without a code, a code is unique and
 // a set code never changes.
 func TestMigrate_0005KeepsExamsAndAddsCodes(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "go-exam.db")
+	path := filepath.Join(t.TempDir(), "answerbox.db")
 	old := openVersion4(t, path)
 	mustExec(t, old, ownerTeacher)
 	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id) VALUES (1,'Old','none','score',1,'k1',5,0,1)`)
@@ -425,7 +425,7 @@ func TestMigrate_0005KeepsExamsAndAddsCodes(t *testing.T) {
 // that the schedule migration keeps every row, gives both exams 60 minutes and
 // no schedule, and leaves the button state as it was.
 func TestMigrate_0006KeepsExamsAt60MinutesWithoutSchedule(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "go-exam.db")
+	path := filepath.Join(t.TempDir(), "answerbox.db")
 	old := openVersion5(t, path)
 	mustExec(t, old, ownerTeacher)
 	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id, code) VALUES (1,'Live','none','score',1,'k1',5,0,1,'3VK583')`)
@@ -716,7 +716,7 @@ func attemptRevision(t *testing.T, db *sql.DB, id int64) int64 {
 // adds no revision and leaves every attempt without one until the startup
 // backfill.
 func TestMigrate_0007KeepsVersion6Data(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "go-exam.db")
+	path := filepath.Join(t.TempDir(), "answerbox.db")
 	old := openVersion6(t, path)
 	mustExec(t, old, ownerTeacher)
 	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id, code, duration_minutes) VALUES (1,'Live','questions','review',1,'k1',5,1,1,'3VK583',45)`)
@@ -1015,7 +1015,7 @@ func TestSchema_PreviousBinaryStatements(t *testing.T) {
 // left it and checks that the archive migration keeps every row as it was
 // and leaves every exam unarchived.
 func TestMigrate_0008KeepsVersion7Data(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "go-exam.db")
+	path := filepath.Join(t.TempDir(), "answerbox.db")
 	old := openVersion7(t, path)
 	mustExec(t, old, ownerTeacher)
 	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id, code) VALUES (1,'Live','questions','review',1,'k1',5,1,1,'3VK583')`)
@@ -1138,7 +1138,7 @@ func TestSchema_ArchiveChecks(t *testing.T) {
 // left it and checks that the sections migration keeps every row as it was
 // and leaves every question without a section.
 func TestMigrate_0009KeepsVersion8Data(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "go-exam.db")
+	path := filepath.Join(t.TempDir(), "answerbox.db")
 	old := openVersion8(t, path)
 	mustExec(t, old, ownerTeacher)
 	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id, code) VALUES (1,'Live','questions','review',1,'k1',5,1,1,'3VK583')`)
@@ -1308,7 +1308,7 @@ func TestSchema_PreviousBinaryQuestionStatements(t *testing.T) {
 // left it and checks that the fill-in migration keeps every row as it was,
 // leaves every question without accepted answers and adds no typed answer.
 func TestMigrate_0010KeepsVersion9Data(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "go-exam.db")
+	path := filepath.Join(t.TempDir(), "answerbox.db")
 	old := openVersion9(t, path)
 	mustExec(t, old, ownerTeacher)
 	mustExec(t, old, `INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor, owner_id, code) VALUES (1,'Live','questions','review',1,'k1',5,1,1,'3VK583')`)

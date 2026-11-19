@@ -1,4 +1,4 @@
-module github.com/fiatcode-gh/go-exam
+module github.com/fiatcode-gh/answerbox
 
 go 1.26.4
 

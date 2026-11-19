@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
 )
 
 // press posts a one-press exam action (open, close, archive, unarchive, …)

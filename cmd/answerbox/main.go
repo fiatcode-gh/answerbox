@@ -1,4 +1,4 @@
-// Command go-exam serves the exam application.
+// Command answerbox serves the exam application.
 package main
 
 import (
@@ -7,35 +7,45 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
-	_ "time/tzdata" // GOEXAM_TIME_ZONE works without host zoneinfo
+	_ "time/tzdata" // ANSWERBOX_TIME_ZONE works without host zoneinfo
 
-	"github.com/fiatcode-gh/go-exam/internal/adminauth"
-	"github.com/fiatcode-gh/go-exam/internal/attempt"
-	"github.com/fiatcode-gh/go-exam/internal/config"
-	"github.com/fiatcode-gh/go-exam/internal/exam"
-	"github.com/fiatcode-gh/go-exam/internal/platform/clientip"
-	"github.com/fiatcode-gh/go-exam/internal/platform/sqlite"
-	"github.com/fiatcode-gh/go-exam/internal/web"
+	"github.com/fiatcode-gh/answerbox/internal/adminauth"
+	"github.com/fiatcode-gh/answerbox/internal/attempt"
+	"github.com/fiatcode-gh/answerbox/internal/config"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/platform/clientip"
+	"github.com/fiatcode-gh/answerbox/internal/platform/sqlite"
+	"github.com/fiatcode-gh/answerbox/internal/web"
+)
+
+const (
+	dbName    = "answerbox.db"
+	oldDBName = "go-exam.db" // the database's name before the app was renamed
 )
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "go-exam:", err)
+		fmt.Fprintln(os.Stderr, "answerbox:", err)
 		os.Exit(1)
 	}
 }
 
 func run() error {
-	cfg, err := config.Load(os.Getenv)
+	cfg, err := config.Load(os.Environ())
 	if err != nil {
+		return err
+	}
+	if err := checkOldDatabase(cfg.DataDir); err != nil {
 		return err
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
@@ -44,7 +54,7 @@ func run() error {
 	if err := os.MkdirAll(mediaDir, 0o750); err != nil {
 		return err
 	}
-	db, err := sqlite.Open(filepath.Join(cfg.DataDir, "go-exam.db"))
+	db, err := sqlite.Open(filepath.Join(cfg.DataDir, dbName))
 	if err != nil {
 		return err
 	}
@@ -140,13 +150,53 @@ func run() error {
 	return nil
 }
 
+// checkOldDatabase refuses a data directory that still holds a database file
+// under its former name with no renamed file next to it, so the app never
+// starts on an empty or incomplete database beside the real one.
+func checkOldDatabase(dataDir string) error {
+	var found []string
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		old, err := fileExists(filepath.Join(dataDir, oldDBName+suffix))
+		if err != nil {
+			return err
+		}
+		if !old {
+			continue
+		}
+		renamed, err := fileExists(filepath.Join(dataDir, dbName+suffix))
+		if err != nil {
+			return err
+		}
+		if !renamed {
+			found = append(found, oldDBName+suffix)
+		}
+	}
+	if len(found) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%s holds %s from before the rename to Answerbox: stop the app and rename go-exam.db to answerbox.db, go-exam.db-wal to answerbox.db-wal and go-exam.db-shm to answerbox.db-shm (each one that exists)", dataDir, strings.Join(found, ", "))
+}
+
+// fileExists reports whether path exists; a stat error other than not-exist
+// is returned.
+func fileExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("check %s: %w", path, err)
+	}
+	return true, nil
+}
+
 // newAdmin returns the sign-in service with every configured admin on the
 // teacher list and gives exams that have no owner yet (those from before
 // exam ownership) to the first admin. Sessions are kept across restarts.
 func newAdmin(ctx context.Context, db *sql.DB, exams *exam.Service, adminEmails []string, logger *slog.Logger) (*adminauth.Service, error) {
 	admin, err := adminauth.NewService(db, adminEmails, time.Now, rand.Reader)
 	if err != nil {
-		return nil, fmt.Errorf("GOEXAM_ADMIN_EMAILS: %w", err)
+		return nil, fmt.Errorf("ANSWERBOX_ADMIN_EMAILS: %w", err)
 	}
 	firstAdminID, err := admin.EnsureAdmins(ctx)
 	if err != nil {

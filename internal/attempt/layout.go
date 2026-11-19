@@ -4,8 +4,8 @@ import (
 	"math/rand/v2"
 	"slices"
 
-	"github.com/fiatcode-gh/go-exam/internal/exam"
-	"github.com/fiatcode-gh/go-exam/internal/examfile"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/examfile"
 )
 
 // layoutStream is the fixed PCG stream for every attempt; changing it

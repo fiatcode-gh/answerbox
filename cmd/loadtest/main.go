@@ -1,4 +1,4 @@
-// Command loadtest drives a running go-exam server with simulated students:
+// Command loadtest drives a running Answerbox server with simulated students:
 // the teacher imports and opens a generated exam, every student starts,
 // answers all questions at once with the others, submits and checks the
 // score, and the teacher's CSV export is verified against the expected scores.
@@ -27,13 +27,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/oidcfake"
+	"github.com/fiatcode-gh/answerbox/internal/oidcfake"
 )
 
 const (
-	adminCookieName   = "goexam_admin"
-	signinCookieName  = "goexam_signin"
-	attemptCookieName = "goexam_attempt"
+	adminCookieName   = "answerbox_admin"
+	signinCookieName  = "answerbox_signin"
+	attemptCookieName = "answerbox_attempt"
 	optionsPerQ       = 4
 )
 
@@ -56,7 +56,7 @@ type config struct {
 func main() {
 	var cfg config
 	var allowRemote bool
-	flag.StringVar(&cfg.baseURL, "base-url", "http://localhost:18080", "go-exam server base URL")
+	flag.StringVar(&cfg.baseURL, "base-url", "http://localhost:18080", "Answerbox server base URL")
 	flag.StringVar(&cfg.email, "teacher-email", "admin@example.test", "email the fake OpenID provider signs in; it must be an admin email or on the teacher list")
 	flag.IntVar(&cfg.students, "students", 100, "number of simulated students")
 	flag.IntVar(&cfg.questions, "questions", 40, "number of questions in the generated exam")

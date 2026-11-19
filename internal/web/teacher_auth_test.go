@@ -17,12 +17,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/adminauth"
-	"github.com/fiatcode-gh/go-exam/internal/attempt"
-	"github.com/fiatcode-gh/go-exam/internal/exam"
-	"github.com/fiatcode-gh/go-exam/internal/oidcfake"
-	"github.com/fiatcode-gh/go-exam/internal/platform/clientip"
-	"github.com/fiatcode-gh/go-exam/internal/platform/sqlite/sqlitetest"
+	"github.com/fiatcode-gh/answerbox/internal/adminauth"
+	"github.com/fiatcode-gh/answerbox/internal/attempt"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/oidcfake"
+	"github.com/fiatcode-gh/answerbox/internal/platform/clientip"
+	"github.com/fiatcode-gh/answerbox/internal/platform/sqlite/sqlitetest"
 )
 
 // adminRoutes lists every route under /admin/ except the sign-in routes;
@@ -203,7 +203,7 @@ func (env *testEnv) signInAs(t *testing.T, email string) (cookie http.Header, cs
 }
 
 // startAndApprove runs GET /admin/auth/start and the provider's form for id.
-// It returns the goexam_signin cookie value and the callback URL.
+// It returns the answerbox_signin cookie value and the callback URL.
 func (env *testEnv) startAndApprove(t *testing.T, id oidcfake.Identity) (signin string, callback *url.URL) {
 	t.Helper()
 	rec := do(env.h, "GET", "/admin/auth/start", nil)
@@ -212,7 +212,7 @@ func (env *testEnv) startAndApprove(t *testing.T, id oidcfake.Identity) (signin 
 	}
 	c := setCookie(t, rec, signinCookieName)
 	if c == nil {
-		t.Fatal("start set no goexam_signin cookie")
+		t.Fatal("start set no answerbox_signin cookie")
 	}
 	cb, err := oidcfake.Approve(context.Background(), env.oidcSrv.Client(), rec.Header().Get("Location"), id)
 	if err != nil {
@@ -267,7 +267,7 @@ func (env *testEnv) sessionRows(t *testing.T) int {
 }
 
 func adminCookie(token string) http.Header {
-	return http.Header{"Cookie": {"goexam_admin=" + token}}
+	return http.Header{"Cookie": {"answerbox_admin=" + token}}
 }
 
 func serve(h http.Handler, req *http.Request) *httptest.ResponseRecorder {
@@ -325,25 +325,25 @@ func setCookie(t *testing.T, rec *httptest.ResponseRecorder, name string) *http.
 	return c
 }
 
-// adminSetCookie returns the goexam_admin cookie the response sets, if any.
+// adminSetCookie returns the answerbox_admin cookie the response sets, if any.
 func adminSetCookie(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
 	t.Helper()
-	return setCookie(t, rec, "goexam_admin")
+	return setCookie(t, rec, "answerbox_admin")
 }
 
 func requireCookieExpired(t *testing.T, rec *httptest.ResponseRecorder) {
 	t.Helper()
 	c := adminSetCookie(t, rec)
 	if c == nil || c.MaxAge >= 0 || c.Path != "/admin" || c.Value != "" {
-		t.Fatalf("want an expired goexam_admin cookie with Path=/admin, got %+v", c)
+		t.Fatalf("want an expired answerbox_admin cookie with Path=/admin, got %+v", c)
 	}
 }
 
 func requireSigninCookieExpired(t *testing.T, rec *httptest.ResponseRecorder) {
 	t.Helper()
-	c := setCookie(t, rec, "goexam_signin")
+	c := setCookie(t, rec, "answerbox_signin")
 	if c == nil || c.MaxAge >= 0 || c.Path != "/admin/auth" || c.Value != "" {
-		t.Fatalf("want an expired goexam_signin cookie with Path=/admin/auth, got %+v", c)
+		t.Fatalf("want an expired answerbox_signin cookie with Path=/admin/auth, got %+v", c)
 	}
 }
 
@@ -500,14 +500,14 @@ func TestSignIn_AdminAndListedTeacher(t *testing.T) {
 				}
 			}
 
-			lines := setCookieLines(t, rec, "goexam_admin")
+			lines := setCookieLines(t, rec, "answerbox_admin")
 			if len(lines) != 1 {
-				t.Fatalf("goexam_admin Set-Cookie = %q, want one", lines)
+				t.Fatalf("answerbox_admin Set-Cookie = %q, want one", lines)
 			}
 			requireCookieAttrs(t, lines[0], "Path=/admin", "Max-Age=43200", "HttpOnly", "Secure", "SameSite=Strict")
 			c, _ := http.ParseSetCookie(lines[0])
 			if c.Path != "/admin" || c.MaxAge != 43200 || !c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteStrictMode {
-				t.Errorf("goexam_admin cookie = %+v", c)
+				t.Errorf("answerbox_admin cookie = %+v", c)
 			}
 			requireSigninCookieExpired(t, rec)
 
@@ -584,7 +584,7 @@ func TestSignIn_Refusals(t *testing.T) {
 			rec := c.run(t, env)
 			requireRedirect(t, rec, c.want)
 			if adminSetCookie(t, rec) != nil {
-				t.Error("refusal sets goexam_admin")
+				t.Error("refusal sets answerbox_admin")
 			}
 			requireSigninCookieExpired(t, rec)
 			if n := env.sessionRows(t); n != c.sessionsAfter {
@@ -604,9 +604,9 @@ func TestSignIn_StartSetsCookieAndRedirects(t *testing.T) {
 	if !strings.HasPrefix(loc, env.oidcSrv.URL+"/auth?") {
 		t.Fatalf("Location = %q, want the provider's /auth", loc)
 	}
-	lines := setCookieLines(t, rec, "goexam_signin")
+	lines := setCookieLines(t, rec, "answerbox_signin")
 	if len(lines) != 1 {
-		t.Fatalf("goexam_signin Set-Cookie = %q, want one", lines)
+		t.Fatalf("answerbox_signin Set-Cookie = %q, want one", lines)
 	}
 	requireCookieAttrs(t, lines[0], "Path=/admin/auth", "Max-Age=600", "HttpOnly", "Secure", "SameSite=Lax")
 	c, _ := http.ParseSetCookie(lines[0])
@@ -638,7 +638,7 @@ func TestSignIn_ProviderDown(t *testing.T) {
 func TestLogin_Page(t *testing.T) {
 	env := newTestEnv(t)
 	const (
-		notAllowedMsg = "This Google account is not allowed. Ask your go-exam admin to add it."
+		notAllowedMsg = "This Google account is not allowed. Ask your Answerbox admin to add it."
 		failedMsg     = "Sign-in did not complete. Try again."
 	)
 	for _, c := range []struct{ query, alert string }{

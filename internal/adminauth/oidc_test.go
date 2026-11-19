@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/adminauth"
-	"github.com/fiatcode-gh/go-exam/internal/oidcfake"
+	"github.com/fiatcode-gh/answerbox/internal/adminauth"
+	"github.com/fiatcode-gh/answerbox/internal/oidcfake"
 )
 
 const (

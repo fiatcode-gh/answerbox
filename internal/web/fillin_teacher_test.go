@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
 )
 
 // typedExam has two sections: Part A holds fill-in question 1 accepting

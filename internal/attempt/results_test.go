@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/attempt"
-	"github.com/fiatcode-gh/go-exam/internal/exam"
-	"github.com/fiatcode-gh/go-exam/internal/examfile"
+	"github.com/fiatcode-gh/answerbox/internal/attempt"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/examfile"
 )
 
 func (h *harness) detail(t *testing.T, examID, attemptID int64) attempt.Detail {

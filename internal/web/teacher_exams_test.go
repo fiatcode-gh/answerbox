@@ -22,10 +22,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/attempt"
-	"github.com/fiatcode-gh/go-exam/internal/exam"
-	"github.com/fiatcode-gh/go-exam/internal/examfile"
-	"github.com/fiatcode-gh/go-exam/internal/oidcfake"
+	"github.com/fiatcode-gh/answerbox/internal/attempt"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/examfile"
+	"github.com/fiatcode-gh/answerbox/internal/oidcfake"
 )
 
 func TestAdminIndex_RedirectsToExams(t *testing.T) {
@@ -56,7 +56,7 @@ func TestAdminExams_ListAndEmptyState(t *testing.T) {
 		!strings.Contains(logout, `name="csrf_token" value="`+csrf+`"`) || !strings.Contains(logout, "Log out") {
 		t.Errorf("logout form with csrf_token missing:\n%s", body)
 	}
-	for _, want := range []string{"go-exam", `href="/admin/exams"`} {
+	for _, want := range []string{"Answerbox", `href="/admin/exams"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("admin header lacks %q", want)
 		}

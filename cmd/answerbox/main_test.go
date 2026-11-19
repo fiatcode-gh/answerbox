@@ -20,11 +20,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/adminauth"
-	"github.com/fiatcode-gh/go-exam/internal/attempt"
-	"github.com/fiatcode-gh/go-exam/internal/exam"
-	"github.com/fiatcode-gh/go-exam/internal/platform/sqlite"
-	"github.com/fiatcode-gh/go-exam/internal/platform/sqlite/sqlitetest"
+	"github.com/fiatcode-gh/answerbox/internal/adminauth"
+	"github.com/fiatcode-gh/answerbox/internal/attempt"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/platform/sqlite"
+	"github.com/fiatcode-gh/answerbox/internal/platform/sqlite/sqlitetest"
 )
 
 // newExams returns an exam.Service on db with a throwaway media folder.
@@ -127,8 +127,8 @@ func TestNewAdmin_KeepsSessions(t *testing.T) {
 func TestNewAdmin_RejectsBadAdminEmail(t *testing.T) {
 	db := sqlitetest.Open(t)
 	_, err := newAdmin(context.Background(), db, newExams(t, db), []string{"nope"}, discardLogger)
-	if err == nil || !strings.HasPrefix(err.Error(), "GOEXAM_ADMIN_EMAILS:") || strings.Contains(err.Error(), "nope") {
-		t.Fatalf("err = %v, want a GOEXAM_ADMIN_EMAILS: error without the value", err)
+	if err == nil || !strings.HasPrefix(err.Error(), "ANSWERBOX_ADMIN_EMAILS:") || strings.Contains(err.Error(), "nope") {
+		t.Fatalf("err = %v, want a ANSWERBOX_ADMIN_EMAILS: error without the value", err)
 	}
 }
 
@@ -206,7 +206,7 @@ func openOldDatabase(t *testing.T, path string, version int) *sql.DB {
 
 func TestNewAdmin_AssignsExistingExamsToFirstAdmin(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "go-exam.db")
+	path := filepath.Join(t.TempDir(), "answerbox.db")
 	old := openOldDatabase(t, path, 2)
 	for _, q := range []string{
 		`INSERT INTO exam (id, title, shuffle, show_result, is_open, media_key, created_at, monitor) VALUES (1,'Old','none','score',1,'k1',5,1)`,
@@ -294,7 +294,7 @@ func examCodes(t *testing.T, db *sql.DB) map[int64]string {
 
 func TestAssignExamCodes_UpgradedDatabase(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "go-exam.db")
+	path := filepath.Join(t.TempDir(), "answerbox.db")
 	old := openOldDatabase(t, path, 4)
 	for _, q := range []string{
 		`INSERT INTO teacher (id, email, created_at) VALUES (1,'first@example.test',0)`,
@@ -366,7 +366,7 @@ func TestAssignExamCodes_UpgradedDatabase(t *testing.T) {
 
 func TestUpgrade_Version5OpenExamKeeps60MinutesAndNoSchedule(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "go-exam.db")
+	path := filepath.Join(t.TempDir(), "answerbox.db")
 	old := openOldDatabase(t, path, 5)
 	for _, q := range []string{
 		`INSERT INTO teacher (id, email, created_at) VALUES (1,'first@example.test',0)`,
@@ -462,7 +462,7 @@ func attemptScores(t *testing.T, db *sql.DB) []int {
 
 func TestUpgrade_Version6OlympiadShape(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "go-exam.db")
+	path := filepath.Join(t.TempDir(), "answerbox.db")
 	old := openOldDatabase(t, path, 6)
 	const createdAt = 1_763_340_000_000
 	for _, q := range []string{
@@ -600,7 +600,7 @@ func TestUpgrade_Version6OlympiadShape(t *testing.T) {
 // two closed exams) and archives the two closed exams.
 func TestUpgrade_Version7LiveShape(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "go-exam.db")
+	path := filepath.Join(t.TempDir(), "answerbox.db")
 	old := openOldDatabase(t, path, 7)
 	const createdAt = 1_763_340_000_000
 	for _, q := range []string{
@@ -749,7 +749,7 @@ func TestUpgrade_Version7LiveShape(t *testing.T) {
 // and two archived exams), then imports an exam with sections.
 func TestUpgrade_Version8LiveShape(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "go-exam.db")
+	path := filepath.Join(t.TempDir(), "answerbox.db")
 	old := openOldDatabase(t, path, 8)
 	seedLiveShape(t, old)
 	before, older, later, scores := dumpRows(t, old), dumpLiveOlder(t, old), dumpLiveLater(t, old), attemptScores(t, old)
@@ -925,7 +925,7 @@ func dumpLiveLater(t *testing.T, db *sql.DB) string {
 // starts an attempt on the olympiad.
 func TestUpgrade_Version9LiveShape(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "go-exam.db")
+	path := filepath.Join(t.TempDir(), "answerbox.db")
 	old := openOldDatabase(t, path, 9)
 	seedLiveShape(t, old)
 	before, older, later, scores := dumpRows(t, old), dumpLiveOlder(t, old), dumpLiveLater(t, old), attemptScores(t, old)
@@ -1020,7 +1020,7 @@ func TestUpgrade_Version9LiveShape(t *testing.T) {
 
 func TestBackfillRevisions_LogsUnconvertible(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "go-exam.db")
+	path := filepath.Join(t.TempDir(), "answerbox.db")
 	old := openOldDatabase(t, path, 6)
 	for _, q := range []string{
 		`INSERT INTO teacher (id, email, created_at) VALUES (1,'first@example.test',0)`,
@@ -1065,7 +1065,77 @@ func TestBinary_DoesNotLinkFakeProvider(t *testing.T) {
 	}
 	for line := range strings.Lines(string(out)) {
 		if strings.Contains(line, "internal/oidcfake") || strings.Contains(line, "oidc/oidctest") {
-			t.Errorf("cmd/go-exam links %s", strings.TrimSpace(line))
+			t.Errorf("cmd/answerbox links %s", strings.TrimSpace(line))
 		}
 	}
+}
+
+func TestCheckOldDatabase(t *testing.T) {
+	refused := func(dir, found string) string {
+		return dir + " holds " + found + " from before the rename to Answerbox: stop the app and rename go-exam.db to answerbox.db, go-exam.db-wal to answerbox.db-wal and go-exam.db-shm to answerbox.db-shm (each one that exists)"
+	}
+	tests := []struct {
+		name    string
+		missing bool
+		files   []string
+		found   string // empty: the check passes
+	}{
+		{name: "empty directory"},
+		{name: "missing directory", missing: true},
+		{name: "old main file", files: []string{"go-exam.db"}, found: "go-exam.db"},
+		{
+			name:  "old main file and sidecars",
+			files: []string{"go-exam.db", "go-exam.db-wal", "go-exam.db-shm"},
+			found: "go-exam.db, go-exam.db-wal, go-exam.db-shm",
+		},
+		{name: "new main file", files: []string{"answerbox.db"}},
+		{name: "both main files", files: []string{"answerbox.db", "go-exam.db"}},
+		{name: "orphan old wal", files: []string{"answerbox.db", "go-exam.db-wal"}, found: "go-exam.db-wal"},
+		{name: "old wal beside new wal", files: []string{"answerbox.db", "answerbox.db-wal", "go-exam.db-wal"}},
+		{name: "orphan old shm", files: []string{"answerbox.db", "go-exam.db-shm"}, found: "go-exam.db-shm"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if tt.missing {
+				dir = filepath.Join(dir, "data")
+			}
+			for _, name := range tt.files {
+				if err := os.WriteFile(filepath.Join(dir, name), nil, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before := listDir(t, dir)
+
+			err := checkOldDatabase(dir)
+
+			if tt.found == "" {
+				if err != nil {
+					t.Errorf("checkOldDatabase = %v, want nil", err)
+				}
+			} else if err == nil || err.Error() != refused(dir, tt.found) {
+				t.Errorf("checkOldDatabase = %v, want %q", err, refused(dir, tt.found))
+			}
+			if after := listDir(t, dir); !slices.Equal(after, before) {
+				t.Errorf("directory after the check = %q, want %q", after, before)
+			}
+		})
+	}
+}
+
+// listDir returns the names in dir, or nil when dir does not exist.
+func listDir(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	return names
 }

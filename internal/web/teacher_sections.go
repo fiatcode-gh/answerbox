@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/fiatcode-gh/go-exam/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
 )
 
 type sectionData struct {

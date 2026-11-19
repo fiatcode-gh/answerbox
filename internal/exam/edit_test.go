@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fiatcode-gh/go-exam/internal/exam"
-	"github.com/fiatcode-gh/go-exam/internal/examfile"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/examfile"
 )
 
 // editExam has the default settings and two questions; question 2's correct

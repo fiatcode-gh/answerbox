@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fiatcode-gh/go-exam/internal/exam"
-	"github.com/fiatcode-gh/go-exam/internal/examfile"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/examfile"
 )
 
 // sectionedExam has two sections of two questions each; Part A has

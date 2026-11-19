@@ -8,8 +8,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/fiatcode-gh/go-exam/internal/exam"
-	"github.com/fiatcode-gh/go-exam/internal/examfile"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/examfile"
 )
 
 // gridQuestions builds n questions of m options each in original order;

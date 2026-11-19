@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/attempt"
-	"github.com/fiatcode-gh/go-exam/internal/examfile"
+	"github.com/fiatcode-gh/answerbox/internal/attempt"
+	"github.com/fiatcode-gh/answerbox/internal/examfile"
 )
 
 func (h *harness) record(t *testing.T, token string, kind attempt.EventKind, questionID int64) bool {

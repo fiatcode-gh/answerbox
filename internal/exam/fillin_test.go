@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fiatcode-gh/go-exam/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
 )
 
 // mixedExam has a multiple-choice and a fill-in question.

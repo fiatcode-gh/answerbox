@@ -14,7 +14,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/fiatcode-gh/go-exam/internal/examfile"
+	"github.com/fiatcode-gh/answerbox/internal/examfile"
 )
 
 // Import validates an uploaded exam file, stores its images and inserts it

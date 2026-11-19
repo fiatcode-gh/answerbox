@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/fiatcode-gh/go-exam/internal/platform/sqlite"
+	"github.com/fiatcode-gh/answerbox/internal/platform/sqlite"
 )
 
 // Open returns a fresh migrated database in t.TempDir(), closed on cleanup.

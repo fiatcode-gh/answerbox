@@ -1,8 +1,8 @@
-# go-exam
+# Answerbox
 
-go-exam is a small, self-hosted web app for classroom exams with multiple-choice and fill-in questions. Students type the exam's code and their name, or open a link that carries the code, and take that exam within its time limit, the exam's own length (60 minutes unless the exam file says otherwise); the teacher imports exams from text files or writes them in the browser, opens and closes them by hand or on a schedule, and reviews the results. Teachers can also split an exam into named sections with instructions, see every change to an exam as a numbered revision, download an exam as a file, copy an exam and archive exams they no longer use.
+Answerbox is a small, self-hosted web app for classroom exams with multiple-choice and fill-in questions. Students type the exam's code and their name, or open a link that carries the code, and take that exam within its time limit, the exam's own length (60 minutes unless the exam file says otherwise); the teacher imports exams from text files or writes them in the browser, opens and closes them by hand or on a schedule, and reviews the results. Teachers can also split an exam into named sections with instructions, see every change to an exam as a numbered revision, download an exam as a file, copy an exam and archive exams they no longer use.
 
-It is not a learning platform. Teachers sign in with their Google account, and only emails on the app's teacher list may sign in. Each teacher sees only their own exams and results; admins (the emails in `GOEXAM_ADMIN_EMAILS`) also see every exam and manage the teacher list. Students have no accounts. Several exams can be open at the same time.
+It is not a learning platform. Teachers sign in with their Google account, and only emails on the app's teacher list may sign in. Each teacher sees only their own exams and results; admins (the emails in `ANSWERBOX_ADMIN_EMAILS`) also see every exam and manage the teacher list. Students have no accounts. Several exams can be open at the same time.
 
 ## Configuration
 
@@ -10,24 +10,24 @@ All configuration comes from environment variables.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `GOEXAM_GOOGLE_CLIENT_ID` | none (required) | OAuth client ID of the Google Cloud "Web application" client. |
-| `GOEXAM_GOOGLE_CLIENT_SECRET` | none (required) | Client secret of that OAuth client. |
-| `GOEXAM_ADMIN_EMAILS` | none (required) | Comma-separated Google account emails of the admins. The first one receives the exams that existed before teacher accounts. |
-| `GOEXAM_PUBLIC_URL` | none (required) | Public address of the app, scheme and host without a path, for example `https://exam.example.org`; `https` unless the host is localhost. The student link shown to teachers starts with it. |
-| `GOEXAM_OIDC_ISSUER` | `https://accounts.google.com` | OpenID provider; `https` unless the host is localhost. Set it only for another provider or the local fake used in tests. |
-| `GOEXAM_DATA_DIR` | `./data` (image: `/data`) | Directory holding the database and uploaded images. |
-| `GOEXAM_LISTEN_ADDR` | `:8080` | Address the HTTP server listens on. |
-| `GOEXAM_TRUSTED_PROXIES` | empty (trust nobody) | Comma-separated CIDRs or IPs whose `X-Forwarded-For` is trusted for the client address in the request log. |
-| `GOEXAM_TIME_ZONE` | `UTC` | IANA time zone used to display times, to type and show schedule times, and for the open time students read (time zone data is built in). |
+| `ANSWERBOX_GOOGLE_CLIENT_ID` | none (required) | OAuth client ID of the Google Cloud "Web application" client. |
+| `ANSWERBOX_GOOGLE_CLIENT_SECRET` | none (required) | Client secret of that OAuth client. |
+| `ANSWERBOX_ADMIN_EMAILS` | none (required) | Comma-separated Google account emails of the admins. The first one receives the exams that existed before teacher accounts. |
+| `ANSWERBOX_PUBLIC_URL` | none (required) | Public address of the app, scheme and host without a path, for example `https://exam.example.org`; `https` unless the host is localhost. The student link shown to teachers starts with it. |
+| `ANSWERBOX_OIDC_ISSUER` | `https://accounts.google.com` | OpenID provider; `https` unless the host is localhost. Set it only for another provider or the local fake used in tests. |
+| `ANSWERBOX_DATA_DIR` | `./data` (image: `/data`) | Directory holding the database and uploaded images. |
+| `ANSWERBOX_LISTEN_ADDR` | `:8080` | Address the HTTP server listens on. |
+| `ANSWERBOX_TRUSTED_PROXIES` | empty (trust nobody) | Comma-separated CIDRs or IPs whose `X-Forwarded-For` is trusted for the client address in the request log. |
+| `ANSWERBOX_TIME_ZONE` | `UTC` | IANA time zone used to display times, to type and show schedule times, and for the open time students read (time zone data is built in). |
 
-The app refuses to start without the four required settings. [`.env.example`](.env.example) lists every setting with a one-line explanation; the optional ones stay commented out, because an empty value in an env file overrides the default (for example the image's `/data`). Teacher sessions last 12 hours and survive restarts. The admin role follows `GOEXAM_ADMIN_EMAILS` at every request; an email taken out of it stays an ordinary teacher until an admin removes it on the Teachers page. Recovery is an environment change plus a restart: there is no password.
+The app refuses to start without the four required settings. It also refuses to start while a variable with the prefix the app used before it was renamed (2026-11-19) is set, and the message names the ANSWERBOX_ key to use instead. [`.env.example`](.env.example) lists every setting with a one-line explanation; the optional ones stay commented out, because an empty value in an env file overrides the default (for example the image's `/data`). Teacher sessions last 12 hours and survive restarts. The admin role follows `ANSWERBOX_ADMIN_EMAILS` at every request; an email taken out of it stays an ordinary teacher until an admin removes it on the Teachers page. Recovery is an environment change plus a restart: there is no password.
 
 ## Google sign-in
 
 1. In Google Cloud, create an OAuth client of type "Web application".
-2. Add the authorised redirect URI `<GOEXAM_PUBLIC_URL>/admin/auth/callback`, for example `https://exam.example.org/admin/auth/callback`.
+2. Add the authorised redirect URI `<ANSWERBOX_PUBLIC_URL>/admin/auth/callback`, for example `https://exam.example.org/admin/auth/callback`.
 3. The app asks for the `openid`, `email` and `profile` scopes.
-4. Put the client ID and secret in `GOEXAM_GOOGLE_CLIENT_ID` and `GOEXAM_GOOGLE_CLIENT_SECRET`.
+4. Put the client ID and secret in `ANSWERBOX_GOOGLE_CLIENT_ID` and `ANSWERBOX_GOOGLE_CLIENT_SECRET`.
 5. The first admin signs in at `/admin` and adds teachers on the Teachers page.
 
 A Google account can sign in only when its email is verified and on the teacher list.
@@ -35,7 +35,7 @@ A Google account can sign in only when its email is verified and on the teacher 
 ## Exam codes
 
 - Every exam gets a 6-character code when it is imported: capital letters and digits without look-alikes (no I, L, O, U, 0, 1). The code never changes, also when the questions are replaced and across revisions, and no other exam ever gets it. A copy of an exam gets a new code.
-- The exam page shows the code large, for a projector, and the student link `<GOEXAM_PUBLIC_URL>/?code=XXXXXX`. The exams list shows each exam's code.
+- The exam page shows the code large, for a projector, and the student link `<ANSWERBOX_PUBLIC_URL>/?code=XXXXXX`. The exams list shows each exam's code.
 - Students open the app and type the code and their name. Any case works, and spaces and a dash are ignored. With the link, the name is all they type.
 - A code works only while its exam is open. Otherwise the student reads "No open exam has that code. Check it with your teacher.", the same sentence for a mistyped code, for a closed exam and for an exam whose close time has passed.
 - A code of a scheduled exam that is not open yet shows the exam's title and when it opens, for example "This exam opens at 08:00." (with the date when that is not today), both through the student link and after pressing Start. The student starts once the open time has come.
@@ -51,14 +51,14 @@ A Google account can sign in only when its email is verified and on the teacher 
 - The exam is open exactly from the open time until the close time; at the close time itself it is closed.
 - The close time stops new starts only. Attempts in progress keep their full length.
 - Open and Close remove the schedule and leave the exam open or closed. Saving a schedule on an exam opened with the button hands it to the schedule.
-- Times are typed and shown in `GOEXAM_TIME_ZONE`.
+- Times are typed and shown in `ANSWERBOX_TIME_ZONE`.
 
 ## Archive
 
 - Archive, on the exam page, works for any exam the teacher can see: open or closed, with or without attempts. There is no confirmation; Unarchive is the undo.
 - Archiving closes the exam and removes its schedule. Attempts in progress continue to their own deadline; new starts are refused with the same sentence as for a mistyped code.
 - Archived exams leave the exams list. "Show archived" lists every exam, with archived ones marked `Archived`; "Hide archived" returns to the usual list. When every exam is archived, the list says "All exams are archived."
-- The exam page of an archived exam shows `Archived` and the date it was archived, in `GOEXAM_TIME_ZONE`. Open and Save schedule are refused until the exam is unarchived.
+- The exam page of an archived exam shows `Archived` and the date it was archived, in `ANSWERBOX_TIME_ZONE`. Open and Save schedule are refused until the exam is unarchived.
 - Results, the CSV, renaming and deleting attempts, History, Download and Copy keep working on an archived exam, and so do Edit questions and Replace while it has no attempts. A copy of an archived exam is not archived.
 - Unarchive returns the exam closed and without a schedule; it does not bring back an earlier schedule.
 - Archive is per exam, for everyone who can see it: an admin who archives a teacher's exam hides it from that teacher's list too.
@@ -123,15 +123,15 @@ A Google account can sign in only when its email is verified and on the teacher 
 
 ## Run with a container
 
-The image is published as `ghcr.io/fiatcode-gh/go-exam`. It contains a single static binary, runs as uid/gid 65532 (non-root) and keeps its data in `/data`.
+The image is published as `ghcr.io/fiatcode-gh/answerbox`. It contains a single static binary, runs as uid/gid 65532 (non-root) and keeps its data in `/data`.
 
 ```sh
-podman build -t localhost/go-exam:dev -f Containerfile .
-podman volume create go-exam-data
-podman run -d --name go-exam -p 8080:8080 \
+podman build -t localhost/answerbox:dev -f Containerfile .
+podman volume create answerbox-data
+podman run -d --name answerbox -p 8080:8080 \
   --env-file .env \
-  -v go-exam-data:/data \
-  ghcr.io/fiatcode-gh/go-exam:latest   # or localhost/go-exam:dev
+  -v answerbox-data:/data \
+  ghcr.io/fiatcode-gh/answerbox:latest   # or localhost/answerbox:dev
 ```
 
 Open `http://localhost:8080/` for students and `http://localhost:8080/admin` for the teacher.
@@ -140,7 +140,7 @@ Open `http://localhost:8080/` for students and `http://localhost:8080/admin` for
 
 - The app speaks plain HTTP; let the proxy terminate TLS and forward to port 8080.
 - Cookies are always `Secure`, so students and the teacher must reach the app over HTTPS (browsers also accept `http://localhost` for local use).
-- Set `GOEXAM_TRUSTED_PROXIES` to the proxy's network (for example `172.18.0.0/16`) so the request log shows real client addresses instead of the proxy's.
+- Set `ANSWERBOX_TRUSTED_PROXIES` to the proxy's network (for example `172.18.0.0/16`) so the request log shows real client addresses instead of the proxy's.
 - The server needs outbound HTTPS to Google to sign teachers in. Students are not affected when Google cannot be reached.
 
 ## Browser support
@@ -155,8 +155,10 @@ Tested in Chromium on desktop and in Chrome on a real Android phone. Safari (iPh
 
 Everything lives under the data directory:
 
-- `go-exam.db` — the SQLite database (WAL mode, so `go-exam.db-wal` and `go-exam.db-shm` may sit next to it);
+- `answerbox.db` — the SQLite database (WAL mode, so `answerbox.db-wal` and `answerbox.db-shm` may sit next to it);
 - `media/` — images imported with exams, kept for every revision: Replace no longer removes the old images, so this folder grows with each Replace.
+
+If the data directory holds a database file under the name the app used before it was renamed and no renamed file next to it, the app refuses to start and says which files to rename while it is stopped.
 
 To back up while the app is running, take an online copy of the database and copy the media directory:
 
@@ -245,17 +247,17 @@ go vet ./...
 go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
 go test ./...
 go test -race ./...
-podman build -t localhost/go-exam:dev -f Containerfile .
+podman build -t localhost/answerbox:dev -f Containerfile .
 
 # Run with your own settings from .env (never printed):
-( set -a; . ./.env; set +a; exec go run ./cmd/go-exam )
+( set -a; . ./.env; set +a; exec go run ./cmd/answerbox )
 
 # Or run against the fake OpenID provider (tests, load test, browser scripts).
 # The app must be reached as localhost and the provider as 127.0.0.1.
 go run ./cmd/oidcfake                                   # serves on 127.0.0.1:9096
-GOEXAM_GOOGLE_CLIENT_ID=dev-client GOEXAM_GOOGLE_CLIENT_SECRET=dev-secret \
-GOEXAM_ADMIN_EMAILS=admin@example.test GOEXAM_PUBLIC_URL=http://localhost:8080 \
-GOEXAM_OIDC_ISSUER=http://127.0.0.1:9096 GOEXAM_DATA_DIR=./data go run ./cmd/go-exam
+ANSWERBOX_GOOGLE_CLIENT_ID=dev-client ANSWERBOX_GOOGLE_CLIENT_SECRET=dev-secret \
+ANSWERBOX_ADMIN_EMAILS=admin@example.test ANSWERBOX_PUBLIC_URL=http://localhost:8080 \
+ANSWERBOX_OIDC_ISSUER=http://127.0.0.1:9096 ANSWERBOX_DATA_DIR=./data go run ./cmd/answerbox
 
 go run ./cmd/loadtest -base-url http://localhost:8080 -teacher-email admin@example.test
 # Each browser script expects a fresh data directory:
@@ -279,7 +281,7 @@ uv run e2e/fillin.py     --base-url http://localhost:8080 --admin-email admin@ex
 uv run e2e/fillin.py --rollback --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/fillin-rollback
 # Then start this release on that copy again:
 uv run e2e/fillin.py --returned --expect-csv e2e/out/fillin/attempts.csv --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/fillin-returned
-# The server must run with GOEXAM_TIME_ZONE=Asia/Jakarta; the run waits about two minutes on the real clock:
+# The server must run with ANSWERBOX_TIME_ZONE=Asia/Jakarta; the run waits about two minutes on the real clock:
 uv run e2e/scheduled_exams.py --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --time-zone Asia/Jakarta --out e2e/out/scheduled-exams
 
 # Check that every exam in a database copy can be given its revision 1 (read-only; use a copy taken with sqlite3 ".backup"):

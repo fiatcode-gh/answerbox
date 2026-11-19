@@ -3,7 +3,7 @@ package exam
 import (
 	"context"
 
-	"github.com/fiatcode-gh/go-exam/internal/examfile"
+	"github.com/fiatcode-gh/answerbox/internal/examfile"
 )
 
 // ReplaceContent exposes replaceContent so a test can reach the stale check

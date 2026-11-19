@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/attempt"
-	"github.com/fiatcode-gh/go-exam/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/attempt"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
 )
 
 // unknownToken is syntactically valid (43 base64url characters) but names no
@@ -43,10 +43,10 @@ func (env *testEnv) list(t *testing.T, examID int64) []attempt.Summary {
 }
 
 func studentCookie(token string) http.Header {
-	return http.Header{"Cookie": {"goexam_attempt=" + token}}
+	return http.Header{"Cookie": {"answerbox_attempt=" + token}}
 }
 
-// attemptSetCookie returns the goexam_attempt cookie the response sets, if any.
+// attemptSetCookie returns the answerbox_attempt cookie the response sets, if any.
 func attemptSetCookie(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
 	t.Helper()
 	for _, line := range rec.Header().Values("Set-Cookie") {
@@ -54,7 +54,7 @@ func attemptSetCookie(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie
 		if err != nil {
 			t.Fatalf("bad Set-Cookie %q: %v", line, err)
 		}
-		if c.Name == "goexam_attempt" {
+		if c.Name == "answerbox_attempt" {
 			return c
 		}
 	}
@@ -65,7 +65,7 @@ func requireAttemptCookieCleared(t *testing.T, rec *httptest.ResponseRecorder) {
 	t.Helper()
 	c := attemptSetCookie(t, rec)
 	if c == nil || c.MaxAge >= 0 || c.Path != "/" || c.Value != "" {
-		t.Fatalf("want a cleared goexam_attempt cookie with Path=/, got %+v", c)
+		t.Fatalf("want a cleared answerbox_attempt cookie with Path=/, got %+v", c)
 	}
 }
 
@@ -133,7 +133,7 @@ func (env *testEnv) startWith(t *testing.T, code, name string) http.Header {
 	requireRedirect(t, rec, "/exam")
 	c := attemptSetCookie(t, rec)
 	if c == nil {
-		t.Fatal("POST /start set no goexam_attempt cookie")
+		t.Fatal("POST /start set no answerbox_attempt cookie")
 	}
 	return studentCookie(c.Value)
 }
@@ -198,8 +198,8 @@ func requirePlainLanding(t *testing.T, label, body string) {
 	for _, want := range []string{
 		`<form id="start-form" method="post" action="/start">`,
 		`name="name"`,
-		`<h1 class="landing-title">go-exam</h1>`,
-		`<title>go-exam</title>`,
+		`<h1 class="landing-title">Answerbox</h1>`,
+		`<title>Answerbox</title>`,
 		"The timer starts when you press Start and does not pause.",
 		`id="resume-form"`,
 	} {
@@ -378,7 +378,7 @@ func TestStart_Refusals(t *testing.T) {
 		if !strings.Contains(code, `value="`+form.Get("code")+`"`) || !strings.Contains(code, "autofocus") {
 			t.Errorf("%s: code field = %q, want %q with autofocus", label, code, form.Get("code"))
 		}
-		if !strings.Contains(body, `<h1 class="landing-title">go-exam</h1>`) || strings.Contains(body, "Algebra") ||
+		if !strings.Contains(body, `<h1 class="landing-title">Answerbox</h1>`) || strings.Contains(body, "Algebra") ||
 			strings.Contains(body, "Exam none") {
 			t.Errorf("%s: an exam title is shown:\n%s", label, body)
 		}
@@ -621,11 +621,11 @@ func TestStart_CookieAttributes(t *testing.T) {
 
 	var line string
 	for _, l := range rec.Header().Values("Set-Cookie") {
-		if strings.HasPrefix(l, "goexam_attempt=") {
+		if strings.HasPrefix(l, "answerbox_attempt=") {
 			line = l
 		}
 	}
-	if !regexp.MustCompile(`^goexam_attempt=[A-Za-z0-9_-]{43};`).MatchString(line) {
+	if !regexp.MustCompile(`^answerbox_attempt=[A-Za-z0-9_-]{43};`).MatchString(line) {
 		t.Fatalf("Set-Cookie = %q, want a 43-character base64url token", line)
 	}
 	for _, attr := range []string{"Path=/", "Max-Age=604800", "HttpOnly", "Secure", "SameSite=Lax"} {

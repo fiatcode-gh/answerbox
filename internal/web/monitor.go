@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/fiatcode-gh/go-exam/internal/attempt"
+	"github.com/fiatcode-gh/answerbox/internal/attempt"
 )
 
 type eventResponse struct {

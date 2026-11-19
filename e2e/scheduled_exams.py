@@ -7,7 +7,7 @@ teacher schedules a 5-minute exam to open at the next whole minute and close a
 minute later; a student who comes early sees when it opens, starts once it is
 open and gets 5 minutes; after the close time the code is refused exactly like
 an unknown one while the started attempt goes on; Open removes the schedule.
-Needs a fresh instance whose GOEXAM_TIME_ZONE is --time-zone. Waits about two
+Needs a fresh instance whose ANSWERBOX_TIME_ZONE is --time-zone. Waits about two
 minutes.
 
 uv run e2e/scheduled_exams.py --base-url URL --admin-email EMAIL --oidc-url URL --time-zone ZONE --out DIR
@@ -200,7 +200,7 @@ def run(base_url: str, admin_email: str, oidc_url: str, tz: str, out: Path) -> f
             if response.status != 200:
                 raise AssertionError(f"/?code=<closed code> answered {response.status}, want 200")
             expect(s2.locator("[role=alert]")).to_have_text(REFUSED)
-            expect(s2.locator("h1")).to_have_text("go-exam")
+            expect(s2.locator("h1")).to_have_text("Answerbox")
             expect(s2.locator("body")).not_to_contain_text(TITLE)
             closed_html = s2.locator("main#landing").inner_html()
             unknown = next(c for c in ("ZZZZZZ", "YYYYYY") if c != code)
@@ -258,7 +258,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", required=True)
     add_sign_in_args(parser)
-    parser.add_argument("--time-zone", required=True, help="IANA zone name, the server's GOEXAM_TIME_ZONE")
+    parser.add_argument("--time-zone", required=True, help="IANA zone name, the server's ANSWERBOX_TIME_ZONE")
     parser.add_argument("--out", type=Path, default=Path(__file__).parent / "out" / "scheduled-exams")
     args = parser.parse_args()
     base_url, oidc_url = args.base_url.rstrip("/"), args.oidc_url.rstrip("/")

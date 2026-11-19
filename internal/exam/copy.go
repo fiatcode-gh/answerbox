@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fiatcode-gh/go-exam/internal/examfile"
+	"github.com/fiatcode-gh/answerbox/internal/examfile"
 )
 
 // Copy makes a new exam from the current revision of an exam in actor's

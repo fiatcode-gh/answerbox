@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fiatcode-gh/go-exam/internal/platform/sqlite/sqlitetest"
+	"github.com/fiatcode-gh/answerbox/internal/platform/sqlite/sqlitetest"
 )
 
 func newTestHandler(t *testing.T, db *sql.DB, logOut io.Writer) http.Handler {
@@ -201,7 +201,7 @@ func TestCrossOrigin_PostRejected(t *testing.T) {
 func TestRequestLog(t *testing.T) {
 	var buf bytes.Buffer
 	h := newTestHandler(t, sqlitetest.Open(t), &buf)
-	page := do(h, "GET", "/nope?secret=1", http.Header{"Cookie": {"goexam_admin=tok"}}).Body.String()
+	page := do(h, "GET", "/nope?secret=1", http.Header{"Cookie": {"answerbox_admin=tok"}}).Body.String()
 	do(h, "GET", "/healthz", nil)
 	do(h, "GET", staticURL(t, page, "app.css"), nil)
 

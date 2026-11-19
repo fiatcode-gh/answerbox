@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
 )
 
 // rawSchedule is the stored button state and schedule of one exam.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/fiatcode-gh/go-exam/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
 )
 
 // given is one stored answer: a picked option, or a typed text with the

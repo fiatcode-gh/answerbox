@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fiatcode-gh/go-exam/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
 )
 
 // sectionedText is an exam of five questions in two sections: "Bagian A:

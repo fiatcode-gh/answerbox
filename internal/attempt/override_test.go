@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/attempt"
-	"github.com/fiatcode-gh/go-exam/internal/examfile"
-	"github.com/fiatcode-gh/go-exam/internal/platform/sqlite/sqlitetest"
+	"github.com/fiatcode-gh/answerbox/internal/attempt"
+	"github.com/fiatcode-gh/answerbox/internal/examfile"
+	"github.com/fiatcode-gh/answerbox/internal/platform/sqlite/sqlitetest"
 )
 
 // overrideRow is one stored typed answer with its override columns.

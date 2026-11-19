@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
 )
 
 func (h *harness) mustArchive(t *testing.T, actor exam.Actor, id int64) {

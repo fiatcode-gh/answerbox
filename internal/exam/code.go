@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/shortcode"
+	"github.com/fiatcode-gh/answerbox/internal/shortcode"
 )
 
 const (

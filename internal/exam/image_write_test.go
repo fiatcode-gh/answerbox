@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/fiatcode-gh/go-exam/internal/examfile"
+	"github.com/fiatcode-gh/answerbox/internal/examfile"
 )
 
 // imageNameRe is the media handler's file name rule: only such names are

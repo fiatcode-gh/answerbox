@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fiatcode-gh/go-exam/internal/examfile"
+	"github.com/fiatcode-gh/answerbox/internal/examfile"
 )
 
 // StartSection starts the section sec at question position (1-based) of the

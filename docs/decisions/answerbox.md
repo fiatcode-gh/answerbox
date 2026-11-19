@@ -1,6 +1,8 @@
-# go-exam: decisions
+# Answerbox: decisions
 
-A self-hosted web app for classroom exams with multiple-choice and fill-in questions. Students type an exam code and their name; teachers sign in with Google, import exams from text files and review the results of their own exams. Built 2026-11-13 to 2026-11-15; teacher accounts added 2026-11-16; exam codes and several open exams added 2026-11-16; exam length and schedules added 2026-11-16; exam revisions, download and copy added 2026-11-17; form editor added 2026-11-17; exam archive added 2026-11-18; exam sections added 2026-11-18; fill-in questions added 2026-11-18.
+Called go-exam until 2026-11-19. Entries dated before that keep the names of their time: the command `cmd/go-exam`, the settings `GOEXAM_*`, the database `go-exam.db`, the cookies `goexam_*`, the host `go-exam.fiatcode.dev`.
+
+A self-hosted web app for classroom exams with multiple-choice and fill-in questions. Students type an exam code and their name; teachers sign in with Google, import exams from text files and review the results of their own exams. Built 2026-11-13 to 2026-11-15; teacher accounts added 2026-11-16; exam codes and several open exams added 2026-11-16; exam length and schedules added 2026-11-16; exam revisions, download and copy added 2026-11-17; form editor added 2026-11-17; exam archive added 2026-11-18; exam sections added 2026-11-18; fill-in questions added 2026-11-18; renamed to Answerbox 2026-11-19.
 
 ## Scope
 
@@ -76,6 +78,10 @@ A self-hosted web app for classroom exams with multiple-choice and fill-in quest
 - **Rollback to `1bddec5`** (2026-11-18). Rehearsed with `e2e/fillin.py --rollback` on a copy of the data directory a normal run left, then `--returned` with this release again. There, multiple-choice exams work fully: a new student is scored and her score is in the results list and the CSV. A fill-in exam's results and CSV count only its multiple-choice questions; its attempt page shows the fill-in questions with "No answer" and no options; a resumed student sees them without an answer box; an editor save of a fill-in question is refused with 422 "Not saved: question 1 needs at least two options"; Download gives an `exam.md` without `=` lines; Copy answers the 500 page and logs `stored revision does not parse: question 1 (line 9) needs at least two options`. Replace was not pressed. No attempt is lost, the `typed_answer` rows are unchanged, and when this release returns the CSV is byte-equal to the one before the rollback and both overrides are still shown. Upgrading a `1bddec5` file leaves its data unchanged (same hash), sets `user_version` 10 and adds no accepted or typed answers.
 - **Image files appear only complete** (2026-11-19). `writeImage` writes each image (import, Replace, Copy, editor) to a temporary file in the same folder, syncs and closes it, then renames it to its content-hash name; any failure removes the temporary file. Before, a process killed during a write left a truncated file under the final name, and every later save of the same image skipped it because the name existed. The editor still removes exactly the names its failed save created.
 - **The attempt clock is read after the connection** (2026-11-19). `begin` reads the time once its transaction holds the only connection, and the sweep and the whole call use that time. Under load a call can wait for the connection; with the clock read before the wait, a start that waited across the close time was judged by when it arrived, so it was let in after the close time, and its stored start time and deadline were earlier than the moment it was written. A start that gets the connection after the open time is let in. Clock reads in teacher actions are unchanged.
+- **Renamed to Answerbox** (2026-11-19). The project was go-exam. Module `github.com/fiatcode-gh/answerbox`, command and binary `answerbox`, image `ghcr.io/fiatcode-gh/answerbox`, settings `ANSWERBOX_*`, cookies `answerbox_admin`, `answerbox_attempt`, `answerbox_signin`, database `answerbox.db`, host `answerbox.fiatcode.dev` with a new Google client. No schema change (`user_version` stays 10) and no behaviour change. The page goldens are byte-identical: they hold only `<main>`, which never carried the name. Sessions do not carry over (new host, new cookie names).
+- **Old settings stop the start** (2026-11-19). `config.Load` takes the whole environment and refuses when any variable starts with `GOEXAM_`, set or empty, known or not, before every other check; the message names the `ANSWERBOX_` key for each and quotes no value. A hard cut, so an old setting is never silently ignored. Rejected: reading both prefixes for a while (an old value could silently win or lose); refusing only non-empty values.
+- **An old database file stops the start** (2026-11-19). When the data directory holds `go-exam.db`, `go-exam.db-wal` or `go-exam.db-shm` without the `answerbox.db` file of the same suffix, the app refuses before it creates anything and says which files to rename while stopped. The sidecars count because a `-wal` left behind holds committed writes. With both main files present it starts on `answerbox.db`. Rejected: renaming the file at startup (a second writer of the data layout, and a rollback would find no file).
+- **Switchover and rollback** (2026-11-19). On the server the stack folder, data folder, database files and restic repository move by rename, the `.env` keys by a prefix rewrite that prints no value, and the restic snapshots are retagged so one retention policy covers them. The reverse undoes every move and serves `1bddec5` on `answerbox.fiatcode.dev`, because the old host and Google client no longer exist; the image of `1bddec5` is pinned on the server before the stop. Rehearsed 2026-11-19 on a local copy of the stack (container-owned data folder, a real restic repository): the data hash was equal before the move, after it and after the reverse, and `1bddec5` started on the reversed layout.
 
 ## Rejected alternatives
 
@@ -128,13 +134,15 @@ A self-hosted web app for classroom exams with multiple-choice and fill-in quest
 - A 4-column indentation limit for `=` lines: a tab, or alignment under `10.`, would stop being an answer.
 - A number keyboard, `inputmode` or `type=number` on the answer box: a comma must always be typeable.
 - Refusing duplicate accepted answers.
+- Reading the former setting names next to the new ones for a while.
+- Renaming the database file at startup.
 
 ## Traps
 
 - With one connection, calling `s.db` or another service method inside an open transaction deadlocks. Scan and close rows before the next statement.
 - Go's cookie jar will not send `Secure` cookies over plain HTTP. Test and load clients set the `Cookie` header by hand. Browsers do send them on `http://localhost`.
 - Chromium logs non-2xx page loads as console errors that page code cannot suppress. The e2e scripts exempt exactly the 422 of a reused resume code (`exam_flow.py`), the 422 of a refused exam code (`exam_codes.py`), the two 422s of an early and a refused start (`scheduled_exams.py`), the 422 and two 409 page loads of `editor.py` (a refused save, an outdated page, the editor of a frozen exam), in `archive.py` the two 409 page loads of Open and Save schedule from pages opened before the archive plus the 422 of a refused start (with `--rollback`: two 500 page loads and one 422), in `sections.py` the 422 of an empty section title and the 409 of an outdated section form (none with `--rollback`), and in `fillin.py` the 422 of an empty accepted answer (with `--rollback`: the 422 of the refused editor save and the 500 of Copy; none with `--returned`). `fillin.py` also ignores `net::ERR_INTERNET_DISCONNECTED`, as `student_ui.py` does, because it goes offline on purpose. `GET /?code=` answers 200 also for a code that names no open exam, and for an exam that is not open yet.
-- `scheduled_exams.py` needs the server's time zone (`--time-zone` equal to `GOEXAM_TIME_ZONE`) and waits on the real clock, about two minutes.
+- `scheduled_exams.py` needs the server's time zone (`--time-zone` equal to `ANSWERBOX_TIME_ZONE`) and waits on the real clock, about two minutes.
 - An exam row cannot be inserted without a code, and a set code cannot change. Tests that insert exam rows by hand give each a distinct valid code.
 - `shortcode.Random` reads 2n bytes per round; tests with scripted random readers rely on it.
 - The session cookie is `SameSite=Strict`, and a browser withholds it on a redirect chain that started on another site. The sign-in callback therefore answers 200 with a meta refresh and never redirects into `/admin`. The browser scripts run the fake provider on `127.0.0.1` and the app on `localhost`, so the callback crosses sites as it does with Google, and they refuse equal hostnames.
@@ -162,12 +170,13 @@ A self-hosted web app for classroom exams with multiple-choice and fill-in quest
 - With one connection, `loadAnswers` reads and closes the picks before it queries the typed answers (the first trap above); keep one result open at a time.
 - The answer box needs `user-select: text` under the monitor's `user-select: none`, or a student cannot place the cursor or select inside it.
 - A temporary image name starts with a dot and ends in `.tmp-` plus a random suffix, so it never matches the media handler's name rule (32 hex characters and an image extension) and is never served or referenced. A new name scheme for images or temporary files must keep the two apart. A file left by a killed write stays in the folder until removed by hand. The backfill's `readImages` takes every file of a folder as an image, but it reads only folders of exams without a revision, and no write of this release goes there; a change that lets it read other folders must skip dot names.
+- A data directory or env file from before the rename stops the start (see the 2026-11-19 entries): rename all three database files together while the app is stopped, never the main file alone.
 
 ## Open questions and known limits
 
 - Option ids follow file order, so the page source reveals the original option order under `shuffle: questions, options`.
 - `/start`, `/resume` and `GET /?code=` are not throttled. Guessing a resume code at 100 active attempts has odds of about 1.5e-10 per try. There are 30^6 = 729,000,000 exam codes, so one guess hits with odds of about 1.4e-9 per open exam. A hit gives what a student in the room has (the title, and after a start the questions without the key), and `GET /?code=` shows an open exam's title without starting, and the title and open time of a scheduled exam that is not open yet.
-- Schedule times use the app's zone (`GOEXAM_TIME_ZONE`), not the student's device.
+- Schedule times use the app's zone (`ANSWERBOX_TIME_ZONE`), not the student's device.
 - The early page ("This exam opens at …") does not refresh by itself; the student presses Start again.
 - A 5-minute exam starts in the warning colour of the countdown.
 - In a zone with daylight saving, a schedule time in the skipped or repeated hour follows Go's rules (`time.ParseInLocation`, as `time.Date`).
@@ -179,7 +188,7 @@ A self-hosted web app for classroom exams with multiple-choice and fill-in quest
 - A student name that is one unbroken word wider than about 220 px still makes the attempts table scroll sideways.
 - Browser proof covers desktop Chromium and, for the monitor, Chrome on a real Android phone (2026-11-16). Safari is not tested; there is no Apple device to test on.
 - With the monitor on, question and option text cannot be selected, so on Android a long-press opens neither a selection nor Chrome's search sheet (checked on a real phone, 2026-11-17); it is still flagged. With the monitor off, text selects as usual.
-- An email taken out of `GOEXAM_ADMIN_EMAILS` stays an ordinary teacher until an admin removes it on the Teachers page.
+- An email taken out of `ANSWERBOX_ADMIN_EMAILS` stays an ordinary teacher until an admin removes it on the Teachers page.
 - Removed teachers are not shown on the Teachers page; their exams stay on the admin's exams list with their email as owner.
 - The allow-list is keyed by email, not by Google's account id, so a re-issued address would inherit access.
 - A removed teacher's open exam stays open until an admin closes it.

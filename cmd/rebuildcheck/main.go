@@ -21,8 +21,8 @@ import (
 
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
 
-	"github.com/fiatcode-gh/go-exam/internal/exam"
-	"github.com/fiatcode-gh/go-exam/internal/examfile"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/examfile"
 )
 
 func main() {

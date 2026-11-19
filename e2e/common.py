@@ -1,4 +1,4 @@
-"""Shared helpers for the go-exam browser checks (Playwright, sync API)."""
+"""Shared helpers for the Answerbox browser checks (Playwright, sync API)."""
 
 import re
 import struct
@@ -81,11 +81,11 @@ def build_fixture_zip(dir, title="Geometry check", show_result="review", monitor
     return path, key
 
 
-NOT_ALLOWED = "This Google account is not allowed. Ask your go-exam admin to add it."
+NOT_ALLOWED = "This Google account is not allowed. Ask your Answerbox admin to add it."
 
 
 def add_sign_in_args(parser) -> None:
-    parser.add_argument("--admin-email", required=True, help="an email in the server's GOEXAM_ADMIN_EMAILS")
+    parser.add_argument("--admin-email", required=True, help="an email in the server's ANSWERBOX_ADMIN_EMAILS")
     parser.add_argument("--oidc-url", required=True, help="base URL of the fake OpenID provider the server uses")
 
 

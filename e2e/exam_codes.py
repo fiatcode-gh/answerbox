@@ -144,7 +144,7 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
         s1 = new_context(**phone).new_page()
         with step("4 student 1 types teacher 1's code loosely and lands in Biology check"):
             s1.goto(base_url + "/")
-            expect(s1.locator("h1")).to_have_text("go-exam")
+            expect(s1.locator("h1")).to_have_text("Answerbox")
             for title in (BIOLOGY, HISTORY):
                 expect(s1.locator("body")).not_to_contain_text(title)
             start(s1, base_url, " " + code1[:3].lower() + "-" + code1[3:].lower() + " ", STUDENT1)
@@ -196,7 +196,7 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
             if response.status != 200:
                 raise AssertionError(f"/?code=<closed code> answered {response.status}, want 200")
             expect(s3.locator("[role=alert]")).to_have_text(REFUSED)
-            expect(s3.locator("h1")).to_have_text("go-exam")
+            expect(s3.locator("h1")).to_have_text("Answerbox")
             expect(s3.locator("body")).not_to_contain_text(BIOLOGY)
             closed_html = s3.locator("main#landing").inner_html()
             unknown = next(c for c in ("ZZZZZZ", "YYYYYY") if c not in (code1, code2))

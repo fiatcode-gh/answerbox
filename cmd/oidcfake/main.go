@@ -11,7 +11,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/oidcfake"
+	"github.com/fiatcode-gh/answerbox/internal/oidcfake"
 )
 
 func main() {

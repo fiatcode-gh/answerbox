@@ -8,18 +8,18 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/fiatcode-gh/go-exam/internal/adminauth"
-	"github.com/fiatcode-gh/go-exam/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/adminauth"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
 )
 
 const (
-	adminCookieName = "goexam_admin"
+	adminCookieName = "answerbox_admin"
 	adminCookiePath = "/admin"
 
 	// The sign-in cookie carries one flow's secrets from the start route to
 	// the callback. It is SameSite=Lax because the callback is a cross-site
 	// redirect from the provider.
-	signinCookieName   = "goexam_signin"
+	signinCookieName   = "answerbox_signin"
 	signinCookiePath   = "/admin/auth"
 	signinCookieMaxAge = 600
 
@@ -213,7 +213,7 @@ const (
 )
 
 var signInAlerts = map[string]string{
-	signInNotAllowed: "This Google account is not allowed. Ask your go-exam admin to add it.",
+	signInNotAllowed: "This Google account is not allowed. Ask your Answerbox admin to add it.",
 	signInFailed:     "Sign-in did not complete. Try again.",
 }
 

@@ -13,16 +13,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/adminauth"
-	"github.com/fiatcode-gh/go-exam/internal/exam"
-	"github.com/fiatcode-gh/go-exam/internal/oidcfake"
-	"github.com/fiatcode-gh/go-exam/internal/platform/sqlite/sqlitetest"
+	"github.com/fiatcode-gh/answerbox/internal/adminauth"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/oidcfake"
+	"github.com/fiatcode-gh/answerbox/internal/platform/sqlite/sqlitetest"
 )
 
 const (
 	teachersLink        = `href="/admin/teachers"`
 	invalidEmailAlert   = "Enter a valid email address."
-	adminEmailAlert     = "Admin emails are set in GOEXAM_ADMIN_EMAILS and cannot be removed here."
+	adminEmailAlert     = "Admin emails are set in ANSWERBOX_ADMIN_EMAILS and cannot be removed here."
 	teachersExpiredForm = "This form has expired. Go back, reload the page and try again."
 )
 

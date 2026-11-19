@@ -1,9 +1,9 @@
-{{define "title"}}{{with .ExamTitle}}{{.}} · {{end}}go-exam{{end}}
+{{define "title"}}{{with .ExamTitle}}{{.}} · {{end}}Answerbox{{end}}
 
 {{define "main"}}
 <main class="container narrow landing" id="landing">
   {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
-  <h1 class="landing-title">{{if .ExamTitle}}{{.ExamTitle}}{{else}}go-exam{{end}}</h1>
+  <h1 class="landing-title">{{if .ExamTitle}}{{.ExamTitle}}{{else}}Answerbox{{end}}</h1>
   <form id="start-form" method="post" action="/start">
     <label for="start-code">Exam code</label>
     <input type="text" id="start-code" name="code" value="{{.Code}}" maxlength="16" autocomplete="off" autocapitalize="characters" spellcheck="false" required{{if not .ExamTitle}} autofocus{{end}}>

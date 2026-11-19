@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = ["playwright==1.63.0"]
 # ///
-"""End-to-end browser run of go-exam (teacher and students) against a fresh instance.
+"""End-to-end browser run of Answerbox (teacher and students) against a fresh instance.
 
 uv run e2e/exam_flow.py --base-url URL --admin-email EMAIL --oidc-url URL --out DIR
 """
@@ -233,7 +233,7 @@ def flow(run: Run, email: str) -> None:
         a = new_context(**phone).new_page()
         with step("4 student A sees the plain landing page and starts with the code"):
             a.goto(base_url + "/")
-            expect(a.locator("h1")).to_have_text("go-exam")
+            expect(a.locator("h1")).to_have_text("Answerbox")
             expect(a.locator("#start-code")).to_have_value("")
             expect(a.locator("body")).not_to_contain_text("Geometry check")
             run.shot(a, "phone-landing.png")

@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fiatcode-gh/go-exam/internal/examfile"
+	"github.com/fiatcode-gh/answerbox/internal/examfile"
 )
 
 // File is an exam as a file a teacher can import again.

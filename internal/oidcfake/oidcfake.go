@@ -1,7 +1,7 @@
 // Package oidcfake is a fake OpenID provider for tests and local runs.
 //
 // It signs in any identity typed into its form, so it is test equipment
-// only: never import it from cmd/go-exam.
+// only: never import it from cmd/answerbox.
 package oidcfake
 
 import (

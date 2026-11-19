@@ -8,13 +8,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/attempt"
-	"github.com/fiatcode-gh/go-exam/internal/exam"
-	"github.com/fiatcode-gh/go-exam/internal/examfile"
+	"github.com/fiatcode-gh/answerbox/internal/attempt"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/examfile"
 )
 
 const (
-	attemptCookieName = "goexam_attempt"
+	attemptCookieName = "answerbox_attempt"
 
 	// attemptCookieMaxAge is 7 days, long enough to resume an exam on the
 	// same device after any interruption.

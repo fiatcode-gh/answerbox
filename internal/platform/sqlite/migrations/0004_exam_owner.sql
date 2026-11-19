@@ -1,5 +1,5 @@
 -- Exam ownership. Exams that existed before this migration get their owner at
--- the next start (the first GOEXAM_ADMIN_EMAILS entry); from here on an exam
+-- the next start (the first ANSWERBOX_ADMIN_EMAILS entry); from here on an exam
 -- cannot be stored or left without one.
 ALTER TABLE exam ADD COLUMN owner_id INTEGER REFERENCES teacher(id);
 CREATE INDEX exam_owner ON exam(owner_id);

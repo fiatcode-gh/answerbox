@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/attempt"
+	"github.com/fiatcode-gh/answerbox/internal/attempt"
 )
 
 var updateGolden = flag.Bool("update-golden", false, "write the page goldens of TestUnsectionedPages_Unchanged instead of comparing")

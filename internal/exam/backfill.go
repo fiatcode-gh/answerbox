@@ -7,7 +7,7 @@ import (
 	"io/fs"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/examfile"
+	"github.com/fiatcode-gh/answerbox/internal/examfile"
 )
 
 // Unconverted is an exam BackfillRevisions left without a revision.

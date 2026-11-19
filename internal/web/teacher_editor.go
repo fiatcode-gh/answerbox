@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fiatcode-gh/go-exam/internal/exam"
-	"github.com/fiatcode-gh/go-exam/internal/examfile"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/examfile"
 )
 
 const staleNotice = "This exam changed since you opened this page. Nothing was saved."

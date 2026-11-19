@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/exam"
-	"github.com/fiatcode-gh/go-exam/internal/platform/sqlite"
+	"github.com/fiatcode-gh/answerbox/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/platform/sqlite"
 )
 
 // runCheck runs the command with args and returns its exit status and output.
@@ -34,7 +34,7 @@ func currentCopy(t *testing.T, broken bool) string {
 	t.Helper()
 	ctx := context.Background()
 	dir := t.TempDir()
-	db, err := sqlite.Open(filepath.Join(dir, "go-exam.db"))
+	db, err := sqlite.Open(filepath.Join(dir, "answerbox.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func currentCopy(t *testing.T, broken bool) string {
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(filepath.Join(dir, "go-exam.db"))
+	data, err := os.ReadFile(filepath.Join(dir, "answerbox.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

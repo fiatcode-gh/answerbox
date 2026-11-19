@@ -5,12 +5,12 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/fiatcode-gh/go-exam/internal/adminauth"
+	"github.com/fiatcode-gh/answerbox/internal/adminauth"
 )
 
 const (
 	invalidEmailMessage = "Enter a valid email address."
-	adminEmailMessage   = "Admin emails are set in GOEXAM_ADMIN_EMAILS and cannot be removed here."
+	adminEmailMessage   = "Admin emails are set in ANSWERBOX_ADMIN_EMAILS and cannot be removed here."
 )
 
 // mountTeacherAccounts registers the Teachers page, for admins only.

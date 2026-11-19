@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/fiatcode-gh/go-exam/internal/oidcfake"
+	"github.com/fiatcode-gh/answerbox/internal/oidcfake"
 	"golang.org/x/oauth2"
 )
 

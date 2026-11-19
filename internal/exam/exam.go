@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fiatcode-gh/go-exam/internal/examfile"
+	"github.com/fiatcode-gh/answerbox/internal/examfile"
 )
 
 var (
