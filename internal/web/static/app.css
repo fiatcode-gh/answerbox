@@ -352,7 +352,9 @@ blockquote {
   color: var(--ge-chalk);
 }
 
-.on-board :focus-visible {
+/* On a board and in the developer band of / the ring is gold. */
+.on-board :focus-visible,
+.tech :focus-visible {
   outline-color: var(--ge-gold);
 }
 
@@ -1378,116 +1380,898 @@ dl.settings {
 
 /* 10. Student: landing, sign-in, error */
 
-main.landing {
-  padding-top: var(--ge-space-5);
-  padding-bottom: var(--ge-space-7);
+/* The whole of / in every state uses the student font. */
+.landing-page {
+  font-family: var(--ge-font-student);
+  font-size: var(--ge-text-md);
 }
 
-/* Brand, title, lead and the code line sit centred over the full-width form. */
-.landing-brand,
-.landing-title,
-.landing-lead,
-.landing-code {
-  text-align: center;
+.landing-page :is(h1, h2, h3) {
+  font-family: var(--ge-font-student);
 }
 
-.landing-brand {
+.landing-page .wordmark {
+  font-family: inherit;
+}
+
+.landing-page a {
+  font-weight: 700;
+}
+
+/* Plain /: the entry on the board (7/12), the teacher block beside it. */
+.landing-split {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+}
+
+main.landing.on-board {
+  display: grid;
+  align-content: start;
+  padding: 64px var(--ge-space-7) 56px;
+}
+
+.entry-col {
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+/* A link to an exam or a refusal: one centred column on the page. */
+.landing-page:not(.landing-split) main.landing {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 28px 20px 64px;
+}
+
+.brandline {
   display: flex;
-  flex-direction: column;
-  gap: var(--ge-space-1);
+  gap: var(--ge-space-3);
   align-items: center;
-  margin: 0 0 var(--ge-space-3);
+  color: inherit;
+  text-decoration: none;
 }
 
-.landing-brand .mark {
-  width: 48px;
-  height: 48px;
+.brandline:hover {
+  color: inherit;
 }
 
-.landing-brand .wordmark {
-  color: var(--ge-muted);
-  font-size: var(--ge-text-sm);
+.brandline .mark {
+  width: 40px;
+  height: 40px;
 }
 
-.landing-title {
-  margin-bottom: var(--ge-space-2);
-  overflow-wrap: anywhere;
+.brandline .landing-title {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  line-height: 1;
 }
 
 .landing-lead {
-  margin-bottom: var(--ge-space-5);
-  color: var(--ge-muted);
+  margin: var(--ge-space-3) 0 0;
+  font-size: var(--ge-text-xl);
+  line-height: 1.4;
 }
 
-.landing .alert {
-  margin-bottom: var(--ge-space-4);
+.landing-brand {
+  margin: 0;
+}
+
+.landing-brand .brandline {
+  display: inline-flex;
+  min-height: var(--ge-touch);
+}
+
+.landing-brand .mark {
+  width: 32px;
+  height: 32px;
+}
+
+.landing-brand .wordmark {
+  font-size: var(--ge-text-xl);
+}
+
+.landing-brand + .landing-title {
+  margin: 22px 0 0;
+  font-size: 2rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .landing-code {
-  margin-top: var(--ge-space-3);
-  margin-bottom: var(--ge-space-5);
-  color: var(--ge-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-1) var(--ge-space-3);
+  align-items: center;
+  margin: 14px 0 0;
 }
 
 .landing-code .code {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 calc(12px - 0.16em) 0 12px;
+  border-radius: var(--ge-r-sm);
+  background: var(--ge-board);
+  color: var(--ge-chalk);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.landing-code a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ge-touch);
+}
+
+/* The entry card: a light card on the board and on the page alike. */
+.entry {
+  margin-top: 22px;
+  padding: var(--ge-space-5);
+  border: 1px solid var(--ge-line);
+  border-radius: var(--ge-r-xl);
+  background: var(--ge-surface);
   color: var(--ge-ink);
+  box-shadow: var(--ge-shadow);
+}
+
+.on-board .entry {
+  border-color: transparent;
+  box-shadow: var(--ge-shadow-lift);
+}
+
+.on-board .entry :focus-visible {
+  outline-color: var(--ge-focus);
 }
 
 #start-form {
-  margin-bottom: var(--ge-space-3);
+  margin: 0;
 }
 
-#start-form button,
-#resume-form button {
-  width: 100%;
+.entry .field + .field {
+  margin-top: 18px;
 }
 
-.landing-note,
-.landing-hint {
-  margin-bottom: var(--ge-space-2);
-  color: var(--ge-muted);
-  font-size: var(--ge-text-sm);
+.entry label {
+  margin-bottom: 6px;
+  font-size: var(--ge-text-lg);
+  font-weight: 700;
 }
 
-.last-result {
-  margin: var(--ge-space-4) 0;
+.entry input {
+  margin: 0;
+  padding: 0 var(--ge-space-4);
+  font-size: var(--ge-text-xl);
   font-weight: 600;
 }
 
-.resume {
-  margin-top: var(--ge-space-5);
-  padding: var(--ge-space-2) var(--ge-space-4);
-}
-
-.resume p {
-  margin: var(--ge-space-2) 0 var(--ge-space-3);
-  color: var(--ge-muted);
-  font-size: var(--ge-text-sm);
-}
-
-.resume form {
-  margin: 0 0 var(--ge-space-2);
-}
-
-#code,
-#start-code,
-.landing-code .code {
-  font-family: var(--ge-font-mono);
-  letter-spacing: 0.08em;
+/* The code box looks like the tiles on the teacher's board. */
+#start-code[type="text"] {
+  min-height: 64px;
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
 }
 
-.about {
-  margin-top: var(--ge-space-6);
-  padding-top: var(--ge-space-5);
-  border-top: 1px solid var(--ge-line);
+.landing-hint {
+  margin: 6px 0 0;
+  color: var(--ge-muted);
+  font-size: 0.9375rem;
 }
 
-.about h2 {
+/* Start exam: the page's one primary, also on the board. */
+#start-form button,
+#start-form button:hover {
+  color: var(--ge-on-brand);
+}
+
+#start-form button {
+  gap: 10px;
+  width: 100%;
+  min-height: 60px;
+  margin-top: 22px;
+  border-radius: 16px;
+  background: var(--ge-brand);
+  font-size: var(--ge-text-xl);
+}
+
+#start-form button:hover {
+  background: var(--ge-brand-strong);
+}
+
+#start-form button::after,
+.tech-source::after {
+  content: "";
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  background: currentColor;
+  -webkit-mask: var(--ge-i-arrow) center / contain no-repeat;
+  mask: var(--ge-i-arrow) center / contain no-repeat;
+}
+
+.landing-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 14px 0 0;
+  color: var(--ge-muted);
+  font-size: 0.9375rem;
+}
+
+.landing-note::before {
+  content: "";
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  margin-top: 2px;
+  background: var(--ge-gold-ink);
+  -webkit-mask: var(--ge-i-clock) center / contain no-repeat;
+  mask: var(--ge-i-clock) center / contain no-repeat;
+}
+
+.last-result {
+  margin: var(--ge-space-4) 0 0;
+}
+
+.last-result a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ge-touch);
+}
+
+/* The resume fold: a row between two rules, its icon first, the chevron
+   at the end. */
+details.resume {
+  margin: var(--ge-space-4) 0 0;
+  border-block: 1px solid var(--ge-line);
+}
+
+.on-board details.resume {
+  border-color: var(--ge-chalk-line);
+}
+
+details.resume > summary {
+  gap: var(--ge-space-3);
+  padding: 0 var(--ge-space-1);
+}
+
+details.resume > summary::before {
+  width: 1.2em;
+  height: 1.2em;
+  margin: 0;
+  border: 0;
+  background: var(--ge-brand);
+  transform: none;
+  -webkit-mask: var(--ge-i-resume) center / contain no-repeat;
+  mask: var(--ge-i-resume) center / contain no-repeat;
+}
+
+.on-board details.resume > summary::before {
+  background: var(--ge-gold);
+}
+
+details.resume > summary::after {
+  content: "";
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin: 0 var(--ge-space-2) 0 auto;
+  border-right: 2.5px solid currentColor;
+  border-bottom: 2.5px solid currentColor;
+  transform: rotate(45deg) translate(-2px, -2px);
+}
+
+details.resume[open] > summary::after {
+  transform: rotate(-135deg) translate(-2px, -2px);
+}
+
+.resume-body {
+  padding: var(--ge-space-1) var(--ge-space-1) var(--ge-space-4);
+}
+
+.resume-body p {
+  margin: 0 0 14px;
+  color: var(--ge-muted);
+}
+
+.on-board .resume-body p {
+  color: var(--ge-chalk-muted);
+}
+
+#resume-form {
+  margin: 0;
+}
+
+#resume-form label {
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+
+#resume-form input {
+  margin: 0;
+}
+
+#resume-form button {
+  width: 100%;
+  margin-top: 14px;
+}
+
+/* The teacher block beside the board: type only. */
+section.about {
+  display: grid;
+  align-content: center;
+  padding: 64px 56px;
+}
+
+.teacher-block {
+  max-width: 440px;
+}
+
+.kicker {
+  margin: 0;
+  color: var(--ge-brand);
+  font-size: 0.9375rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+section.about h2 {
+  margin: 14px 0 0;
+  font-size: clamp(2.25rem, 4vw, 3.25rem);
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+}
+
+.hero-line {
+  display: block;
+}
+
+.hl {
+  text-decoration: underline 0.2em var(--ge-gold);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 0.1em;
+}
+
+section.about .hl {
+  text-underline-offset: 0.08em;
+}
+
+.hero-sub {
+  margin: 18px 0 0;
+  color: var(--ge-muted);
+  font-size: var(--ge-text-xl);
+  line-height: 1.45;
+}
+
+.hero-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-3) var(--ge-space-4);
+  align-items: center;
+  margin: 30px 0 0;
+}
+
+.hero-cta .button {
+  padding: 0 var(--ge-space-5);
+}
+
+.learn-more {
+  display: inline-flex;
+  gap: var(--ge-space-2);
+  align-items: center;
+  min-height: var(--ge-touch);
+  padding: 0 var(--ge-space-2);
+  border-radius: var(--ge-r-md);
+  text-decoration: none;
+}
+
+.learn-more:hover {
+  background: var(--ge-brand-soft);
+  color: var(--ge-brand-strong);
+}
+
+.learn-more::after {
+  content: "";
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  background: currentColor;
+  -webkit-mask: var(--ge-i-down) center / contain no-repeat;
+  mask: var(--ge-i-down) center / contain no-repeat;
+}
+
+/* The product sections below the first view. */
+.landing-wrap {
+  max-width: 1136px;
+  margin: 0 auto;
+  padding: 0 var(--ge-space-6);
+}
+
+.why h2,
+.features h2,
+.tech h2 {
+  margin: 0;
+  font-size: var(--ge-text-3xl);
+  letter-spacing: -0.02em;
+}
+
+.section-intro {
+  max-width: 36em;
+  margin: 10px 0 0;
+  color: var(--ge-muted);
   font-size: var(--ge-text-lg);
 }
 
-.about-links,
+.why {
+  padding: 88px 0 72px;
+  border-top: 1px solid var(--ge-line);
+}
+
+.pros {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 36px 56px;
+  margin: 40px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pro {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  gap: var(--ge-space-1) 18px;
+  align-content: start;
+}
+
+.pro .bubble {
+  grid-row: span 2;
+  width: 56px;
+  height: 56px;
+  border: 0;
+  background: var(--ge-brand);
+  color: var(--ge-on-brand);
+  font-size: 1.375rem;
+}
+
+.pro h3 {
+  margin: 6px 0 0;
+  font-size: 1.3125rem;
+  line-height: 1.25;
+}
+
+.pro p {
+  margin: 0;
+  color: var(--ge-muted);
+}
+
+.figure {
+  color: var(--ge-ink);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.features {
+  padding: 72px 0 88px;
+  border-block: 1px solid var(--ge-line);
+  background: var(--ge-surface);
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+  gap: 56px;
+  align-items: start;
+  margin-top: 40px;
+}
+
+.preview-frame {
+  margin: 0;
+}
+
+.preview-shot {
+  overflow: hidden;
+  border: 1px solid var(--ge-line);
+  border-radius: 18px;
+  background: var(--ge-bg);
+  box-shadow: var(--ge-shadow);
+}
+
+.preview-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.preview-frame figcaption {
+  margin-top: var(--ge-space-3);
+  color: var(--ge-muted);
+  font-size: 0.9375rem;
+}
+
+.feature-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.feature-group h3 {
+  margin: 0 0 10px;
+  padding-left: var(--ge-space-3);
+  border-left: 5px solid var(--ge-gold);
+  font-size: var(--ge-text-base);
+  line-height: 1.3;
+}
+
+.feature-list {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 0 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feature-list li {
+  display: contents;
+}
+
+.feature-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--ge-brand-soft);
+  color: var(--ge-brand-strong);
+}
+
+.feature-icon::before {
+  content: "";
+  flex: none;
+  width: 22px;
+  height: 22px;
+  background: currentColor;
+}
+
+.icon-pencil::before {
+  -webkit-mask: var(--ge-i-pencil) center / contain no-repeat;
+  mask: var(--ge-i-pencil) center / contain no-repeat;
+}
+
+.icon-calendar::before {
+  -webkit-mask: var(--ge-i-calendar) center / contain no-repeat;
+  mask: var(--ge-i-calendar) center / contain no-repeat;
+}
+
+.icon-screen::before {
+  -webkit-mask: var(--ge-i-screen) center / contain no-repeat;
+  mask: var(--ge-i-screen) center / contain no-repeat;
+}
+
+.icon-eye::before {
+  -webkit-mask: var(--ge-i-eye) center / contain no-repeat;
+  mask: var(--ge-i-eye) center / contain no-repeat;
+}
+
+.icon-table::before {
+  -webkit-mask: var(--ge-i-table) center / contain no-repeat;
+  mask: var(--ge-i-table) center / contain no-repeat;
+}
+
+.icon-history::before {
+  -webkit-mask: var(--ge-i-history) center / contain no-repeat;
+  mask: var(--ge-i-history) center / contain no-repeat;
+}
+
+.feature-text {
+  margin: 0;
+  padding: 2px 0 14px;
+}
+
+.feature-text strong {
+  display: block;
+}
+
+.feature-text span {
+  color: var(--ge-muted);
+}
+
+/* The developer band. */
+.tech {
+  padding: 72px 0 80px;
+  background: var(--ge-band);
+  color: var(--ge-band-ink);
+}
+
+.tech .kicker {
+  color: var(--ge-gold);
+  font-family: var(--ge-font-mono);
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.tech h2 {
+  margin-top: var(--ge-space-2);
+  font-size: 2rem;
+}
+
+.tech .section-intro {
+  max-width: 40em;
+  color: var(--ge-band-muted);
+  font-size: var(--ge-text-md);
+}
+
+.tech-cols {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--ge-space-6);
+  margin-top: 36px;
+}
+
+.tech-cols h3 {
+  margin: 0 0 10px;
+  color: var(--ge-gold);
+  font: 700 0.9375rem var(--ge-font-mono);
+}
+
+.tech-cols ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tech-cols li {
+  position: relative;
+  padding: 0 0 10px 18px;
+}
+
+.tech-cols li::before {
+  content: "";
+  position: absolute;
+  top: 0.55em;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--ge-band-muted);
+  border-radius: 50%;
+}
+
+.tech code {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--ge-band-code);
+  color: var(--ge-band-ink);
+}
+
+.tech-run {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--ge-space-5);
+  align-items: end;
+  margin-top: 28px;
+}
+
+.tech-label {
+  margin: 0 0 var(--ge-space-2);
+  color: var(--ge-band-muted);
+  font-size: 0.9375rem;
+}
+
+.tech-run pre {
+  margin: 0;
+  padding: 18px 20px;
+  border: 1px solid var(--ge-band-line);
+  border-radius: var(--ge-r-md);
+  background: var(--ge-band-code);
+  color: var(--ge-band-ink);
+  font: 500 0.9375rem/1.6 var(--ge-font-mono);
+}
+
+.tech pre code {
+  padding: 0;
+  background: none;
+  font-size: inherit;
+}
+
+.tech a {
+  color: var(--ge-band-link);
+}
+
+.tech a:hover {
+  color: var(--ge-band-ink);
+}
+
+.tech-source {
+  display: inline-flex;
+  gap: var(--ge-space-2);
+  align-items: center;
+  min-height: var(--ge-touch);
+}
+
+.site-foot {
+  padding: 28px 0 36px;
+}
+
+.site-foot .landing-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2) 28px;
+  align-items: center;
+}
+
+.foot-brand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-1) 10px;
+  align-items: center;
+  margin: 0;
+  font-weight: 800;
+}
+
+.foot-brand .mark {
+  width: 28px;
+  height: 28px;
+}
+
+.foot-brand span {
+  color: var(--ge-muted);
+  font-weight: 400;
+}
+
+.site-foot nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-1) 20px;
+  margin-left: auto;
+}
+
+.site-foot nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ge-touch);
+}
+
+@media (max-width: 760px) {
+  .landing-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  main.landing.on-board {
+    padding: var(--ge-space-5) var(--ge-space-4) 20px;
+  }
+
+  .brandline .landing-title {
+    font-size: 1.875rem;
+  }
+
+  .landing-lead {
+    margin-top: var(--ge-space-2);
+    font-size: var(--ge-text-lg);
+  }
+
+  .entry {
+    margin-top: var(--ge-space-4);
+    padding: 18px var(--ge-space-4) 20px;
+  }
+
+  .landing-brand + .landing-title {
+    font-size: 1.75rem;
+  }
+
+  section.about {
+    padding: 40px 20px 52px;
+  }
+
+  section.about h2 {
+    font-size: 2.125rem;
+  }
+
+  .hero-sub {
+    font-size: var(--ge-text-lg);
+  }
+
+  .landing-wrap {
+    padding: 0 20px;
+  }
+
+  .why {
+    padding: 56px 0 48px;
+  }
+
+  .why h2,
+  .features h2 {
+    font-size: 1.75rem;
+  }
+
+  .pros {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 26px;
+  }
+
+  .pro {
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 2px 14px;
+  }
+
+  .pro .bubble {
+    width: 48px;
+    height: 48px;
+    font-size: var(--ge-text-xl);
+  }
+
+  .pro h3 {
+    margin-top: 2px;
+    font-size: 1.1875rem;
+  }
+
+  .features {
+    padding: 52px 0 56px;
+  }
+
+  .features-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 36px;
+    margin-top: 28px;
+  }
+
+  .tech {
+    padding: 52px 0 56px;
+  }
+
+  .tech h2 {
+    font-size: 1.625rem;
+  }
+
+  .tech-cols {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+    margin-top: 28px;
+  }
+
+  .tech-run {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ge-space-3);
+  }
+
+  .tech-run pre {
+    padding: 14px 10px;
+    font-size: 0.8125rem;
+  }
+
+  .site-foot nav {
+    margin-left: 0;
+  }
+}
+
+/* Sign-in, signed-in and error: one card on the page under the brand
+   header. */
+main.login,
+main.error-page,
+#signed-in {
+  width: auto;
+  margin: var(--ge-space-6) auto var(--ge-space-7);
+  padding: var(--ge-space-6) 28px;
+  border: 1px solid var(--ge-line);
+  border-radius: var(--ge-r-xl);
+  background: var(--ge-surface);
+  box-shadow: var(--ge-shadow);
+}
+
+:is(main.login, main.error-page, #signed-in) > :last-child {
+  margin-bottom: 0;
+}
+
+#google-sign-in {
+  width: 100%;
+  min-height: 56px;
+  margin-bottom: var(--ge-space-4);
+}
+
 .error-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1495,24 +2279,13 @@ main.landing {
   align-items: center;
 }
 
-.about-links a:not(.button),
-.error-actions .quiet {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--ge-touch);
-}
-
-main.error-page {
-  padding-top: var(--ge-space-6);
-}
-
-main.login {
-  padding-top: var(--ge-space-6);
-}
-
-main.login .button {
-  width: 100%;
-  margin-bottom: var(--ge-space-4);
+@media (max-width: 640px) {
+  main.login,
+  main.error-page,
+  #signed-in {
+    margin: var(--ge-space-5) var(--ge-space-4) var(--ge-space-6);
+    padding: var(--ge-space-5) 20px;
+  }
 }
 
 /* 11. Student: exam. Designed at 412 px, then two columns from 992 px. */

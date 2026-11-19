@@ -180,12 +180,13 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
 
         # A. Every teacher page works with scripts disabled.
         t = new_context(java_script_enabled=False, **DESKTOP).new_page()
-        with step("1 / shows the start form and What is Answerbox?; Teacher sign-in leads through the provider to the exams list"):
+        with step("1 / shows the start form and the teacher block; Teacher sign-in leads through the provider to the exams list"):
             t.goto(base_url + "/")
             expect(t.locator("#start-form")).to_be_visible()
-            expect(t.locator("section.about h2")).to_have_text("What is Answerbox?")
+            expect(t.locator("section.about h2")).to_contain_text("Skip the marking.")
+            expect(t.locator("#why")).to_have_count(1)
             shot(t, "a-landing-noscript.png")
-            t.get_by_role("link", name="Teacher sign-in").click()
+            t.locator("section.about").get_by_role("link", name="Teacher sign-in").click()
             expect(t).to_have_url(re.compile(r"/admin/login$"))
             t.locator("#google-sign-in").click()
             form = t.locator("#fake-signin")

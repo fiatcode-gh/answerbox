@@ -126,10 +126,11 @@ type landingData struct {
 	Code       string
 	Name       string
 	Alert      string
+	Invalid    string // the field the alert is about: "code", "name", "resume" or ""
 	ResumeOpen bool
 	LastResult bool
 	Minutes    int  // the exam's length; 0 when the page shows no exam
-	About      bool // show "What is Answerbox?": only GET / without a code
+	About      bool // show the teacher block and the product sections: only GET / without a code
 }
 
 func (s *server) landing(w http.ResponseWriter, r *http.Request) {
@@ -157,7 +158,7 @@ func (s *server) landing(w http.ResponseWriter, r *http.Request) {
 				d.Alert = s.opensAtAlert(e.OpensAt)
 			}
 		default:
-			d.Alert = noOpenExamAlert
+			d.Alert, d.Invalid = noOpenExamAlert, "code"
 		}
 	}
 	s.page(w, r, http.StatusOK, "landing.html", d)
@@ -205,9 +206,9 @@ func (s *server) start(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, newAttemptCookie(token))
 		http.Redirect(w, r, "/exam", http.StatusSeeOther)
 	case errors.Is(err, attempt.ErrInvalidName):
-		refused(landingData{Alert: invalidNameAlert})
+		refused(landingData{Alert: invalidNameAlert, Invalid: "name"})
 	case errors.Is(err, attempt.ErrNoOpenExam):
-		refused(landingData{Alert: noOpenExamAlert})
+		refused(landingData{Alert: noOpenExamAlert, Invalid: "code"})
 	case errors.As(err, &early):
 		refused(landingData{
 			ExamTitle: early.Entry.Title,
@@ -239,7 +240,7 @@ func (s *server) resume(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, newAttemptCookie(token))
 		http.Redirect(w, r, "/exam", http.StatusSeeOther)
 	case errors.Is(err, attempt.ErrBadCode):
-		s.page(w, r, http.StatusUnprocessableEntity, "landing.html", landingData{Alert: badCodeAlert, ResumeOpen: true})
+		s.page(w, r, http.StatusUnprocessableEntity, "landing.html", landingData{Alert: badCodeAlert, Invalid: "resume", ResumeOpen: true})
 	default:
 		s.serverError(w, r, err)
 	}
