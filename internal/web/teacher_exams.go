@@ -83,7 +83,8 @@ func (s *server) scheduleTime(t time.Time) string {
 
 const missingFileMessage = "Choose an exam file (.md, .txt or .zip) to upload."
 
-// rerenderFunc renders the page an upload form lives on with an alert.
+// rerenderFunc renders the form page a request came from again, with status
+// and an alert above the form.
 type rerenderFunc func(status int, alert string)
 
 // readUpload reads the "file" part of the multipart form requireTeacher has

@@ -307,6 +307,42 @@ func TestArchive_RequiresCSRF(t *testing.T) {
 	refused("unarchive", true)
 }
 
+// TestArchive_ShowArchivedOnlyFromURL pins that "Show archived" is read from
+// the URL query only. A GET body is never parsed as a form, so the request
+// that could carry the value another way is a refused import (POST
+// /admin/exams without a file), which renders the exams list from its
+// posted form.
+func TestArchive_ShowArchivedOnlyFromURL(t *testing.T) {
+	env := newTestEnv(t)
+	who := env.adminTeacher(t)
+	archived, _ := env.ownedExam(t, env.owner, "Archived", false)
+	requireRedirect(t, env.press(archived, "archive", who), examPath(archived))
+	shown, _ := env.ownedExam(t, env.owner, "Shown", false)
+	on := url.Values{"csrf_token": {who.csrf}, "archived": {"1"}}
+	off := url.Values{"csrf_token": {who.csrf}}
+
+	for _, c := range []struct {
+		method, target string
+		form           url.Values
+		status         int
+		withArchived   bool
+	}{
+		{"GET", "/admin/exams", on, http.StatusOK, false},
+		{"GET", "/admin/exams?archived=1", off, http.StatusOK, true},
+		{"POST", "/admin/exams", on, http.StatusUnprocessableEntity, false},
+		{"POST", "/admin/exams?archived=1", off, http.StatusUnprocessableEntity, true},
+	} {
+		rec := serve(env.h, formRequest(c.method, c.target, c.form, who.cookie))
+		body := rec.Body.String()
+		if rec.Code != c.status || listRow(body, shown) == "" {
+			t.Fatalf("%s %s with body %q = %d, want %d listing exam %d:\n%s", c.method, c.target, c.form.Encode(), rec.Code, c.status, shown, body)
+		}
+		if got := listRow(body, archived) != ""; got != c.withArchived {
+			t.Errorf("%s %s with body %q lists the archived exam = %v, want %v", c.method, c.target, c.form.Encode(), got, c.withArchived)
+		}
+	}
+}
+
 func TestArchive_ForEveryoneInScope(t *testing.T) {
 	env := newTestEnv(t)
 	a := env.addTeacher(t, "a@example.test")

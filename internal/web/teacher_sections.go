@@ -1,13 +1,11 @@
 package web
 
 import (
-	"errors"
 	"net/http"
 	"slices"
 	"strconv"
 
 	"github.com/fiatcode-gh/go-exam/internal/exam"
-	"github.com/fiatcode-gh/go-exam/internal/examfile"
 )
 
 type sectionData struct {
@@ -132,15 +130,5 @@ func (s *server) postSection(w http.ResponseWriter, r *http.Request, page sectio
 		return
 	}
 	err = store(formInt(r, "revision"), exam.SectionSource{Title: page.Title, Text: page.Text, Image: image})
-	var invalid *examfile.Error
-	switch {
-	case err == nil:
-		http.Redirect(w, r, editPath(page.ExamID)+anchor, http.StatusSeeOther)
-	case errors.Is(err, exam.ErrStale):
-		rerender(http.StatusConflict, staleNotice)
-	case errors.As(err, &invalid):
-		rerender(http.StatusUnprocessableEntity, notSavedPrefix+invalid.Msg)
-	default:
-		s.editorRefused(w, r, page.ExamID, err)
-	}
+	s.answerSave(w, r, page.ExamID, err, editPath(page.ExamID)+anchor, rerender)
 }

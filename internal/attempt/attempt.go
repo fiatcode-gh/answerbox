@@ -201,13 +201,15 @@ const sweepSQL = `UPDATE attempt SET status = 'timed_out', finished_at = deadlin
 	WHERE status = 'in_progress' AND deadline_at + ? < ?`
 
 // begin opens the transaction every public method runs in, applies the due
-// sweep and returns the time (unix ms) the whole call uses.
+// sweep and returns the time (unix ms) the whole call uses. The time is read
+// once the transaction holds the only connection, so a call that waited for
+// it is judged by when it runs, not by when it arrived.
 func (s *Service) begin(ctx context.Context) (*sql.Tx, int64, error) {
-	now := s.now().UnixMilli()
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, 0, err
 	}
+	now := s.now().UnixMilli()
 	if _, err := tx.ExecContext(ctx, sweepSQL, Grace.Milliseconds(), now); err != nil {
 		tx.Rollback()
 		return nil, 0, err

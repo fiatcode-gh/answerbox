@@ -1,7 +1,9 @@
 package exam
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -9,6 +11,8 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"os"
+	"path"
 
 	"github.com/fiatcode-gh/go-exam/internal/examfile"
 )
@@ -170,7 +174,7 @@ func (s *Service) newMediaKey() (string, error) {
 
 // writeImages writes every image the media folder key does not hold yet,
 // creating the folder when it is missing, and returns the names it wrote.
-// A failed write leaves no partial file behind.
+// An image name only ever holds a complete file (writeImage).
 func (s *Service) writeImages(key string, images []examfile.Image) (created []string, err error) {
 	if err := s.media.Mkdir(key, 0o750); err != nil && !errors.Is(err, fs.ErrExist) {
 		return nil, fmt.Errorf("exam: media folder: %w", err)
@@ -184,13 +188,40 @@ func (s *Service) writeImages(key string, images []examfile.Image) (created []st
 		if !errors.Is(err, fs.ErrNotExist) {
 			return created, fmt.Errorf("exam: image %s: %w", p, err)
 		}
-		if err := s.media.WriteFile(p, img.Data, 0o640); err != nil {
-			s.media.Remove(p)
+		if err := writeImage(s.media, p, bytes.NewReader(img.Data)); err != nil {
 			return created, fmt.Errorf("exam: write image: %w", err)
 		}
 		created = append(created, img.Name)
 	}
 	return created, nil
+}
+
+// writeImage writes the bytes of r to p so that p appears only complete: it
+// writes a temporary file in p's folder, syncs it and renames it to p, and
+// removes it on any failure. The temporary name starts with a dot and ends
+// in a random suffix, so it is never an image name, and a file left behind
+// by a killed process never blocks a later write.
+func writeImage(root *os.Root, p string, r io.Reader) (err error) {
+	tmp := path.Join(path.Dir(p), "."+path.Base(p)+".tmp-"+rand.Text())
+	f, err := root.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o640)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			root.Remove(tmp)
+		}
+	}()
+	if _, err = io.Copy(f, r); err == nil {
+		err = f.Sync()
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		return err
+	}
+	return root.Rename(tmp, p)
 }
 
 // insertQuestions inserts the questions and options of ex; a question that

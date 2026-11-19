@@ -55,6 +55,11 @@ func TestMedia_RejectsBadPaths(t *testing.T) {
 	key, name := parts[2], parts[3]
 	hash := strings.TrimSuffix(name, ".png")
 
+	tmpName := "." + name + ".tmp-" + strings.Repeat("A", 26)
+	if err := env.media.WriteFile(key+"/"+tmpName, []byte("partial"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+
 	for _, target := range []string{
 		"/media/" + key[:31] + "/" + name,
 		"/media/" + key + "0/" + name,
@@ -70,6 +75,9 @@ func TestMedia_RejectsBadPaths(t *testing.T) {
 		"/media/" + key + "/",
 		"/media/" + strings.Repeat("0", 32) + "/" + name,
 		"/media/" + key + "/" + strings.Repeat("0", 32) + ".png",
+		// The temporary name an image is written under before its rename,
+		// present on disk.
+		"/media/" + key + "/" + tmpName,
 	} {
 		rec := do(env.h, "GET", target, nil)
 		if rec.Code != http.StatusNotFound || !strings.Contains(rec.Body.String(), "Page not found") {

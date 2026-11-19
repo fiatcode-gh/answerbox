@@ -81,6 +81,24 @@ func (s *server) editorRefused(w http.ResponseWriter, r *http.Request, id int64,
 	return true
 }
 
+// answerSave answers an editor save that returned err: a redirect to target
+// when it saved, rerender with 409 and the stale notice for an outdated
+// page, with 422 and "Not saved: …" when the file rules refused the text or
+// image, and editorRefused for anything else.
+func (s *server) answerSave(w http.ResponseWriter, r *http.Request, id int64, err error, target string, rerender rerenderFunc) {
+	var invalid *examfile.Error
+	switch {
+	case err == nil:
+		http.Redirect(w, r, target, http.StatusSeeOther)
+	case errors.Is(err, exam.ErrStale):
+		rerender(http.StatusConflict, staleNotice)
+	case errors.As(err, &invalid):
+		rerender(http.StatusUnprocessableEntity, notSavedPrefix+invalid.Msg)
+	default:
+		s.editorRefused(w, r, id, err)
+	}
+}
+
 // editorQuestion is a question of the editor page with its actions.
 type editorQuestion struct {
 	exam.Question
@@ -193,17 +211,9 @@ func (s *server) editorAction(act func(ctx context.Context, a exam.Actor, id int
 			return
 		}
 		err = act(r.Context(), actorFrom(r), id, formInt(r, "revision"), n, r)
-		var invalid *examfile.Error
-		switch {
-		case err == nil:
-			http.Redirect(w, r, editPath(id), http.StatusSeeOther)
-		case errors.Is(err, exam.ErrStale):
-			s.renderEditor(w, r, http.StatusConflict, id, staleNotice)
-		case errors.As(err, &invalid):
-			s.renderEditor(w, r, http.StatusUnprocessableEntity, id, notSavedPrefix+invalid.Msg)
-		default:
-			s.editorRefused(w, r, id, err)
-		}
+		s.answerSave(w, r, id, err, editPath(id), func(status int, alert string) {
+			s.renderEditor(w, r, status, id, alert)
+		})
 	}
 }
 
@@ -336,17 +346,7 @@ func (s *server) saveSettings(w http.ResponseWriter, r *http.Request) {
 			Alert:     alert,
 		})
 	}
-	var invalid *examfile.Error
-	switch {
-	case err == nil:
-		http.Redirect(w, r, editPath(id), http.StatusSeeOther)
-	case errors.Is(err, exam.ErrStale):
-		rerender(http.StatusConflict, staleNotice)
-	case errors.As(err, &invalid):
-		rerender(http.StatusUnprocessableEntity, notSavedPrefix+invalid.Msg)
-	default:
-		s.editorRefused(w, r, id, err)
-	}
+	s.answerSave(w, r, id, err, editPath(id), rerender)
 }
 
 // questionForm is the question part of an editor form as posted. The form
@@ -674,17 +674,7 @@ func (s *server) postQuestion(w http.ResponseWriter, r *http.Request, page quest
 		return
 	}
 	err = store(formInt(r, "revision"), form.source(image))
-	var invalid *examfile.Error
-	switch {
-	case err == nil:
-		http.Redirect(w, r, editPath(page.ExamID)+"#q"+strconv.Itoa(n), http.StatusSeeOther)
-	case errors.Is(err, exam.ErrStale):
-		rerender(http.StatusConflict, staleNotice)
-	case errors.As(err, &invalid):
-		rerender(http.StatusUnprocessableEntity, notSavedPrefix+invalid.Msg)
-	default:
-		s.editorRefused(w, r, page.ExamID, err)
-	}
+	s.answerSave(w, r, page.ExamID, err, editPath(page.ExamID)+"#q"+strconv.Itoa(n), rerender)
 }
 
 type newExamData struct {

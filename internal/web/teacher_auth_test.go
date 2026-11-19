@@ -104,6 +104,8 @@ type testEnv struct {
 	seen []string
 	// deps are the collaborators h was built with.
 	deps Deps
+	// media is the media folder the exam service writes images into.
+	media *os.Root
 }
 
 func newTestEnv(t *testing.T) *testEnv {
@@ -128,7 +130,7 @@ func newTestEnvWith(t *testing.T, db *sql.DB, cfg envConfig) *testEnv {
 	}
 	t.Cleanup(func() { media.Close() })
 
-	env := &testEnv{db: db, clock: testStart}
+	env := &testEnv{db: db, clock: testStart, media: media}
 	now := func() time.Time { return env.clock }
 	env.fake = oidcfake.New(oidcfake.Config{
 		ClientID:     "test-client",
