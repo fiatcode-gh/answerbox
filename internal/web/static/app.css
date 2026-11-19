@@ -3941,41 +3941,20 @@ ol.detail-options {
 
 /* 16. Teacher: editor */
 
-/* A form's save button and its quiet Cancel. From 641 px it stays in view at
-   the bottom of a long form; not below, where the on-screen keyboard is. */
-.form-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-2) var(--ge-space-3);
-  align-items: center;
-  margin: var(--ge-space-4) 0;
-  padding-block: var(--ge-space-3);
+/* Editor list: the head holds the one primary, Add question, with a plus. */
+#add-question::before {
+  content: "";
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  background: currentColor;
+  -webkit-mask: var(--ge-i-plus) center / contain no-repeat;
+  mask: var(--ge-i-plus) center / contain no-repeat;
 }
 
-@media (min-width: 641px) {
-  .form-actions {
-    position: sticky;
-    bottom: 0;
-    z-index: 1;
-    border-top: 1px solid var(--ge-line);
-    background: var(--ge-bg);
-  }
-}
-
-/* Editor list: each card ends in one action row. Edit leads, the quiet
-   actions follow, Remove sits at the row's end. */
-.question-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-1) var(--ge-space-2);
-  align-items: center;
-  margin-top: var(--ge-space-4);
-  padding-top: var(--ge-space-3);
-  border-top: 1px solid var(--ge-line);
-}
-
-.question-actions .remove-question {
-  margin-left: auto;
+/* The revision note sits right under the head. */
+.editor-page > .zone-note {
+  margin: calc(-1 * var(--ge-space-3)) var(--ge-space-1) 20px;
 }
 
 /* The quiet actions under a section's title and instructions; the negative
@@ -3984,21 +3963,73 @@ ol.detail-options {
   display: flex;
   flex-wrap: wrap;
   gap: 0 var(--ge-space-2);
-  margin: var(--ge-space-2) 0 0 calc(-1 * var(--ge-space-2));
+  margin: var(--ge-space-2) 0 0 calc(-1 * var(--ge-space-3));
+}
+
+.editor-page .preview-question {
+  margin-bottom: 14px;
+}
+
+/* Each card ends in one action row. Edit leads, the quiet actions follow,
+   Remove sits at the row's end. */
+.question-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2);
+  align-items: center;
+  margin-top: var(--ge-space-4);
+  padding-top: var(--ge-space-4);
+  border-top: 1px solid var(--ge-line);
 }
 
 .question-actions form {
   margin: 0;
 }
 
-.list-end {
-  margin: 0;
+.question-actions .remove-question {
+  margin-left: auto;
 }
 
+.list-end {
+  margin: 20px 0 0;
+}
+
+/* Forms: the fields in one card. The section form has no wrapper around its
+   fields, so the form itself is the card. */
+.question-fields,
+.settings-fields,
+#section-form {
+  padding: var(--ge-space-5);
+  border: 1px solid var(--ge-line);
+  border-radius: var(--ge-r-lg);
+  background: var(--ge-surface);
+  box-shadow: var(--ge-shadow);
+}
+
+:is(.question-fields, .settings-fields, #section-form) label {
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+
+:is(.question-fields, .settings-fields, #section-form) label > :is(input, select) {
+  margin-top: 6px;
+}
+
+/* The help folds away inside the card: flat, the card's last part. */
+:is(.question-fields, #section-form) .format-help {
+  margin: 0;
+  box-shadow: none;
+}
+
+#question-text {
+  min-height: 9rem;
+}
+
+/* Settings: two columns from 641 px, the title and Monitor across both. */
 .settings-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0 var(--ge-space-4);
+  gap: 0 var(--ge-space-5);
 }
 
 .settings-fields .settings-title,
@@ -4010,18 +4041,30 @@ ol.detail-options {
   display: flex;
   align-items: center;
   min-height: var(--ge-touch);
-  margin-bottom: var(--ge-space-4);
+  margin: 0;
 }
 
+/* The kind: a muted label, the kind itself, then the switch. */
 .question-kind {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--ge-space-2);
+  gap: var(--ge-space-2) var(--ge-space-3);
   align-items: center;
+  margin: 0 0 var(--ge-space-4);
 }
 
 .kind-label {
   color: var(--ge-muted);
+}
+
+.question-kind strong {
+  font-weight: 800;
+}
+
+.option-list legend,
+.answer-list legend {
+  font-size: var(--ge-text-md);
+  font-weight: 700;
 }
 
 /* The rows share one set of columns, so every text box has the same width
@@ -4029,7 +4072,7 @@ ol.detail-options {
 .option-list {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  margin: var(--ge-space-4) 0 var(--ge-space-2);
+  margin: var(--ge-space-2) 0 0;
 }
 
 /* Correct radio, the text box taking the free width, then the quiet buttons. */
@@ -4065,12 +4108,13 @@ ol.detail-options {
   justify-content: flex-end;
 }
 
-.option-add {
-  margin-bottom: var(--ge-space-4);
+.option-add,
+.answer-add {
+  margin: var(--ge-space-3) 0 var(--ge-space-5);
 }
 
 .answer-list {
-  margin: var(--ge-space-4) 0;
+  margin: var(--ge-space-2) 0 var(--ge-space-5);
 }
 
 .answer-row {
@@ -4086,32 +4130,102 @@ ol.detail-options {
   margin: 0;
 }
 
-.answer-add {
-  margin-bottom: var(--ge-space-2);
+.answer-list .answer-add {
+  margin-bottom: var(--ge-space-3);
+}
+
+.answer-list small,
+#question-image-note,
+#section-image-note {
+  font-size: var(--ge-text-sm);
 }
 
 .answer-list small {
-  margin-top: 0;
+  margin: var(--ge-space-3) 0 0;
 }
 
+/* A notice: the image did not survive a refused save. */
 .image-dropped {
-  margin: var(--ge-space-2) 0;
-  color: var(--ge-gold-ink);
+  margin: 0 0 var(--ge-space-4);
+  padding: var(--ge-space-3) var(--ge-space-4);
+  border-left: 6px solid var(--ge-gold);
+  border-radius: var(--ge-r-md);
+  background: var(--ge-gold-soft);
+  color: var(--ge-ink);
   font-weight: 600;
 }
 
+/* The save row: the form's primary button and Cancel. */
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2) var(--ge-space-3);
+  align-items: center;
+  margin: 20px 0 0;
+}
+
+/* From 641 px it stays in view at the bottom of a long form, as an opaque
+   band; not below, where the on-screen keyboard is. The scroll padding keeps
+   the focused control above the band. */
+@media (min-width: 641px) {
+  html:has(.form-actions) {
+    scroll-padding-bottom: 96px;
+  }
+
+  .form-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    padding: var(--ge-space-3) 0;
+    border-top: 1px solid var(--ge-line);
+    background: var(--ge-bg);
+  }
+
+  /* Inside the section card the band is the card's colour, edge to edge,
+     and closes the card. */
+  #section-form {
+    padding-bottom: 0;
+  }
+
+  #section-form .form-actions {
+    margin-inline: calc(-1 * var(--ge-space-5));
+    padding: var(--ge-space-3) var(--ge-space-5) 20px;
+    border-radius: 0 0 var(--ge-r-lg) var(--ge-r-lg);
+    background: var(--ge-surface);
+  }
+}
+
 @media (max-width: 640px) {
+  .question-fields,
+  .settings-fields,
+  #section-form {
+    padding: var(--ge-space-4);
+  }
+
+  /* Remove starts its own line once the row wraps. */
+  .question-actions::after {
+    content: "";
+    flex-basis: 100%;
+  }
+
+  .question-actions .remove-question {
+    order: 1;
+    margin-left: 0;
+  }
+
   .settings-fields {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* The radio on its own line, the text box across the card, the buttons
+     under it. */
   .option-list {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .option-buttons {
-    grid-column: 2;
     justify-content: flex-start;
+    margin-left: calc(-1 * var(--ge-space-3));
   }
 
   .answer-row {
