@@ -124,6 +124,21 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
             t1.screenshot(path=out / "phone-exam-code.png", full_page=True, animations="disabled")
             t1.set_viewport_size(DESKTOP["viewport"])
 
+        with step("2b teacher 1 copies the student link with Copy link, by pointer and by keyboard"):
+            t1.context.grant_permissions(["clipboard-read", "clipboard-write"])
+            copy = t1.locator("#copy-link")
+            expect(copy).to_be_visible()
+            copy.click()
+            expect(t1.locator("#copy-status")).to_have_text("Copied")
+            if (copied := t1.evaluate("navigator.clipboard.readText()")) != link:
+                raise AssertionError(f"clipboard holds {copied!r}, want {link!r}")
+            t1.evaluate("navigator.clipboard.writeText('')")
+            copy.focus()
+            t1.keyboard.press("Enter")
+            expect(t1.locator("#copy-status")).to_have_text("Copied")
+            if (copied := t1.evaluate("navigator.clipboard.readText()")) != link:
+                raise AssertionError(f"after Enter the clipboard holds {copied!r}, want {link!r}")
+
         t2 = new_context(**DESKTOP).new_page()
         with step("3 teacher 2 opens History check; both exams are open, each teacher sees only their own"):
             (Path(tmp) / "history").mkdir()

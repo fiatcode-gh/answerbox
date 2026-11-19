@@ -284,6 +284,16 @@ func TestUnarchive_Flow(t *testing.T) {
 	}
 }
 
+func TestArchive_LandingIgnoresFrom(t *testing.T) {
+	env := newTestEnv(t)
+	who := env.adminTeacher(t)
+	id, _ := env.ownedExam(t, env.owner, "Algebra", false)
+	for _, action := range []string{"archive", "unarchive"} {
+		rec := postForm(env.h, examPath(id)+"/"+action, url.Values{"csrf_token": {who.csrf}, "from": {"list"}}, who.cookie)
+		requireRedirect(t, rec, examPath(id))
+	}
+}
+
 func TestArchive_RequiresCSRF(t *testing.T) {
 	env := newTestEnv(t)
 	who := env.adminTeacher(t)

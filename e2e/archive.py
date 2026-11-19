@@ -135,6 +135,9 @@ def fill_open_time_ahead(page: Page) -> None:
     if not zone:
         raise AssertionError(f"no time zone in {note!r}")
     opens = datetime.now(ZoneInfo(zone.group(1))) + timedelta(hours=1)
+    details = page.locator("#schedule-details")
+    if details.count() == 1 and details.get_attribute("open") is None:
+        details.locator("summary").click()
     page.locator("#schedule-opens").fill(opens.strftime(INPUT_LAYOUT))
 
 
@@ -250,6 +253,7 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
             stale_schedule = a.context.new_page()
             exam_page(stale_schedule, base_url, exam_a)
             expect(head_badge(stale_schedule)).to_have_text("Open")
+            stale_schedule.locator("#schedule-details > summary").click()
             expect(stale_schedule.locator("#schedule-form")).to_be_visible()
 
         with step("4 Archive: the exam page shows Archived with the date and no Open, Close or schedule"):
@@ -357,6 +361,8 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
             expect(a).to_have_url(re.compile(rf"/admin/exams/{exam_a}$"))
             expect(head_badge(a)).to_have_text("Closed")
             expect(action_form(a, exam_a, "open")).to_be_visible()
+            expect(a.locator("#schedule-details")).not_to_have_attribute("open", "")
+            a.locator("#schedule-details > summary").click()
             expect(a.locator("#schedule-form")).to_be_visible()
             expect(a.locator("#schedule-times")).to_have_text(NO_SCHEDULE)
             expect(a.locator("#archive-form")).to_be_visible()

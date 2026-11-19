@@ -1793,15 +1793,22 @@ small.schedule {
   margin: 0;
 }
 
-.exam-actions {
+.exam-state {
+  margin-bottom: var(--ge-space-5);
+}
+
+.exam-actions,
+.exam-links,
+.join-actions,
+.more-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--ge-space-3);
   align-items: center;
-  margin-bottom: var(--ge-space-5);
 }
 
-.exam-actions form {
+.exam-actions form,
+.more-actions form {
   margin: 0;
 }
 
@@ -1827,9 +1834,22 @@ small.schedule {
   overflow-wrap: anywhere;
 }
 
+.join-actions {
+  margin: 0 0 var(--ge-space-2);
+}
+
+.copy-status {
+  color: var(--ge-muted);
+  font-size: var(--ge-text-sm);
+}
+
 .join-note {
   margin: 0;
   color: var(--ge-muted);
+}
+
+.exam-links {
+  margin-bottom: var(--ge-space-6);
 }
 
 section.schedule {
@@ -1838,6 +1858,14 @@ section.schedule {
 
 section.schedule h2 {
   margin-bottom: var(--ge-space-2);
+}
+
+#schedule-details {
+  margin-bottom: 0;
+}
+
+#schedule-form {
+  margin-top: var(--ge-space-2);
 }
 
 .schedule-fields {
@@ -1859,7 +1887,7 @@ section.schedule h2 {
   display: grid;
   grid-template-columns: max-content 1fr;
   gap: var(--ge-space-2) var(--ge-space-4);
-  margin-bottom: var(--ge-space-5);
+  margin-bottom: var(--ge-space-6);
 }
 
 .settings dt {
@@ -1871,8 +1899,34 @@ section.schedule h2 {
   margin: 0;
 }
 
-.replace {
+.more {
   margin-bottom: var(--ge-space-6);
+  padding-top: var(--ge-space-5);
+  border-top: 1px solid var(--ge-rule);
+}
+
+.more h2 {
+  margin-bottom: var(--ge-space-2);
+}
+
+.more-actions {
+  margin-bottom: var(--ge-space-5);
+}
+
+.replace h3 {
+  margin-bottom: var(--ge-space-2);
+}
+
+@media (max-width: 640px) {
+  .exam-actions,
+  .exam-links {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .exam-actions button {
+    width: 100%;
+  }
 }
 
 /* 15. Teacher: results, attempt */

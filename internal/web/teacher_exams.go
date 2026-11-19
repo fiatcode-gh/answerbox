@@ -22,13 +22,13 @@ func (s *server) mountTeacherExams(admin *http.ServeMux) {
 	admin.HandleFunc("POST /admin/exams", s.importExam)
 	admin.HandleFunc("GET /admin/exams/{id}", s.examDetail)
 	admin.HandleFunc("POST /admin/exams/{id}/replace", s.replaceExam)
-	admin.HandleFunc("POST /admin/exams/{id}/open", s.examAction(s.deps.Exams.Open, examListPath))
-	admin.HandleFunc("POST /admin/exams/{id}/close", s.examAction(s.deps.Exams.Close, examListPath))
+	admin.HandleFunc("POST /admin/exams/{id}/open", s.examAction(s.deps.Exams.Open, openCloseLanding))
+	admin.HandleFunc("POST /admin/exams/{id}/close", s.examAction(s.deps.Exams.Close, openCloseLanding))
 	admin.HandleFunc("POST /admin/exams/{id}/schedule", s.setExamSchedule)
 	admin.HandleFunc("GET /admin/exams/{id}/download", s.downloadExam)
 	admin.HandleFunc("POST /admin/exams/{id}/copy", s.copyExam)
-	admin.HandleFunc("POST /admin/exams/{id}/archive", s.examAction(s.deps.Exams.Archive, examPath))
-	admin.HandleFunc("POST /admin/exams/{id}/unarchive", s.examAction(s.deps.Exams.Unarchive, examPath))
+	admin.HandleFunc("POST /admin/exams/{id}/archive", s.examAction(s.deps.Exams.Archive, toExamPage))
+	admin.HandleFunc("POST /admin/exams/{id}/unarchive", s.examAction(s.deps.Exams.Unarchive, toExamPage))
 }
 
 type examListData struct {
@@ -133,11 +133,6 @@ func examPath(id int64) string {
 	return "/admin/exams/" + strconv.FormatInt(id, 10)
 }
 
-// examListPath is the exams list; id is ignored.
-func examListPath(int64) string {
-	return "/admin/exams"
-}
-
 var shuffleText = map[examfile.Shuffle]string{
 	examfile.ShuffleNone:             "No shuffling",
 	examfile.ShuffleQuestions:        "Questions shuffled",
@@ -166,7 +161,10 @@ type examDetailData struct {
 	Opens, Closes string
 	// Schedule holds the values of the schedule form's inputs.
 	Schedule scheduleInput
-	Zone     string
+	// ScheduleOpen is whether the schedule form starts unfolded: a schedule
+	// is set or a refused save is shown again.
+	ScheduleOpen bool
+	Zone         string
 	// ArchivedOn is the archive date as text, empty when not archived.
 	ArchivedOn string
 }
@@ -233,6 +231,7 @@ func (s *server) renderExamDetail(w http.ResponseWriter, r *http.Request, status
 		Opens:            s.scheduleTime(e.Schedule.OpensAt),
 		Closes:           s.scheduleTime(e.Schedule.ClosesAt),
 		Schedule:         input,
+		ScheduleOpen:     e.Schedule.Set() || typed != nil,
 		Zone:             s.deps.Location.String(),
 		ArchivedOn:       archivedOn,
 	})
@@ -379,10 +378,27 @@ func (s *server) copyExam(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// fromExamPage is the value of the "from" field in the exam page's Open
+// and Close forms.
+const fromExamPage = "exam"
+
+// openCloseLanding is where a successful Open or Close goes: the exam page
+// when the form says it was pressed there, the exams list otherwise. The
+// field only chooses between these two paths and is never part of one.
+func openCloseLanding(r *http.Request, id int64) string {
+	if r.PostFormValue("from") == fromExamPage {
+		return examPath(id)
+	}
+	return "/admin/exams"
+}
+
+// toExamPage is the exam page as the landing of a one-press action.
+func toExamPage(_ *http.Request, id int64) string { return examPath(id) }
+
 // examAction returns the handler of a one-press exam action (open, close,
 // archive, unarchive): it applies change for the signed-in teacher and
-// redirects to next(id).
-func (s *server) examAction(change func(context.Context, exam.Actor, int64) error, next func(id int64) string) http.HandlerFunc {
+// redirects to next(r, id).
+func (s *server) examAction(change func(context.Context, exam.Actor, int64) error, next func(r *http.Request, id int64) string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, ok := examID(r)
 		if !ok {
@@ -398,7 +414,7 @@ func (s *server) examAction(change func(context.Context, exam.Actor, int64) erro
 		case err != nil:
 			s.serverError(w, r, err)
 		default:
-			http.Redirect(w, r, next(id), http.StatusSeeOther)
+			http.Redirect(w, r, next(r, id), http.StatusSeeOther)
 		}
 	}
 }

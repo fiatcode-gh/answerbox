@@ -10,6 +10,7 @@ import (
 	"image/color"
 	"image/png"
 	"io"
+	"maps"
 	"math/rand/v2"
 	"mime/multipart"
 	"net/http"
@@ -1039,7 +1040,7 @@ func TestDownload_Route(t *testing.T) {
 		if c.ext == ".zip" && !bytes.HasPrefix(rec.Body.Bytes(), []byte("PK")) {
 			t.Errorf("zip download does not start with PK")
 		}
-		link := `<a id="download-link" class="button secondary" href="` + c.detail + `/download">Download</a>`
+		link := `<a id="download-link" class="quiet" href="` + c.detail + `/download">Download</a>`
 		if body := getOK(t, env, c.detail, cookie); !strings.Contains(body, link) {
 			t.Errorf("exam page %s lacks %s", c.detail, link)
 		}
@@ -1161,4 +1162,302 @@ func TestCopy_AdminOwnsCopyOfTeachersExam(t *testing.T) {
 	if rowOf(list, id) == "" {
 		t.Errorf("teacher B's list lacks B's own exam %d", id)
 	}
+}
+
+// stateForms are the open and close forms of exam id in body.
+func stateForms(body string, id int64) []string {
+	return regexp.MustCompile(fmt.Sprintf(`(?s)<form[^>]*action="/admin/exams/%d/(?:open|close)"[^>]*>.*?</form>`, id)).FindAllString(body, -1)
+}
+
+func TestExamPage_Order(t *testing.T) {
+	f := newScheduleFixture(t)
+	body := f.page(t)
+	last := -1
+	for _, mark := range []string{`class="exam-head"`, `class="exam-state"`, `class="join"`, `class="exam-links"`, `class="schedule"`, `<dl class="settings">`, `class="more"`, `class="replace"`, `<h2>Preview</h2>`} {
+		at := strings.Index(body, mark)
+		if at <= last {
+			t.Errorf("%q at %d, want after %d:\n%s", mark, at, last, body)
+		}
+		last = at
+	}
+}
+
+func TestExamPage_StateActions(t *testing.T) {
+	f := newScheduleFixture(t)
+	openButton := `<button type="submit">Open exam</button>`
+	closeButton := `<button type="submit">Close exam</button>`
+	closeSecondary := `<button type="submit" class="secondary">Close exam</button>`
+	check := func(state string, want []string, open, close bool) {
+		t.Helper()
+		body := f.page(t)
+		requireForms(t, state, body, f.id, open, close)
+		for _, w := range want {
+			if !strings.Contains(body, w) {
+				t.Errorf("%s: page lacks %q:\n%s", state, w, body)
+			}
+		}
+		if n := strings.Count(body, `<button type="submit">`); n != 1 {
+			t.Errorf("%s: primary buttons = %d, want 1:\n%s", state, n, body)
+		}
+		forms := stateForms(body, f.id)
+		for _, form := range forms {
+			if !strings.Contains(form, `<input type="hidden" name="from" value="exam">`) {
+				t.Errorf("%s: form lacks the from field:\n%s", state, form)
+			}
+		}
+		if n := strings.Count(body, `name="from"`); n != len(forms) {
+			t.Errorf("%s: from fields = %d, want %d", state, n, len(forms))
+		}
+	}
+
+	check("closed", []string{openButton}, true, false)
+	f.action(t, "open")
+	check("opened by the button", []string{closeButton}, false, true)
+	requireRedirect(t, f.schedule("2026-11-17T08:00", "2026-11-17T09:30"), examPath(f.id))
+	check("scheduled", []string{openButton, closeSecondary}, true, true)
+
+	if err := f.env.exams.Archive(context.Background(), f.env.owner, f.id); err != nil {
+		t.Fatal(err)
+	}
+	check("archived", nil, false, false)
+	body := f.page(t)
+	state := regexp.MustCompile(`(?s)<section class="exam-state">.*?</section>`).FindString(body)
+	if !regexp.MustCompile(`(?s)<form id="unarchive-form"[^>]*>.*?<button type="submit">Unarchive</button>.*?</form>`).MatchString(state) {
+		t.Errorf("archived: section.exam-state lacks the unarchive form:\n%s", body)
+	}
+	for _, absent := range []string{`id="schedule-form"`, `id="archive-form"`} {
+		if strings.Contains(body, absent) {
+			t.Errorf("archived page has %s", absent)
+		}
+	}
+}
+
+func TestExamPage_ScheduleOnDemand(t *testing.T) {
+	check := func(name, body, details, summary string) {
+		t.Helper()
+		for _, want := range []string{details, summary} {
+			if !strings.Contains(body, want) {
+				t.Errorf("%s: page lacks %q:\n%s", name, want, body)
+			}
+		}
+		if n := strings.Count(body, `class="zone-note"`); n != 1 {
+			t.Errorf("%s: zone notes = %d, want 1", name, n)
+		}
+		start := strings.Index(body, `<details id="schedule-details"`)
+		end := strings.Index(body[max(start, 0):], `</details>`)
+		if start < 0 || end < 0 || strings.Index(body, `class="zone-note"`) < start+end {
+			t.Errorf("%s: zone note not after the schedule details:\n%s", name, body)
+		}
+	}
+
+	f := newScheduleFixture(t)
+	check("no schedule", f.page(t), `<details id="schedule-details" class="disclosure">`, `<summary>Set a schedule</summary>`)
+
+	rec := f.schedule("tomorrow", "2026-11-17T09:30")
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("refused save = %d, want 422", rec.Code)
+	}
+	refused := rec.Body.String()
+	check("refused save", refused, `<details id="schedule-details" class="disclosure" open>`, `<summary>Set a schedule</summary>`)
+	if o, c := inputValue(t, refused, "schedule-opens"), inputValue(t, refused, "schedule-closes"); o != "tomorrow" || c != "2026-11-17T09:30" {
+		t.Errorf("refused save inputs = %q, %q, want the typed values", o, c)
+	}
+
+	requireRedirect(t, f.schedule("2026-11-17T08:00", "2026-11-17T09:30"), examPath(f.id))
+	check("schedule set", f.page(t), `<details id="schedule-details" class="disclosure" open>`, `<summary>Change the schedule</summary>`)
+}
+
+func TestExamPage_MoreActions(t *testing.T) {
+	f := newScheduleFixture(t)
+	body := f.page(t)
+	start, end := strings.Index(body, `class="more"`), strings.Index(body, `<h2>Preview</h2>`)
+	if start < 0 || end < start {
+		t.Fatalf("more actions section missing:\n%s", body)
+	}
+	more := body[start:end]
+	for _, want := range []*regexp.Regexp{
+		regexp.MustCompile(`id="download-link" class="quiet"`),
+		regexp.MustCompile(`(?s)<form id="copy-form"[^>]*>.*?<button type="submit" class="quiet">Copy exam</button>.*?</form>`),
+		regexp.MustCompile(`(?s)<form id="archive-form"[^>]*>.*?<button type="submit" class="quiet">Archive</button>.*?</form>`),
+		regexp.MustCompile(`(?s)<form id="replace-form"[^>]*>.*?<button type="submit" class="secondary">Replace exam</button>.*?</form>`),
+	} {
+		if !want.MatchString(more) {
+			t.Errorf("more actions lack %s:\n%s", want, more)
+		}
+	}
+}
+
+func TestExamPage_CopyLink(t *testing.T) {
+	f := newScheduleFixture(t)
+	body := f.page(t)
+	link := "http://app.test/?code=" + f.env.examCode(t, f.id)
+	button := `<p class="join-actions"><button type="button" id="copy-link" class="secondary" data-copy="` + link +
+		`" data-done="Copied" data-failed="Could not copy. Select the link and copy it." hidden>Copy link</button> <span id="copy-status" class="copy-status" role="status"></span></p>`
+	if !strings.Contains(body, button) {
+		t.Errorf("page lacks %s:\n%s", button, body)
+	}
+	script := regexp.MustCompile(`<script src="(/static/copy\.js\?v=[0-9a-f]{8})" defer></script>`).FindStringSubmatch(body)
+	if script == nil {
+		t.Fatalf("page does not load copy.js:\n%s", body)
+	}
+	rec := do(f.env.h, "GET", html.UnescapeString(script[1]), nil)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Header().Get("Content-Type"), "javascript") {
+		t.Errorf("GET %s = %d %q, want 200 JavaScript", script[1], rec.Code, rec.Header().Get("Content-Type"))
+	}
+	for _, path := range []string{"/admin/exams", examPath(f.id) + "/revisions"} {
+		if body := do(f.env.h, "GET", path, f.cookie).Body.String(); strings.Contains(body, "<script") {
+			t.Errorf("%s loads a script", path)
+		}
+	}
+}
+
+func TestNoRevision_SentenceOnce(t *testing.T) {
+	env := newTestEnv(t)
+	cookie, csrf, _ := env.signIn(t)
+	old := examPath(env.examWithoutRevision(t, "NRVKDZ", false))
+	notice := html.EscapeString(noRevisionNotice)
+
+	page := getOK(t, env, old, cookie)
+	if n := strings.Count(page, notice); n != 1 || !strings.Contains(page, `<p id="no-revision" class="frozen-notice">`+notice+`</p>`) {
+		t.Errorf("exam page holds the notice %d times, want once in #no-revision:\n%s", n, page)
+	}
+	alert := `<div role="alert" class="alert">` + notice + `</div>`
+	for name, rec := range map[string]*httptest.ResponseRecorder{
+		"GET download": do(env.h, "GET", old+"/download", cookie),
+		"POST copy":    postForm(env.h, old+"/copy", url.Values{"csrf_token": {csrf}}, cookie),
+		"GET edit":     do(env.h, "GET", old+"/edit", cookie),
+	} {
+		body := rec.Body.String()
+		if rec.Code != http.StatusConflict || strings.Count(body, notice) != 1 || !strings.Contains(body, alert) || strings.Contains(body, `id="no-revision"`) {
+			t.Errorf("%s = %d, want 409 with the notice once, in the alert:\n%s", name, rec.Code, body)
+		}
+	}
+}
+
+func TestOpenClose_FromExamPageLandsOnExamPage(t *testing.T) {
+	f := newScheduleFixture(t)
+	press := func(action string, open bool) {
+		t.Helper()
+		path := examPath(f.id) + "/" + action
+		fields := postedForm(t, f.page(t), path)
+		if len(fields) != 2 || fields.Get("csrf_token") != f.csrf || fields.Get("from") != "exam" || len(fields["from"]) != 1 {
+			t.Fatalf("%s form fields = %v, want csrf_token and from=exam", action, fields)
+		}
+		requireRedirect(t, postForm(f.env.h, path, fields, f.cookie), examPath(f.id))
+		if e := f.env.getExam(t, f.id); e.Open != open || e.Schedule.Set() {
+			t.Errorf("after %s: open = %v schedule = %+v, want open %v and no schedule", action, e.Open, e.Schedule, open)
+		}
+	}
+
+	press("open", true)
+	press("close", false)
+
+	requireRedirect(t, f.schedule("2026-11-17T08:00", "2026-11-17T09:30"), examPath(f.id))
+	requireForms(t, "scheduled page", f.page(t), f.id, true, true)
+	press("open", true)
+	requireRedirect(t, f.schedule("2026-11-17T08:00", "2026-11-17T09:30"), examPath(f.id))
+	press("close", false)
+}
+
+func TestOpenClose_UnknownFromLandsOnList(t *testing.T) {
+	f := newScheduleFixture(t)
+	other, err := f.env.exams.Import(context.Background(), f.env.owner, []byte(textExam))
+	if err != nil {
+		t.Fatal(err)
+	}
+	froms := [][]string{nil, {""}, {"list"}, {"EXAM"}, {"exam "}, {"exams"}, {examPath(other)}, {"https://evil.example/"}, {"//evil.example"}, {`\\evil.example`}, {"list", "exam"}}
+	seen := map[string]bool{}
+	post := func(action string, from []string) *httptest.ResponseRecorder {
+		form := url.Values{"csrf_token": {f.csrf}}
+		if from != nil {
+			form["from"] = from
+		}
+		rec := postForm(f.env.h, examPath(f.id)+"/"+action, form, f.cookie)
+		seen[rec.Header().Get("Location")] = true
+		return rec
+	}
+	for _, c := range []struct {
+		action string
+		open   bool
+	}{{"open", true}, {"close", false}} {
+		for _, from := range froms {
+			setOpen := f.env.exams.Close
+			if !c.open {
+				setOpen = f.env.exams.Open
+			}
+			if err := setOpen(context.Background(), f.env.owner, f.id); err != nil {
+				t.Fatal(err)
+			}
+			rec := post(c.action, from)
+			if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/exams" {
+				t.Errorf("%s with from %q = %d Location %q, want 303 /admin/exams", c.action, from, rec.Code, rec.Header().Get("Location"))
+			}
+			if got := f.env.getExam(t, f.id).Open; got != c.open {
+				t.Errorf("%s with from %q: open = %v, want %v", c.action, from, got, c.open)
+			}
+		}
+		post(c.action, []string{"exam"})
+	}
+	want := map[string]bool{"/admin/exams": true, examPath(f.id): true}
+	if !maps.Equal(seen, want) {
+		t.Errorf("Location values = %v, want %v", seen, want)
+	}
+}
+
+func TestOpenClose_RefusalsIgnoreFrom(t *testing.T) {
+	env := newTestEnv(t)
+	who := env.adminTeacher(t)
+	stranger := env.addTeacher(t, "b@example.test")
+	id, _ := env.ownedExam(t, env.owner, "Algebra", false)
+	press := func(id, action string, who teacher, header http.Header) *httptest.ResponseRecorder {
+		h := who.cookie.Clone()
+		for k, v := range header {
+			h[k] = v
+		}
+		return postForm(env.h, "/admin/exams/"+id+"/"+action, url.Values{"csrf_token": {who.csrf}, "from": {"exam"}}, h)
+	}
+	sid := strconv.FormatInt(id, 10)
+
+	for _, action := range []string{"open", "close"} {
+		for _, target := range []string{"999", "x"} {
+			if rec := press(target, action, who, nil); rec.Code != http.StatusNotFound {
+				t.Errorf("%s %s = %d, want 404", action, target, rec.Code)
+			}
+		}
+	}
+	if rec := press(sid, "open", stranger, nil); rec.Code != http.StatusNotFound {
+		t.Errorf("open of another teacher's exam = %d, want 404", rec.Code)
+	}
+	if rec := postForm(env.h, examPath(id)+"/open", url.Values{"from": {"exam"}}, who.cookie); rec.Code != http.StatusForbidden {
+		t.Errorf("open without csrf_token = %d, want 403", rec.Code)
+	}
+	if rec := press(sid, "open", who, http.Header{"Sec-Fetch-Site": {"cross-site"}}); rec.Code != http.StatusForbidden {
+		t.Errorf("cross-site open = %d, want 403", rec.Code)
+	}
+	if env.getExam(t, id).Open {
+		t.Fatal("a refused open opened the exam")
+	}
+	if err := env.exams.Open(context.Background(), env.owner, id); err != nil {
+		t.Fatal(err)
+	}
+	if rec := press(sid, "close", stranger, nil); rec.Code != http.StatusNotFound {
+		t.Errorf("close of another teacher's exam = %d, want 404", rec.Code)
+	}
+	if rec := postForm(env.h, examPath(id)+"/close", url.Values{"from": {"exam"}}, who.cookie); rec.Code != http.StatusForbidden {
+		t.Errorf("close without csrf_token = %d, want 403", rec.Code)
+	}
+	if rec := press(sid, "close", who, http.Header{"Sec-Fetch-Site": {"cross-site"}}); rec.Code != http.StatusForbidden {
+		t.Errorf("cross-site close = %d, want 403", rec.Code)
+	}
+	if !env.getExam(t, id).Open {
+		t.Fatal("a refused close closed the exam")
+	}
+
+	if err := env.exams.Archive(context.Background(), env.owner, id); err != nil {
+		t.Fatal(err)
+	}
+	requireAlert(t, press(sid, "open", who, nil), http.StatusConflict, archivedNotice)
+	env.requireArchivedClosed(t, "open with from=exam", id)
+	requireRedirect(t, press(sid, "close", who, nil), examPath(id))
+	env.requireArchivedClosed(t, "close with from=exam", id)
 }
