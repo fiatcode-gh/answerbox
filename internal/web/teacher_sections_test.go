@@ -117,12 +117,12 @@ func TestEditor_SectionsOnPage(t *testing.T) {
 		"1": {
 			`<h2 class="section-title">Part A</h2>`,
 			`<div class="section-body question-body"><p>Read <strong>carefully</strong>.</p>`,
-			`<a class="edit-section" href="` + detail + `/sections/1">Edit section</a>`,
+			`<a class="edit-section quiet" href="` + detail + `/sections/1">Edit section</a>`,
 			`<form class="remove-section" method="post" action="` + detail + `/sections/1/remove">`,
 		},
 		"2": {
 			`<h2 class="section-title">Part B</h2>`,
-			`<a class="edit-section" href="` + detail + `/sections/2">Edit section</a>`,
+			`<a class="edit-section quiet" href="` + detail + `/sections/2">Edit section</a>`,
 			`<form class="remove-section" method="post" action="` + detail + `/sections/2/remove">`,
 		},
 	} {
@@ -152,14 +152,14 @@ func TestEditor_SectionsOnPage(t *testing.T) {
 	}
 	for i, w := range want {
 		q := qs[i][2]
-		start := strings.Contains(q, `class="start-section"`)
+		start := strings.Contains(q, `class="start-section quiet"`)
 		up, down := strings.Contains(q, `class="move-up"`), strings.Contains(q, `class="move-down"`)
 		remove := strings.Contains(q, `class="remove-question"`)
 		if start != w.start || up != w.up || down != w.down || remove != w.remove {
 			t.Errorf("question %d: start %v up %v down %v remove %v, want %+v", i+1, start, up, down, remove, w)
 		}
 	}
-	link := `<a class="start-section" href="` + detail + `/questions/2/section">Start a section here</a>`
+	link := `<a class="start-section quiet" href="` + detail + `/questions/2/section">Start a section here</a>`
 	if !strings.Contains(qs[1][2], link) || !strings.Contains(qs[1][2], `name="to" value="1"`) || !strings.Contains(qs[1][2], `name="to" value="3"`) {
 		t.Errorf("question 2 lacks %s or its move targets:\n%s", link, qs[1][2])
 	}
@@ -170,11 +170,11 @@ func TestEditor_SectionsOnPage(t *testing.T) {
 		t.Errorf("exam without sections shows a section heading:\n%s", body)
 	}
 	for i, q := range editorSectionRe.FindAllStringSubmatch(body, -1) {
-		if got := strings.Contains(q[2], `class="start-section"`); got != (i == 0) {
+		if got := strings.Contains(q[2], `class="start-section quiet"`); got != (i == 0) {
 			t.Errorf("question %d of an exam without sections: start-section %v", i+1, got)
 		}
 	}
-	if !strings.Contains(body, `<a class="start-section" href="`+plain+`/questions/1/section">Start a section here</a>`) {
+	if !strings.Contains(body, `<a class="start-section quiet" href="`+plain+`/questions/1/section">Start a section here</a>`) {
 		t.Errorf("question 1 lacks the start link:\n%s", body)
 	}
 }

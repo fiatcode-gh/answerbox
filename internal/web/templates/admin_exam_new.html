@@ -13,7 +13,7 @@
     {{template "settings_fields" .Input}}
     <h2>Question 1</h2>
     {{template "question_fields" .Fields}}
-    <button type="submit" id="save" name="do" value="save">Create exam</button>
+    <div class="form-actions"><button type="submit" id="save" name="do" value="save">Create exam</button> <a class="quiet" href="/admin/exams">Cancel</a></div>
   </form>
   <p class="zone-note">The new exam is closed. Add more questions on its editor page.</p>
 </main>

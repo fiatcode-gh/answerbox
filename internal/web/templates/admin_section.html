@@ -27,7 +27,7 @@
         <li>Here a line that starts with <code>-</code> is a list item, not an option.</li>
       </ul>
     </details>
-    <button type="submit" id="save">Save section</button>
+    <div class="form-actions"><button type="submit" id="save">Save section</button> <a class="quiet" href="/admin/exams/{{.ExamID}}/edit">Cancel</a></div>
   </form>
   <p class="zone-note">Saving makes a new revision. Earlier revisions stay readable in <a href="/admin/exams/{{.ExamID}}/revisions">History</a>.</p>
 </main>

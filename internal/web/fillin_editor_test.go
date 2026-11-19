@@ -14,7 +14,7 @@ import (
 
 var (
 	answerInputRe   = regexp.MustCompile(`<input type="text" name="answer" value="([^"]*)" maxlength="200" autocomplete="off" aria-label="Accepted answer (\d+)">`)
-	answerRemoveRe  = regexp.MustCompile(`<button type="submit" class="secondary" name="do" value="answer-remove:(\d+)" formnovalidate>Remove</button>`)
+	answerRemoveRe  = regexp.MustCompile(`<button type="submit" class="quiet" name="do" value="answer-remove:(\d+)" formnovalidate>Remove</button>`)
 	answerAddButton = `<button type="submit" class="secondary" name="do" value="answer-add" formnovalidate>Add accepted answer</button>`
 	toFillInButton  = `<button type="submit" class="secondary" name="do" value="kind:fill_in" formnovalidate>Switch to fill-in</button>`
 	toChoiceButton  = `<button type="submit" class="secondary" name="do" value="kind:choice" formnovalidate>Switch to multiple choice</button>`
@@ -35,17 +35,19 @@ func shownAnswers(t *testing.T, body string) []string {
 }
 
 // requireKind checks the form page is a fill-in form when fillIn is true and
-// a multiple-choice form otherwise: the posted kind, the switch button and
-// which list is hidden.
+// a multiple-choice form otherwise: the labelled kind line, the posted kind,
+// the switch button and which list is hidden.
 func requireKind(t *testing.T, body string, fillIn bool) {
 	t.Helper()
+	line := `<span class="kind-label">Question type:</span> <strong>Multiple choice</strong>`
 	kind, button := `<input type="hidden" name="kind" value="choice">`, toFillInButton
 	options, answers := `<fieldset class="option-list">`, `<fieldset class="answer-list" hidden>`
 	if fillIn {
+		line = `<span class="kind-label">Question type:</span> <strong>Fill-in</strong>`
 		kind, button = `<input type="hidden" name="kind" value="fill_in">`, toChoiceButton
 		options, answers = `<fieldset class="option-list" hidden>`, `<fieldset class="answer-list">`
 	}
-	for _, want := range []string{kind, button, options, answers} {
+	for _, want := range []string{line, kind, button, options, answers} {
 		if !strings.Contains(body, want) {
 			t.Errorf("form (fill-in %v) lacks %s:\n%s", fillIn, want, body)
 		}

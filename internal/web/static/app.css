@@ -378,6 +378,14 @@ button.quiet,
   border-color: transparent;
   background: transparent;
   color: var(--ge-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+a.quiet {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ge-touch);
 }
 
 button.quiet:hover,
@@ -399,6 +407,14 @@ button.danger:hover {
   border-color: var(--ge-danger-strong);
   background: var(--ge-danger-strong);
   color: var(--ge-on-danger);
+}
+
+/* A quiet trigger stays quiet: without this, button.danger (declared later,
+   same specificity as button.quiet) would fill it. */
+button.quiet.danger,
+button.quiet.danger:hover {
+  border-color: transparent;
+  background: transparent;
 }
 
 .quiet.danger,
@@ -541,6 +557,27 @@ dialog::backdrop {
 
 dialog > article h2 {
   margin-top: 0;
+}
+
+/* A form's save button and its quiet Cancel. From 641 px it stays in view at
+   the bottom of a long form; not below, where the on-screen keyboard is. */
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2) var(--ge-space-3);
+  align-items: center;
+  margin: var(--ge-space-4) 0;
+  padding-block: var(--ge-space-3);
+}
+
+@media (min-width: 641px) {
+  .form-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    border-top: 1px solid var(--ge-rule);
+    background: var(--ge-paper);
+  }
 }
 
 /* 6. Tables */
@@ -1975,12 +2012,29 @@ th[aria-sort] {
 
 /* 16. Teacher: editor */
 
-.question-actions,
+/* Editor list: each card ends in one action row. Edit leads, the quiet
+   actions follow, Remove sits at the row's end. */
+.question-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-1) var(--ge-space-2);
+  align-items: center;
+  margin-top: var(--ge-space-4);
+  padding-top: var(--ge-space-3);
+  border-top: 1px solid var(--ge-rule);
+}
+
+.question-actions .remove-question {
+  margin-left: auto;
+}
+
+/* The quiet actions under a section's title and instructions; the negative
+   margin lines their text up with the title. */
 .section-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--ge-space-2);
-  margin-top: var(--ge-space-3);
+  gap: 0 var(--ge-space-2);
+  margin: var(--ge-space-2) 0 0 calc(-1 * var(--ge-space-2));
 }
 
 .question-actions form,
@@ -1988,29 +2042,19 @@ th[aria-sort] {
   margin: 0;
 }
 
-.question-actions .edit-question,
-.question-actions .start-section,
-.section-actions .edit-section {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--ge-touch);
-  padding: 0 var(--ge-space-2);
+.list-end {
+  margin: 0;
 }
 
 .settings-fields {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0 var(--ge-space-4);
-}
-
-.settings-fields label {
-  flex: 1 1 14rem;
-  min-width: 0;
 }
 
 .settings-fields .settings-title,
 .settings-fields .settings-monitor {
-  flex-basis: 100%;
+  grid-column: 1 / -1;
 }
 
 .settings-monitor {
@@ -2020,37 +2064,38 @@ th[aria-sort] {
   margin-bottom: var(--ge-space-4);
 }
 
-#settings-form > button,
-#new-exam-form #save,
-#question-form #save,
-#section-form #save {
-  margin-bottom: var(--ge-space-4);
-}
-
 .question-kind {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--ge-space-2) var(--ge-space-3);
+  gap: var(--ge-space-2);
   align-items: center;
-  font-weight: 600;
 }
 
+.kind-label {
+  color: var(--ge-muted);
+}
+
+/* The rows share one set of columns, so every text box has the same width
+   whichever buttons its row holds. */
 .option-list {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   margin: var(--ge-space-4) 0 var(--ge-space-2);
 }
 
+/* Correct radio, the text box taking the free width, then the quiet buttons. */
 .option-row {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   gap: var(--ge-space-2) var(--ge-space-3);
-  align-items: flex-start;
+  align-items: start;
   padding: var(--ge-space-3) 0;
   border-top: 1px solid var(--ge-rule);
 }
 
 .option-row .option-correct {
   display: inline-flex;
-  flex: 0 0 auto;
   gap: var(--ge-space-2);
   align-items: center;
   min-height: var(--ge-touch);
@@ -2062,16 +2107,13 @@ th[aria-sort] {
 }
 
 .option-row textarea {
-  flex: 1 1 12rem;
-  width: auto;
-  min-width: 0;
   margin: 0;
 }
 
 .option-buttons {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-2);
+  gap: var(--ge-space-1);
+  justify-content: flex-end;
 }
 
 .option-add {
@@ -2083,8 +2125,8 @@ th[aria-sort] {
 }
 
 .answer-row {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--ge-space-2) var(--ge-space-3);
   align-items: center;
   padding: var(--ge-space-3) 0;
@@ -2092,9 +2134,6 @@ th[aria-sort] {
 }
 
 .answer-row input {
-  flex: 1 1 12rem;
-  width: auto;
-  min-width: 0;
   margin: 0;
 }
 
@@ -2110,6 +2149,29 @@ th[aria-sort] {
   margin: var(--ge-space-2) 0;
   color: var(--ge-warn);
   font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .settings-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .option-list {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .option-buttons {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+
+  .answer-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .answer-row button {
+    justify-self: start;
+  }
 }
 
 /* 17. Teacher: confirm, teachers, history, revision */

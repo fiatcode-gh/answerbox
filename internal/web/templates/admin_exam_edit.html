@@ -14,11 +14,11 @@
     <h2 class="section-title">{{.Section.Title}}</h2>
     {{with .Section.BodyHTML}}<div class="section-body question-body">{{.}}</div>{{end}}
     <div class="section-actions">
-      <a class="edit-section" href="/admin/exams/{{$.Exam.ID}}/sections/{{.SectionNumber}}">Edit section</a>
+      <a class="edit-section quiet" href="/admin/exams/{{$.Exam.ID}}/sections/{{.SectionNumber}}">Edit section</a>
       <form class="remove-section" method="post" action="/admin/exams/{{$.Exam.ID}}/sections/{{.SectionNumber}}/remove">
         <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
         <input type="hidden" name="revision" value="{{$.Revision}}">
-        <button type="submit" class="secondary">Remove section</button>
+        <button type="submit" class="quiet danger">Remove section</button>
       </form>
     </div>
   </div>
@@ -27,14 +27,13 @@
     <p class="eyebrow">Question {{.Position}}</p>
     {{template "preview_question_body" .}}
     <div class="question-actions">
-      <a class="edit-question" href="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}">Edit</a>
-      {{if .StartSection}}<a class="start-section" href="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}/section">Start a section here</a>{{end}}
+      <a class="edit-question button secondary" href="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}">Edit</a>
       {{if .CanMoveUp}}
       <form class="move-up" method="post" action="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}/move">
         <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
         <input type="hidden" name="revision" value="{{$.Revision}}">
         <input type="hidden" name="to" value="{{.Up}}">
-        <button type="submit" class="secondary">Move up</button>
+        <button type="submit" class="quiet">Move up</button>
       </form>
       {{end}}
       {{if .CanMoveDown}}
@@ -42,18 +41,20 @@
         <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
         <input type="hidden" name="revision" value="{{$.Revision}}">
         <input type="hidden" name="to" value="{{.Down}}">
-        <button type="submit" class="secondary">Move down</button>
+        <button type="submit" class="quiet">Move down</button>
       </form>
       {{end}}
+      {{if .StartSection}}<a class="start-section quiet" href="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}/section">Start a section here</a>{{end}}
       {{if .Remove}}
       <form class="remove-question" method="post" action="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}/remove">
         <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
         <input type="hidden" name="revision" value="{{$.Revision}}">
-        <button type="submit" class="secondary">Remove</button>
+        <button type="submit" class="quiet danger">Remove</button>
       </form>
       {{end}}
     </div>
   </section>
   {{end}}
+  <p class="list-end"><a class="button secondary" href="/admin/exams/{{.Exam.ID}}/questions/new">Add question</a></p>
 </main>
 {{end}}

@@ -26,7 +26,7 @@
 {{define "question_fields"}}
 <div class="question-fields">
   <input type="hidden" name="kind" value="{{if .FillIn}}fill_in{{else}}choice{{end}}">
-  <p class="question-kind">{{if .FillIn}}Fill-in <button type="submit" class="secondary" name="do" value="kind:choice" formnovalidate>Switch to multiple choice</button>{{else}}Multiple choice <button type="submit" class="secondary" name="do" value="kind:fill_in" formnovalidate>Switch to fill-in</button>{{end}}</p>
+  <p class="question-kind"><span class="kind-label">Question type:</span> <strong>{{if .FillIn}}Fill-in{{else}}Multiple choice{{end}}</strong> {{if .FillIn}}<button type="submit" class="secondary" name="do" value="kind:choice" formnovalidate>Switch to multiple choice</button>{{else}}<button type="submit" class="secondary" name="do" value="kind:fill_in" formnovalidate>Switch to fill-in</button>{{end}}</p>
   <label for="question-text">Question text</label>
   <textarea id="question-text" name="text" rows="6">
 {{.Text}}</textarea>
@@ -38,9 +38,9 @@
       <textarea name="option" rows="2" aria-label="Option {{.Number}}">
 {{.Text}}</textarea>
       <div class="option-buttons">
-        {{if .Up}}<button type="submit" class="secondary" name="do" value="up:{{.Index}}" formnovalidate>Up</button>{{end}}
-        {{if .Down}}<button type="submit" class="secondary" name="do" value="down:{{.Index}}" formnovalidate>Down</button>{{end}}
-        {{if .Remove}}<button type="submit" class="secondary" name="do" value="remove:{{.Index}}" formnovalidate>Remove</button>{{end}}
+        {{if .Up}}<button type="submit" class="quiet" name="do" value="up:{{.Index}}" formnovalidate>Up</button>{{end}}
+        {{if .Down}}<button type="submit" class="quiet" name="do" value="down:{{.Index}}" formnovalidate>Down</button>{{end}}
+        {{if .Remove}}<button type="submit" class="quiet" name="do" value="remove:{{.Index}}" formnovalidate>Remove</button>{{end}}
       </div>
     </div>
     {{end}}
@@ -51,7 +51,7 @@
     {{range .Answers}}
     <div class="answer-row">
       <input type="text" name="answer" value="{{.Text}}" maxlength="200" autocomplete="off" aria-label="Accepted answer {{.Number}}">
-      {{if .Remove}}<button type="submit" class="secondary" name="do" value="answer-remove:{{.Index}}" formnovalidate>Remove</button>{{end}}
+      {{if .Remove}}<button type="submit" class="quiet" name="do" value="answer-remove:{{.Index}}" formnovalidate>Remove</button>{{end}}
     </div>
     {{end}}
     {{if .CanAddAnswer}}<div class="answer-add"><button type="submit" class="secondary" name="do" value="answer-add" formnovalidate>Add accepted answer</button></div>{{end}}

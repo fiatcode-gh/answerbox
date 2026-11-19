@@ -747,8 +747,8 @@ func TestQuestion_OptionButtons(t *testing.T) {
 
 	body := getOK(t, env, detail+"/questions/1", cookie)
 	for _, want := range []string{
-		`<button type="submit" class="secondary" name="do" value="down:0" formnovalidate>Down</button>`,
-		`<button type="submit" class="secondary" name="do" value="up:1" formnovalidate>Up</button>`,
+		`<button type="submit" class="quiet" name="do" value="down:0" formnovalidate>Down</button>`,
+		`<button type="submit" class="quiet" name="do" value="up:1" formnovalidate>Up</button>`,
 		`<button type="submit" class="secondary" name="do" value="add" formnovalidate>Add option</button>`,
 	} {
 		if !strings.Contains(body, want) {
@@ -760,7 +760,7 @@ func TestQuestion_OptionButtons(t *testing.T) {
 			t.Errorf("two-option form has %s", absent)
 		}
 	}
-	if !strings.Contains(getOK(t, env, detail+"/questions/2", cookie), `<button type="submit" class="secondary" name="do" value="remove:2" formnovalidate>Remove</button>`) {
+	if !strings.Contains(getOK(t, env, detail+"/questions/2", cookie), `<button type="submit" class="quiet" name="do" value="remove:2" formnovalidate>Remove</button>`) {
 		t.Errorf("three-option form lacks Remove")
 	}
 
@@ -1033,5 +1033,68 @@ func TestQuestionAndNewExam_RequireCSRF(t *testing.T) {
 	}
 	if n := env.examCount(t); n != exams {
 		t.Errorf("exams = %d, want %d", n, exams)
+	}
+}
+
+func TestEditor_ActionLevels(t *testing.T) {
+	env := newTestEnv(t)
+	cookie, csrf, _ := env.signIn(t)
+	detail := importExam(t, env, cookie, csrf, "three.md", []byte(threeQuestionExam))
+
+	body := getOK(t, env, detail+"/edit", cookie)
+	head := regexp.MustCompile(`(?s)<div class="page-head">.*?</div>`).FindString(body)
+	requireBefore(t, head, `id="settings-link" class="button secondary"`, `id="add-question" class="button"`)
+
+	qs := editorSectionRe.FindAllStringSubmatch(body, -1)
+	if len(qs) != 3 {
+		t.Fatalf("editor has %d questions, want 3", len(qs))
+	}
+	middle := qs[1][2]
+	order := []string{`class="edit-question button secondary"`, `class="move-up"`, `class="move-down"`, `class="remove-question"`}
+	for i := 1; i < len(order); i++ {
+		requireBefore(t, middle, order[i-1], order[i])
+	}
+	for _, want := range []string{
+		`<button type="submit" class="quiet">Move up</button>`,
+		`<button type="submit" class="quiet">Move down</button>`,
+		`<button type="submit" class="quiet danger">Remove</button>`,
+	} {
+		if !strings.Contains(middle, want) {
+			t.Errorf("question 2 lacks %s:\n%s", want, middle)
+		}
+	}
+	if n := strings.Count(body, `href="`+detail+`/questions/new"`); n != 2 {
+		t.Errorf("editor links to Add question %d times, want 2", n)
+	}
+	if n := strings.Count(body, `id="add-question"`); n != 1 {
+		t.Errorf("editor has %d #add-question, want 1", n)
+	}
+}
+
+func TestEditorForms_SaveRow(t *testing.T) {
+	env := newTestEnv(t)
+	cookie, csrf, _ := env.signIn(t)
+	detail := importExam(t, env, cookie, csrf, "parts.md", []byte(partsExam))
+	editor := detail + "/edit"
+
+	for _, page := range []struct{ path, form, save, cancel string }{
+		{detail + "/questions/1", "question-form", `<button type="submit" id="save" name="do" value="save">Save question</button>`, editor},
+		{"/admin/exams/new", "new-exam-form", `<button type="submit" id="save" name="do" value="save">Create exam</button>`, "/admin/exams"},
+		{detail + "/settings", "settings-form", `<button type="submit">Save settings</button>`, editor},
+		{detail + "/sections/1", "section-form", `<button type="submit" id="save">Save section</button>`, editor},
+	} {
+		body := getOK(t, env, page.path, cookie)
+		form := regexp.MustCompile(`(?s)<form id="` + page.form + `".*?</form>`).FindString(body)
+		row := regexp.MustCompile(`(?s)<div class="form-actions">.*?</div>`).FindString(form)
+		cancel := `<a class="quiet" href="` + page.cancel + `">Cancel</a>`
+		if !strings.Contains(row, page.save) || !strings.Contains(row, cancel) {
+			t.Errorf("%s: #%s lacks a .form-actions row with %s and %s:\n%s", page.path, page.form, page.save, cancel, form)
+		}
+		if page.form == "question-form" || page.form == "new-exam-form" {
+			first := regexp.MustCompile(`<button[^>]*>`).FindString(form)
+			if first != `<button type="submit" name="do" value="save" class="visually-hidden" tabindex="-1" aria-hidden="true">` {
+				t.Errorf("%s: first button of #%s is %s", page.path, page.form, first)
+			}
+		}
 	}
 }
