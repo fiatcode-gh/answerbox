@@ -1,20 +1,18 @@
 {{define "admin_header"}}
 <header class="admin-header">
-  <nav class="container">
-    <ul>
-      <li><a class="wordmark" href="/admin/exams">Answerbox</a></li>
+  <nav class="container" aria-label="Main">
+    <a class="brand" href="/admin/exams"><img class="mark" src="{{static "mark.svg"}}" alt="" width="28" height="28"><span class="wordmark">Answerbox</span></a>
+    <ul class="nav-links">
+      <li><a href="/admin/exams"{{if eq .Nav "exams"}} aria-current="page"{{end}}>Exams</a></li>
+      {{if .Me.Admin}}<li><a href="/admin/teachers"{{if eq .Nav "teachers"}} aria-current="page"{{end}}>Teachers</a></li>{{end}}
     </ul>
-    <ul>
-      <li><a href="/admin/exams">Exams</a></li>
-      {{if .Me.Admin}}<li><a href="/admin/teachers">Teachers</a></li>{{end}}
-      <li><span id="signed-in-as" class="signed-in-as" title="{{.Me.Email}}">{{.Me.Email}}</span></li>
-      <li>
-        <form class="logout-form" method="post" action="/admin/logout">
-          <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-          <button type="submit" class="secondary">Log out</button>
-        </form>
-      </li>
-    </ul>
+    <div class="account">
+      <span id="signed-in-as" class="signed-in-as" title="{{.Me.Email}}">{{.Me.Email}}</span>
+      <form class="logout-form" method="post" action="/admin/logout">
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+        <button type="submit" class="quiet">Log out</button>
+      </form>
+    </div>
   </nav>
 </header>
 {{end}}

@@ -24,10 +24,10 @@
       <button type="submit" class="secondary">Close</button>
     </form>
     {{end}}
-    <a role="button" class="secondary" href="/admin/exams/{{.Exam.ID}}/attempts">Results</a>
-    <a id="history-link" role="button" class="secondary" href="/admin/exams/{{.Exam.ID}}/revisions">History</a>
-    {{if and .Exam.Revision (eq .Exam.AttemptCount 0)}}<a id="edit-link" role="button" class="secondary" href="/admin/exams/{{.Exam.ID}}/edit">Edit questions</a>{{end}}
-    {{if .Exam.Revision}}<a id="download-link" role="button" class="secondary" href="/admin/exams/{{.Exam.ID}}/download">Download</a>{{end}}
+    <a class="button secondary" href="/admin/exams/{{.Exam.ID}}/attempts">Results</a>
+    <a id="history-link" class="button secondary" href="/admin/exams/{{.Exam.ID}}/revisions">History</a>
+    {{if and .Exam.Revision (eq .Exam.AttemptCount 0)}}<a id="edit-link" class="button secondary" href="/admin/exams/{{.Exam.ID}}/edit">Edit questions</a>{{end}}
+    {{if .Exam.Revision}}<a id="download-link" class="button secondary" href="/admin/exams/{{.Exam.ID}}/download">Download</a>{{end}}
     {{if .Exam.Revision}}
     <form id="copy-form" method="post" action="/admin/exams/{{.Exam.ID}}/copy">
       <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">

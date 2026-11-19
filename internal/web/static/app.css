@@ -1,24 +1,42 @@
-/* Answerbox — design tokens and base rules.
-   Pico variables are mapped from the --ge-* tokens, never the reverse. */
+/* Answerbox stylesheet. Every colour is a --ge-* token of section 1; dark
+   mode comes from the device setting through the media query there. */
+
+/* 1. Tokens */
 
 :root {
-  --ge-paper: #fbfaf7;
+  color-scheme: light dark;
+
+  --ge-paper: #faf8f3;
   --ge-surface: #ffffff;
-  --ge-ink: #1c2430;
-  --ge-muted: #5b6573;
-  --ge-rule: #d9d5cc;
+  --ge-sunken: #f1eee6;
+  --ge-ink: #1b2330;
+  --ge-muted: #57606d;
+  --ge-rule: #dcd7cc;
+  --ge-edge: #7c8490;
   --ge-accent: #1f4fa3;
-  --ge-accent-soft: #eef3fb;
-  --ge-ok: #1d6b3a;
-  --ge-ok-bg: #e7f3ea;
-  --ge-warn: #8a5300;
-  --ge-warn-bg: #fff3d6;
-  --ge-danger: #a12622;
-  --ge-danger-bg: #fbe9e7;
+  --ge-accent-strong: #173d80;
+  --ge-accent-soft: #e9effa;
+  --ge-on-accent: #ffffff;
+  --ge-ok: #1a6b3a;
+  --ge-ok-bg: #e6f3ea;
+  --ge-warn: #7a4a00;
+  --ge-warn-bg: #fff1d1;
+  --ge-danger: #a3231f;
+  --ge-danger-bg: #fbe8e6;
+  --ge-danger-solid: #a3231f;
+  --ge-danger-strong: #861b18;
+  --ge-on-danger: #ffffff;
+  --ge-scrim: rgb(0 0 0 / 0.5);
 
   --ge-font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --ge-font-paper: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --ge-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+  --ge-text-sm: 0.875rem;
+  --ge-text-base: 1rem;
+  --ge-text-lg: 1.125rem;
+  --ge-text-xl: 1.25rem;
+  --ge-text-2xl: 1.75rem;
 
   --ge-space-1: 4px;
   --ge-space-2: 8px;
@@ -26,98 +44,114 @@
   --ge-space-4: 16px;
   --ge-space-5: 24px;
   --ge-space-6: 32px;
+  --ge-space-7: 48px;
   --ge-radius: 6px;
   --ge-touch: 44px;
   --ge-bubble-size: 32px;
   --ge-transition: 150ms ease-in-out;
 }
 
-/* Higher specificity than Pico's light-theme selector, so these win. */
-:root[data-theme="light"] {
-  --pico-font-family: var(--ge-font-ui);
-  --pico-font-family-sans-serif: var(--ge-font-ui);
-  --pico-font-family-monospace: var(--ge-font-mono);
-  --pico-background-color: var(--ge-paper);
-  --pico-color: var(--ge-ink);
-  --pico-h1-color: var(--ge-ink);
-  --pico-h2-color: var(--ge-ink);
-  --pico-h3-color: var(--ge-ink);
-  --pico-h4-color: var(--ge-ink);
-  --pico-h5-color: var(--ge-ink);
-  --pico-h6-color: var(--ge-ink);
-  --pico-muted-color: var(--ge-muted);
-  --pico-muted-border-color: var(--ge-rule);
-  --pico-border-radius: var(--ge-radius);
-  --pico-primary: var(--ge-accent);
-  --pico-primary-background: var(--ge-accent);
-  --pico-primary-border: var(--ge-accent);
-  --pico-primary-underline: var(--ge-accent);
-  --pico-primary-hover: var(--ge-ink);
-  --pico-primary-hover-background: var(--ge-ink);
-  --pico-primary-hover-border: var(--ge-ink);
-  --pico-primary-hover-underline: var(--ge-ink);
-  --pico-primary-inverse: var(--ge-surface);
-  --pico-secondary-background: var(--ge-surface);
-  --pico-secondary-border: var(--ge-rule);
-  --pico-secondary-inverse: var(--ge-ink);
-  --pico-secondary-hover-background: var(--ge-accent-soft);
-  --pico-secondary-hover-border: var(--ge-accent);
-  --pico-secondary-hover: var(--ge-ink);
-  --pico-card-background-color: var(--ge-surface);
-  --pico-card-sectioning-background-color: var(--ge-surface);
-  --pico-card-box-shadow: none;
-  --pico-box-shadow: none;
-  --pico-dropdown-background-color: var(--ge-surface);
-  --pico-form-element-background-color: var(--ge-surface);
-  --pico-form-element-border-color: var(--ge-rule);
-  --pico-form-element-active-border-color: var(--ge-accent);
-  --pico-form-element-focus-color: var(--ge-accent);
-  --pico-form-element-invalid-border-color: var(--ge-danger);
-  --pico-form-element-valid-border-color: var(--ge-rule);
-  --pico-table-border-color: var(--ge-rule);
-  --pico-table-row-stripped-background-color: var(--ge-paper);
-  --pico-code-background-color: var(--ge-paper);
-  --pico-code-color: var(--ge-ink);
-  --pico-del-color: var(--ge-danger);
-  --pico-ins-color: var(--ge-ok);
-  --pico-outline-width: 0px; /* focus is shown by the :focus-visible outline below */
-  --pico-transition: var(--ge-transition);
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ge-paper: #14171c;
+    --ge-surface: #1d2128;
+    --ge-sunken: #0f1216;
+    --ge-ink: #e7e9ee;
+    --ge-muted: #a3acb9;
+    --ge-rule: #343a45;
+    --ge-edge: #7f8896;
+    --ge-accent: #8ab4ff;
+    --ge-accent-strong: #b3ceff;
+    --ge-accent-soft: #1f2c45;
+    --ge-on-accent: #0f1a2e;
+    --ge-ok: #7fd49a;
+    --ge-ok-bg: #15301f;
+    --ge-warn: #f2c46b;
+    --ge-warn-bg: #3a2c0c;
+    --ge-danger: #ff9d96;
+    --ge-danger-bg: #3d1614;
+    --ge-danger-solid: #c9352f;
+    --ge-danger-strong: #d23c36;
+    --ge-on-danger: #ffffff;
+    --ge-scrim: rgb(0 0 0 / 0.65);
+  }
+}
+
+/* 2. Base */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
+  margin: 0;
   background: var(--ge-paper);
   color: var(--ge-ink);
   font-family: var(--ge-font-ui);
+  font-size: var(--ge-text-base);
+  line-height: 1.5;
 }
 
-/* The "paper" voice: question and option text. */
-.paper,
-.question-body,
-.option-body {
-  font-family: var(--ge-font-paper);
-  font-size: 1.125rem;
-  line-height: 1.6;
+h1,
+h2,
+h3 {
+  margin: 0 0 var(--ge-space-4);
+  font-weight: 700;
 }
 
-.numeric,
-.tabular,
-#timer,
-#score,
-td,
-th {
-  font-variant-numeric: tabular-nums;
+h1 {
+  font-size: var(--ge-text-2xl);
+  line-height: 1.2;
 }
 
-code,
-kbd,
+h2 {
+  font-size: var(--ge-text-xl);
+  line-height: 1.3;
+}
+
+h3 {
+  font-size: 1.0625rem;
+  line-height: 1.4;
+}
+
+* + h2 {
+  margin-top: var(--ge-space-6);
+}
+
+p,
+ul,
+ol,
+dl,
 pre,
-samp,
-td.code {
-  font-family: var(--ge-font-mono);
+table,
+form,
+fieldset,
+blockquote,
+figure {
+  margin: 0 0 var(--ge-space-4);
 }
 
-pre {
-  overflow-x: auto;
+ul,
+ol {
+  padding-left: var(--ge-space-5);
+}
+
+nav ul,
+.nav-grid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+small {
+  font-size: var(--ge-text-sm);
 }
 
 img {
@@ -125,234 +159,425 @@ img {
   height: auto;
 }
 
-.narrow {
-  max-width: 28rem;
+a {
+  color: var(--ge-accent);
+  text-underline-offset: 0.15em;
+  transition: color var(--ge-transition);
 }
 
-/* The second selector outranks Pico's button[type=submit] { width: 100% }. */
-.visually-hidden,
-button[type="submit"].visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
+a:hover {
+  color: var(--ge-accent-strong);
+}
+
+code,
+kbd,
+pre,
+samp {
+  font-family: var(--ge-font-mono);
+  font-size: 0.9em;
+}
+
+code {
+  padding: 0 var(--ge-space-1);
+  border-radius: var(--ge-radius);
+  background: var(--ge-sunken);
+}
+
+pre {
+  overflow-x: auto;
+  padding: var(--ge-space-3);
+  border-radius: var(--ge-radius);
+  background: var(--ge-sunken);
+  line-height: 1.5;
+}
+
+pre code {
   padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  border: 0;
+  background: none;
+  font-size: inherit;
 }
 
-/* Focus: one ring everywhere. */
+blockquote {
+  padding-left: var(--ge-space-4);
+  border-left: 4px solid var(--ge-rule);
+  color: var(--ge-muted);
+}
+
+/* The "paper" voice: question, option and section text. */
+.question-body,
+.option-body,
+.section-body {
+  font-family: var(--ge-font-paper);
+  font-size: var(--ge-text-lg);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.question-body p,
+.option-body p,
+.section-body p {
+  margin: 0 0 var(--ge-space-3);
+}
+
+.question-body ul,
+.question-body ol,
+.option-body ul,
+.option-body ol,
+.section-body ul,
+.section-body ol {
+  margin: 0 0 var(--ge-space-3);
+  padding-left: var(--ge-space-5);
+}
+
+.question-body pre,
+.option-body pre,
+.section-body pre {
+  margin: 0 0 var(--ge-space-3);
+  font-size: var(--ge-text-sm);
+}
+
+.question-body > :last-child,
+.option-body > :last-child,
+.section-body > :last-child {
+  margin-bottom: 0;
+}
+
 :focus-visible {
   outline: 3px solid var(--ge-accent);
   outline-offset: 2px;
 }
 
-/* The answer-sheet bubble: empty outline = open, filled ink = answered/picked. */
-.bubble {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: var(--ge-bubble-size);
-  height: var(--ge-bubble-size);
-  border: 2px solid var(--ge-rule);
-  border-radius: 50%;
-  background: var(--ge-surface);
-  color: var(--ge-ink);
-  font-family: var(--ge-font-ui);
-  font-size: 0.875rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  text-decoration: none;
-  transition: background-color var(--ge-transition), border-color var(--ge-transition), color var(--ge-transition);
+[hidden] {
+  display: none !important;
 }
 
-.bubble[data-answered="true"],
-.bubble.filled {
-  background: var(--ge-accent);
-  border-color: var(--ge-accent);
-  color: var(--ge-surface);
-}
-
-/* Status badges always carry text; colour only reinforces it. */
-.badge {
-  display: inline-block;
-  padding: 2px var(--ge-space-2);
-  border: 1px solid var(--ge-rule);
-  border-radius: var(--ge-radius);
-  background: var(--ge-surface);
-  color: var(--ge-ink);
-  font-size: 0.875rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.badge-ok {
-  background: var(--ge-ok-bg);
-  border-color: var(--ge-ok);
-  color: var(--ge-ok);
-}
-
-.badge-warn {
-  background: var(--ge-warn-bg);
-  border-color: var(--ge-warn);
-  color: var(--ge-warn);
-}
-
-.badge-danger {
-  background: var(--ge-danger-bg);
-  border-color: var(--ge-danger);
-  color: var(--ge-danger);
-}
-
-.badge-muted {
-  color: var(--ge-muted);
-}
-
-/* Teacher pages: header, content width, login column, tables. */
-.admin-header {
-  background: var(--ge-surface);
-  border-bottom: 1px solid var(--ge-rule);
-  margin-bottom: var(--ge-space-5);
-}
-
-.admin-header nav {
-  max-width: 1100px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.admin-header nav ul {
-  flex-wrap: wrap;
-  min-width: 0;
-}
-
-/* A long email is cut with an ellipsis instead of widening the page. */
-.signed-in-as {
-  display: inline-block;
-  max-width: min(18rem, 60vw);
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  margin: -1px;
+  padding: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
+  clip: rect(0 0 0 0);
+  border: 0;
   white-space: nowrap;
-  vertical-align: middle;
-  color: var(--ge-muted);
 }
 
-.admin-header nav li {
-  padding-top: var(--ge-space-2);
-  padding-bottom: var(--ge-space-2);
+.numeric,
+#timer,
+#score {
+  font-variant-numeric: tabular-nums;
 }
 
-.wordmark {
-  color: var(--ge-ink);
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  text-decoration: none;
+/* 3. Layout */
+
+.container {
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: var(--ge-space-4);
 }
 
-.logout-form {
-  margin: 0;
-}
-
-.logout-form button {
-  margin: 0;
-  min-height: var(--ge-touch);
-  padding: var(--ge-space-2) var(--ge-space-4);
+main.container {
+  padding-block: var(--ge-space-5) var(--ge-space-7);
 }
 
 main.admin {
   max-width: 1100px;
 }
 
-main.login {
-  padding-top: var(--ge-space-6);
+.narrow {
+  max-width: 28rem;
 }
 
-main.login [role="button"] {
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-3) var(--ge-space-4);
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--ge-space-4);
+}
+
+.page-head h1 {
+  margin: 0;
+}
+
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-3);
+  margin: 0;
+}
+
+.back {
+  margin-bottom: var(--ge-space-3);
+  font-size: var(--ge-text-sm);
+}
+
+@media (max-width: 640px) {
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  .page-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* 4. Actions: primary, secondary, quiet, destructive. */
+
+button,
+.button {
+  display: inline-flex;
+  gap: var(--ge-space-2);
+  align-items: center;
+  justify-content: center;
+  min-height: var(--ge-touch);
+  margin: 0;
+  padding: var(--ge-space-2) var(--ge-space-4);
+  border: 1px solid var(--ge-accent);
+  border-radius: var(--ge-radius);
+  background: var(--ge-accent);
+  color: var(--ge-on-accent);
+  font: inherit;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--ge-transition), border-color var(--ge-transition), color var(--ge-transition);
+}
+
+button:hover,
+.button:hover {
+  border-color: var(--ge-accent-strong);
+  background: var(--ge-accent-strong);
+  color: var(--ge-on-accent);
+  text-decoration: none;
+}
+
+button.secondary,
+.button.secondary {
+  border-color: var(--ge-edge);
+  background: var(--ge-surface);
+  color: var(--ge-ink);
+}
+
+button.secondary:hover,
+.button.secondary:hover {
+  border-color: var(--ge-accent);
+  background: var(--ge-accent-soft);
+  color: var(--ge-ink);
+}
+
+button.quiet,
+.quiet {
+  padding-inline: var(--ge-space-2);
+  border-color: transparent;
+  background: transparent;
+  color: var(--ge-accent);
+}
+
+button.quiet:hover,
+.quiet:hover,
+.quiet:focus-visible {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ge-accent-strong);
+  text-decoration: underline;
+}
+
+button.danger {
+  border-color: var(--ge-danger-solid);
+  background: var(--ge-danger-solid);
+  color: var(--ge-on-danger);
+}
+
+button.danger:hover {
+  border-color: var(--ge-danger-strong);
+  background: var(--ge-danger-strong);
+  color: var(--ge-on-danger);
+}
+
+.quiet.danger,
+.quiet.danger:hover,
+.danger-link,
+.danger-link:hover {
+  color: var(--ge-danger);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* 5. Forms */
+
+label {
+  display: block;
+  margin-bottom: var(--ge-space-1);
+}
+
+input:where(:not([type="checkbox"], [type="radio"], [type="file"], [type="hidden"])),
+select,
+textarea {
+  display: block;
   width: 100%;
   min-height: var(--ge-touch);
+  margin: 0 0 var(--ge-space-4);
+  padding: var(--ge-space-2) var(--ge-space-3);
+  border: 1px solid var(--ge-edge);
+  border-radius: var(--ge-radius);
+  background: var(--ge-surface);
+  color: var(--ge-ink);
+  font: inherit;
+  font-size: max(16px, 1rem);
+  font-weight: 400;
+  line-height: 1.5;
+  accent-color: var(--ge-accent);
+  transition: border-color var(--ge-transition);
 }
 
-.alert {
-  margin-bottom: var(--ge-space-4);
-  padding: var(--ge-space-3) var(--ge-space-4);
-  border: 1px solid var(--ge-danger);
+label > input:where(:not([type="checkbox"], [type="radio"], [type="file"], [type="hidden"])),
+label > select {
+  margin-top: var(--ge-space-1);
+}
+
+textarea {
+  resize: vertical;
+}
+
+::placeholder {
+  color: var(--ge-muted);
+  opacity: 1;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0 var(--ge-space-2) 0 0;
+  vertical-align: -0.25em;
+  accent-color: var(--ge-accent);
+}
+
+input[type="file"] {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 0 var(--ge-space-4);
+  color: var(--ge-ink);
+  font: inherit;
+  accent-color: var(--ge-accent);
+}
+
+::file-selector-button {
+  min-height: var(--ge-touch);
+  margin-right: var(--ge-space-3);
+  padding: var(--ge-space-2) var(--ge-space-4);
+  border: 1px solid var(--ge-edge);
   border-radius: var(--ge-radius);
-  background: var(--ge-danger-bg);
-  color: var(--ge-danger);
+  background: var(--ge-surface);
+  color: var(--ge-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--ge-transition), border-color var(--ge-transition);
+}
+
+::file-selector-button:hover {
+  border-color: var(--ge-accent);
+  background: var(--ge-accent-soft);
+}
+
+fieldset {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+form small {
+  display: block;
+  margin: 0 0 var(--ge-space-4);
+  color: var(--ge-muted);
+}
+
+input + small {
+  margin-top: calc(-1 * var(--ge-space-3));
+}
+
+legend {
+  margin-bottom: var(--ge-space-2);
+  padding: 0;
   font-weight: 600;
 }
 
-.overflow-auto table {
-  background: var(--ge-surface);
-  margin-bottom: 0;
+details {
+  margin: 0 0 var(--ge-space-4);
 }
 
-table th {
+details > summary {
+  display: list-item;
+  min-height: var(--ge-touch);
+  padding-block: var(--ge-space-2);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+dialog {
+  width: 100%;
+  max-width: min(28rem, 100vw - 32px);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ge-ink);
+}
+
+dialog::backdrop {
+  background: var(--ge-scrim);
+}
+
+dialog > article h2 {
+  margin-top: 0;
+}
+
+/* 6. Tables */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+th,
+td {
+  padding: var(--ge-space-2) var(--ge-space-3);
+  border-bottom: 1px solid var(--ge-rule);
+  text-align: left;
+}
+
+th {
+  border-bottom-width: 2px;
   color: var(--ge-muted);
-  font-size: 0.875rem;
+  font-size: var(--ge-text-sm);
   font-weight: 600;
   white-space: nowrap;
 }
 
-.empty {
-  color: var(--ge-muted);
+/* Positioned, so a visually hidden header cell stays inside the scroller
+   instead of widening the page. */
+.overflow-auto {
+  position: relative;
+  overflow-x: auto;
+  margin-bottom: var(--ge-space-4);
 }
 
-/* Exams list: import form, format help, row actions. */
-.import {
-  margin-bottom: var(--ge-space-5);
-}
-
-.upload-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-3);
-  align-items: center;
-}
-
-.upload-row input[type="file"] {
-  flex: 1 1 16rem;
-  margin: 0;
-}
-
-.upload-row button,
-#replace-form button {
-  margin: 0;
-  min-height: var(--ge-touch);
-}
-
-.format-help {
-  margin-top: var(--ge-space-4);
-  padding: var(--ge-space-3) var(--ge-space-4);
-  border: 1px solid var(--ge-rule);
-  border-radius: var(--ge-radius);
-  background: var(--ge-surface);
-}
-
-.format-help summary {
-  font-weight: 600;
-}
-
-.format-help pre {
-  padding: var(--ge-space-3);
-  border: 1px solid var(--ge-rule);
-  border-radius: var(--ge-radius);
-  background: var(--ge-paper);
-  font-size: 0.875rem;
-  line-height: 1.5;
-}
-
-.format-help ul {
+.overflow-auto table {
   margin-bottom: 0;
-}
-
-/* An email has no spaces; let it break so the admin list fits. */
-td.owner {
-  overflow-wrap: anywhere;
+  background: var(--ge-surface);
 }
 
 /* The actions wrap between buttons and links, never inside one. */
@@ -367,129 +592,68 @@ td.owner {
 }
 
 .row-actions button {
-  margin: 0;
   padding: var(--ge-space-1) var(--ge-space-3);
-  min-height: var(--ge-touch);
 }
 
 .row-actions a {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ge-touch);
   margin-right: var(--ge-space-3);
-  padding: var(--ge-space-2) 0;
 }
 
-/* Exam detail: heading, actions, settings, replace form, preview. */
-.back {
-  margin-bottom: var(--ge-space-3);
-  font-size: 0.875rem;
+.row-actions a:last-child {
+  margin-right: 0;
 }
 
-.exam-head {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-3);
-  align-items: center;
-  margin-bottom: var(--ge-space-4);
+.zone-note {
+  margin: var(--ge-space-3) 0;
+  color: var(--ge-muted);
+  font-size: var(--ge-text-sm);
 }
 
-.exam-head h1 {
-  margin: 0;
-}
-
-.exam-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-3);
-  align-items: center;
-  margin-bottom: var(--ge-space-5);
-}
-
-.exam-actions form {
-  margin: 0;
-}
-
-.exam-actions button,
-.exam-actions [role="button"] {
-  margin: 0;
-  min-height: var(--ge-touch);
-}
-
-.join {
-  margin-bottom: var(--ge-space-5);
-}
-
-.join h2 {
-  margin-bottom: var(--ge-space-2);
-}
-
-.exam-code {
-  margin: 0 0 var(--ge-space-3);
-  font-family: var(--ge-font-mono);
-  font-size: clamp(3rem, 12vw, 8rem);
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: 0.15em;
-}
-
-.student-link {
-  margin-bottom: var(--ge-space-2);
-  overflow-wrap: anywhere;
-}
-
-.join-note {
-  margin: 0;
+.empty {
   color: var(--ge-muted);
 }
 
-section.schedule {
-  margin-bottom: var(--ge-space-5);
-}
+/* 7. Feedback. Badges always carry text; colour only reinforces it. */
 
-section.schedule h2 {
-  margin-bottom: var(--ge-space-2);
-}
-
-.schedule-fields {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 var(--ge-space-4);
-}
-
-.schedule-fields label {
-  flex: 0 1 16rem;
-}
-
-#schedule-form button {
-  width: auto;
-  margin-bottom: var(--ge-space-3);
-  min-height: var(--ge-touch);
-}
-
-small.schedule {
-  display: block;
-  margin: var(--ge-space-1) 0 0;
-  color: var(--ge-muted);
+.badge {
+  display: inline-block;
+  padding: 2px var(--ge-space-2);
+  border: 1px solid var(--ge-rule);
+  border-radius: var(--ge-radius);
+  background: var(--ge-surface);
+  color: var(--ge-ink);
+  font-size: var(--ge-text-sm);
+  font-weight: 600;
   white-space: nowrap;
 }
 
-.settings {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: var(--ge-space-2) var(--ge-space-4);
-  margin-bottom: var(--ge-space-5);
+.badge-ok {
+  border-color: var(--ge-ok);
+  background: var(--ge-ok-bg);
+  color: var(--ge-ok);
 }
 
-.settings dt {
+.badge-warn {
+  border-color: var(--ge-warn);
+  background: var(--ge-warn-bg);
+  color: var(--ge-warn);
+}
+
+.badge-muted {
   color: var(--ge-muted);
+}
+
+.alert {
+  margin-bottom: var(--ge-space-4);
+  padding: var(--ge-space-3) var(--ge-space-4);
+  border: 1px solid var(--ge-danger);
+  border-radius: var(--ge-radius);
+  background: var(--ge-danger-bg);
+  color: var(--ge-danger);
   font-weight: 600;
-}
-
-.settings dd {
-  margin: 0;
-}
-
-.replace {
-  margin-bottom: var(--ge-space-6);
 }
 
 .frozen-notice {
@@ -501,18 +665,109 @@ small.schedule {
   font-weight: 600;
 }
 
-.preview-question {
-  margin-bottom: var(--ge-space-5);
+.banner {
+  max-width: 720px;
+  margin: var(--ge-space-3) auto;
+  padding: var(--ge-space-3) var(--ge-space-4);
+  border: 1px solid var(--ge-rule);
+  border-radius: var(--ge-radius);
+  font-weight: 600;
+}
+
+.banner-danger {
+  border-color: var(--ge-danger);
+  background: var(--ge-danger-bg);
+  color: var(--ge-danger);
+}
+
+.banner-warn {
+  border-color: var(--ge-warn);
+  background: var(--ge-warn-bg);
+  color: var(--ge-warn);
+}
+
+.banner a {
+  color: inherit;
+}
+
+/* 8. Paper: cards, bubbles, question parts, marks. */
+
+.question,
+.review-question,
+.preview-question,
+.detail-question,
+.score-block,
+.format-help,
+.resume,
+#question-nav,
+dialog > article {
   padding: var(--ge-space-4);
   border: 1px solid var(--ge-rule);
   border-radius: var(--ge-radius);
   background: var(--ge-surface);
 }
 
+/* The answer-sheet bubble: empty outline = open, filled = answered or picked. */
+.bubble {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--ge-bubble-size);
+  height: var(--ge-bubble-size);
+  border: 2px solid var(--ge-edge);
+  border-radius: 50%;
+  background: var(--ge-surface);
+  color: var(--ge-ink);
+  font-family: var(--ge-font-ui);
+  font-size: var(--ge-text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-decoration: none;
+  transition: background-color var(--ge-transition), border-color var(--ge-transition), color var(--ge-transition);
+}
+
+.bubble[data-answered="true"] {
+  border-color: var(--ge-accent);
+  background: var(--ge-accent);
+  color: var(--ge-on-accent);
+}
+
 .eyebrow {
   margin-bottom: var(--ge-space-2);
   color: var(--ge-muted);
-  font-size: 0.875rem;
+  font-size: var(--ge-text-sm);
+}
+
+/* Sections: a heading between question cards, in the paper voice, with an
+   accent rule instead of a card so it does not read as a question. */
+.section-head {
+  min-width: 0;
+  margin: var(--ge-space-6) 0 var(--ge-space-4);
+  padding: var(--ge-space-1) 0 var(--ge-space-1) var(--ge-space-4);
+  border-left: 4px solid var(--ge-accent);
+  overflow-wrap: anywhere;
+}
+
+.section-head:first-child {
+  margin-top: var(--ge-space-4);
+}
+
+.section-title {
+  margin: 0;
+  font-family: var(--ge-font-paper);
+  font-size: 1.375rem;
+  line-height: 1.3;
+}
+
+.section-body {
+  margin-top: var(--ge-space-2);
+  color: var(--ge-ink);
+}
+
+.preview-question {
+  margin-bottom: var(--ge-space-5);
 }
 
 .preview-options {
@@ -533,435 +788,153 @@ small.schedule {
   background: var(--ge-ok-bg);
 }
 
-.question-body > :last-child,
-.option-body > :last-child {
-  margin-bottom: 0;
+.preview-answers {
+  margin-top: var(--ge-space-3);
 }
 
 .correct-mark {
   display: inline-block;
   margin-top: var(--ge-space-1);
   color: var(--ge-ok);
-  font-size: 0.875rem;
+  font-size: var(--ge-text-sm);
   font-weight: 600;
 }
 
-/* Editor: question actions and the settings form. */
-.question-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-2);
-  margin-top: var(--ge-space-3);
-}
-
-.question-actions form {
-  margin: 0;
-}
-
-.question-actions button {
-  width: auto;
-  margin: 0;
-  min-height: var(--ge-touch);
-}
-
-.settings-fields {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 var(--ge-space-4);
-}
-
-.settings-fields label {
-  flex: 1 1 14rem;
-  min-width: 0;
-}
-
-.settings-fields .settings-title,
-.settings-fields .settings-monitor {
-  flex-basis: 100%;
-}
-
-#settings-form button[type="submit"],
-#question-form #save,
-#new-exam-form #save {
-  width: auto;
-  min-height: var(--ge-touch);
-}
-
-.question-actions .edit-question {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--ge-touch);
-  padding: 0 var(--ge-space-2);
-}
-
-/* Editor: section headings and the section form. */
-.section-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-2);
-  margin-top: var(--ge-space-3);
-}
-
-.section-actions form {
-  margin: 0;
-}
-
-.section-actions button {
-  width: auto;
-  margin: 0;
-  min-height: var(--ge-touch);
-}
-
-.question-actions .start-section,
-.section-actions .edit-section {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--ge-touch);
-  padding: 0 var(--ge-space-2);
-}
-
-#section-form #save {
-  width: auto;
-  min-height: var(--ge-touch);
-}
-
-.upload-row [role="button"] {
-  margin: 0;
-  min-height: var(--ge-touch);
-}
-
-/* Question form: option rows with their buttons. */
-.option-list {
-  min-width: 0;
-  margin: var(--ge-space-4) 0 var(--ge-space-2);
-  padding: 0;
-  border: 0;
-}
-
-.option-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-2) var(--ge-space-3);
-  align-items: flex-start;
-  padding: var(--ge-space-3) 0;
-  border-top: 1px solid var(--ge-rule);
-}
-
-.option-row .option-correct {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: var(--ge-space-2);
-  min-height: var(--ge-touch);
-  margin: 0;
-}
-
-.option-row textarea {
-  flex: 1 1 12rem;
-  min-width: 0;
-  margin: 0;
-}
-
-.option-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-2);
-}
-
-.option-buttons button,
-.option-add button {
-  width: auto;
-  margin: 0;
-  min-height: var(--ge-touch);
-}
-
-.option-add {
-  margin-bottom: var(--ge-space-4);
-}
-
-/* Question form: the kind line and the accepted-answer rows. Pico's
-   [hidden] rule hides whichever list the form does not use. */
-.question-kind {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-2) var(--ge-space-3);
-  align-items: center;
-  font-weight: 600;
-}
-
-.question-kind button,
-.answer-row button,
-.answer-add button {
-  width: auto;
-  margin: 0;
-  min-height: var(--ge-touch);
-}
-
-.answer-list {
-  min-width: 0;
-  margin: var(--ge-space-4) 0;
-  padding: 0;
-  border: 0;
-}
-
-.answer-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-2) var(--ge-space-3);
-  align-items: center;
-  padding: var(--ge-space-3) 0;
-  border-top: 1px solid var(--ge-rule);
-}
-
-.answer-row input {
-  flex: 1 1 12rem;
-  min-width: 0;
-  margin: 0;
-}
-
-.answer-add {
-  margin-bottom: var(--ge-space-2);
-}
-
-.preview-answers {
-  margin-top: var(--ge-space-3);
-}
-
-.image-dropped {
-  margin: var(--ge-space-2) 0;
-  color: var(--ge-warn);
-  font-weight: 600;
-}
-
-/* Results: attempts table, attempt detail, delete confirmation. */
-.results-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-3);
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--ge-space-2);
-}
-
-.results-bar .counts {
-  margin: 0;
-  font-variant-numeric: tabular-nums;
-}
-
-.results-bar [role="button"] {
-  margin: 0;
-  min-height: var(--ge-touch);
-}
-
-.name-filter,
-.rename-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-3);
-  align-items: center;
-}
-
-.name-filter {
-  margin-bottom: var(--ge-space-3);
-}
-
-.rename-form {
-  margin-bottom: var(--ge-space-5);
-}
-
-.rename-form label {
-  margin: 0;
-}
-
-.name-filter input[type="search"],
-.rename-form input[type="text"] {
-  flex: 1 1 14rem;
-  max-width: 24rem;
-  margin: 0;
-}
-
-.name-filter button,
-.rename-form button {
-  width: auto;
-  margin: 0;
-  min-height: var(--ge-touch);
-}
-
-.zone-note {
-  margin-bottom: var(--ge-space-3);
+.accepted-label {
+  margin: 0 0 var(--ge-space-2);
   color: var(--ge-muted);
-  font-size: 0.875rem;
+  font-size: var(--ge-text-sm);
+  font-weight: 600;
 }
 
-.sort-link {
-  display: inline-block;
-  padding: var(--ge-space-2) 0;
-  color: inherit;
+.accepted-answers {
+  margin: 0;
+  padding: 0;
 }
 
-th[aria-sort] {
-  color: var(--ge-ink);
-}
-
-.resume-code {
-  padding: 2px var(--ge-space-1);
-  letter-spacing: 0.05em;
-  white-space: nowrap;
-}
-
-/* Dense attempts table: times and scores never break mid-value and only the
-   name wraps, so the width that times without dates and seconds free goes to
-   it; the two-word headers may break. Tighter cells keep all nine columns
-   inside the 1100 px column. */
-#attempts th,
-#attempts td {
-  padding-inline: var(--ge-space-2);
-}
-
-#attempts td {
-  font-size: 0.875rem;
-}
-
-#attempts td.numeric {
-  white-space: nowrap;
-}
-
-#attempts th.wrap {
-  white-space: normal;
-}
-
-.row-actions a:last-child {
-  margin-right: 0;
-}
-
-.row-actions .danger-link {
-  color: var(--ge-danger);
-}
-
-.detail-question {
-  margin-bottom: var(--ge-space-5);
-  padding: var(--ge-space-4);
-  border: 1px solid var(--ge-rule);
+.accepted-answers li {
+  margin: 0 0 var(--ge-space-2);
+  padding: var(--ge-space-2) var(--ge-space-3);
+  border: 1px solid var(--ge-ok);
   border-radius: var(--ge-radius);
+  background: var(--ge-ok-bg);
+  list-style: none;
+  overflow-wrap: anywhere;
+}
+
+/* 9. Headers */
+
+.admin-header,
+.brand-header {
+  border-bottom: 1px solid var(--ge-rule);
   background: var(--ge-surface);
 }
 
-.detail-options li[data-picked="true"][data-correct="false"] {
-  border-color: var(--ge-danger);
-  background: var(--ge-danger-bg);
-}
-
-.detail-options li[data-picked="true"] {
-  border-width: 2px;
-}
-
-.option-marks {
+.admin-header nav {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--ge-space-3);
-  margin: var(--ge-space-1) 0 0;
-}
-
-.option-marks .correct-mark {
-  margin-top: 0;
-}
-
-.pick-mark {
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-.detail-options li[data-correct="false"] .pick-mark {
-  color: var(--ge-danger);
-}
-
-.no-answer {
-  color: var(--ge-danger);
-  font-weight: 600;
-}
-
-/* Attempt page: a fill-in answer with its marks and the teacher's mark
-   buttons, in the right and wrong colours of the option list. */
-.detail-fill-in {
-  margin: var(--ge-space-4) 0 0;
-}
-
-.typed-answer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-2) var(--ge-space-3);
+  gap: 0 var(--ge-space-4);
   align-items: center;
-  margin: 0 0 var(--ge-space-3);
-  padding: var(--ge-space-2) var(--ge-space-3);
-  border: 2px solid var(--ge-danger);
-  border-radius: var(--ge-radius);
-  background: var(--ge-danger-bg);
+  max-width: 1100px;
 }
 
-.detail-fill-in[data-correct="true"] .typed-answer {
-  border-color: var(--ge-ok);
-  background: var(--ge-ok-bg);
+.brand-header {
+  padding: 0 max(var(--ge-space-4), calc((100% - 1100px) / 2 + var(--ge-space-4)));
 }
 
-.auto-mark,
-.override-mark {
-  margin: var(--ge-space-1) 0 0;
-  font-size: 0.875rem;
+.brand {
+  display: inline-flex;
+  flex: none;
+  gap: var(--ge-space-2);
+  align-items: center;
+  min-height: 56px;
+  color: var(--ge-ink);
+  text-decoration: none;
+}
+
+.brand:hover {
+  color: var(--ge-ink);
+}
+
+.mark {
+  display: block;
+  width: 28px;
+  height: 28px;
+}
+
+.wordmark {
+  font-family: var(--ge-font-ui);
+  font-size: var(--ge-text-lg);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.nav-links {
+  display: flex;
+  gap: var(--ge-space-1);
+}
+
+.nav-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ge-touch);
+  padding: 0 var(--ge-space-2);
+  color: var(--ge-ink);
   font-weight: 600;
+  text-decoration: none;
 }
 
-.auto-mark[data-auto="true"],
-.override-mark[data-override="true"] {
-  color: var(--ge-ok);
+.nav-links a:hover {
+  color: var(--ge-accent);
 }
 
-.auto-mark[data-auto="false"],
-.override-mark[data-override="false"] {
-  color: var(--ge-danger);
+.nav-links a[aria-current="page"] {
+  color: var(--ge-accent);
+  text-decoration: underline;
+  text-decoration-thickness: 3px;
+  text-underline-offset: 8px;
 }
 
-.override-mark time {
-  font-variant-numeric: tabular-nums;
+.account {
+  display: flex;
+  flex: 0 1 auto;
+  gap: var(--ge-space-2);
+  align-items: center;
+  min-width: 0;
+  margin-left: auto;
+}
+
+/* A long email is cut with an ellipsis instead of widening the page. */
+.signed-in-as {
+  min-width: 0;
+  max-width: 18rem;
+  overflow: hidden;
+  color: var(--ge-muted);
+  font-size: var(--ge-text-sm);
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.override-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-3);
-  margin: var(--ge-space-3) 0 0;
-}
-
-.override-form button {
-  width: auto;
-  margin: 0;
-  min-height: var(--ge-touch);
-}
-
-.confirm-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-3);
-  align-items: center;
-}
-
-.confirm-actions form {
+.logout-form {
+  flex: none;
   margin: 0;
 }
 
-.confirm-actions button,
-.confirm-actions [role="button"] {
-  margin: 0;
-  min-height: var(--ge-touch);
+@media (max-width: 640px) {
+  .account {
+    flex: 1 1 0;
+    justify-content: flex-end;
+  }
+
+  .nav-links {
+    flex-basis: 100%;
+    order: 3;
+    margin-left: calc(-1 * var(--ge-space-2));
+  }
 }
 
-.danger-button {
-  border-color: var(--ge-danger);
-  background: var(--ge-danger);
-  color: var(--ge-surface);
-}
+/* 10. Student: landing, sign-in, error */
 
-/* Student: landing. */
 main.landing {
   padding-top: var(--ge-space-6);
   padding-bottom: var(--ge-space-6);
@@ -974,8 +947,6 @@ main.landing {
 #start-form button,
 #resume-form button {
   width: 100%;
-  min-height: var(--ge-touch);
-  margin-bottom: 0;
 }
 
 .landing-note {
@@ -991,14 +962,11 @@ main.landing {
 
 .resume {
   margin-top: var(--ge-space-5);
-  padding: var(--ge-space-3) var(--ge-space-4);
-  border: 1px solid var(--ge-rule);
-  border-radius: var(--ge-radius);
-  background: var(--ge-surface);
+  padding: var(--ge-space-2) var(--ge-space-4);
 }
 
-.resume summary {
-  font-weight: 600;
+.resume form {
+  margin: var(--ge-space-3) 0 var(--ge-space-2);
 }
 
 #code,
@@ -1008,20 +976,24 @@ main.landing {
   text-transform: uppercase;
 }
 
-/* Student: exam page. Designed at 412 px, then a two-column layout from 992 px. */
+main.login {
+  padding-top: var(--ge-space-6);
+}
+
+main.login .button {
+  width: 100%;
+  margin-bottom: var(--ge-space-4);
+}
+
+/* 11. Student: exam. Designed at 412 px, then two columns from 992 px. */
+
 .exam-header,
 #exam {
   --ge-column: 720px;
 }
 
-/* Pico pads body > header/main; the exam bar sits flush under the header. */
 .exam-header {
-  padding: 0;
   background: var(--ge-surface);
-}
-
-#exam {
-  padding-top: 0;
 }
 
 .exam-header-inner,
@@ -1043,16 +1015,16 @@ main.landing {
 
 .exam-title {
   margin: 0;
-  font-size: 1.125rem;
+  font-size: var(--ge-text-lg);
 }
 
 .student-name {
   margin: 0;
   color: var(--ge-muted);
-  font-size: 0.875rem;
+  font-size: var(--ge-text-sm);
 }
 
-/* Sticky top bar: timer, save state, navigator toggle — one 56 px row. */
+/* Sticky top bar: timer, save state, navigator toggle; one 56 px row. */
 .exam-bar {
   position: sticky;
   top: 0;
@@ -1080,7 +1052,7 @@ main.landing {
   border: 1px solid transparent;
   border-radius: var(--ge-radius);
   color: var(--ge-ink);
-  font-size: 1.25rem;
+  font-size: var(--ge-text-xl);
   font-weight: 700;
   text-align: center;
   transition: background-color var(--ge-transition), border-color var(--ge-transition), color var(--ge-transition);
@@ -1102,7 +1074,7 @@ main.landing {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
-  font-size: 0.875rem;
+  font-size: var(--ge-text-sm);
   font-weight: 600;
   line-height: 1.25;
   text-align: center;
@@ -1123,31 +1095,7 @@ main.landing {
 
 #nav-toggle {
   flex: none;
-  width: auto;
-  min-height: var(--ge-touch);
-  margin: 0;
   padding: 0 var(--ge-space-3);
-}
-
-.banner {
-  max-width: 720px;
-  margin: var(--ge-space-3) auto;
-  padding: var(--ge-space-3) var(--ge-space-4);
-  border: 1px solid var(--ge-rule);
-  border-radius: var(--ge-radius);
-  font-weight: 600;
-}
-
-.banner-danger {
-  border-color: var(--ge-danger);
-  background: var(--ge-danger-bg);
-  color: var(--ge-danger);
-}
-
-.banner-warn {
-  border-color: var(--ge-warn);
-  background: var(--ge-warn-bg);
-  color: var(--ge-warn);
 }
 
 /* The monitor warning hangs under the sticky exam bar and overlays the page:
@@ -1164,37 +1112,27 @@ main.landing {
   margin: 0 auto;
 }
 
-/* Pico lays out nav as a flex row; the navigator is a block with a grid. */
 #question-nav {
   display: block;
   margin: var(--ge-space-4) 0;
   padding: var(--ge-space-3);
-  border: 1px solid var(--ge-rule);
-  border-radius: var(--ge-radius);
-  background: var(--ge-surface);
 }
 
 #answered-count {
   margin-bottom: var(--ge-space-2);
-  font-size: 0.875rem;
+  font-size: var(--ge-text-sm);
   font-weight: 600;
 }
 
-/* The id outranks Pico's negative nav ol margins, which pushed bubbles past the box. */
-#question-nav .nav-grid {
+.nav-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--ge-touch), 1fr));
   gap: var(--ge-space-2) var(--ge-space-1);
-  margin: 0;
-  padding: 0;
 }
 
 .nav-grid li {
   display: flex;
   justify-content: center;
-  margin: 0;
-  padding: 0;
-  list-style: none;
 }
 
 .nav-grid .bubble {
@@ -1228,14 +1166,9 @@ main.landing {
   }
 }
 
-/* Questions. */
 .question {
   scroll-margin-top: calc(56px + var(--ge-space-2) + var(--ge-monitor-offset, 0px));
   margin: var(--ge-space-4) 0 var(--ge-space-5);
-  padding: var(--ge-space-4);
-  border: 1px solid var(--ge-rule);
-  border-radius: var(--ge-radius);
-  background: var(--ge-surface);
 }
 
 /* With the monitor on, a long-press must not select text or open Chrome's
@@ -1258,7 +1191,7 @@ main[data-monitor="on"] .exam-questions {
 }
 
 .q-state {
-  font-size: 0.875rem;
+  font-size: var(--ge-text-sm);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -1277,12 +1210,9 @@ main[data-monitor="on"] .exam-questions {
 
 .options {
   margin: var(--ge-space-4) 0 0;
-  padding: 0;
-  border: 0;
 }
 
-/* .options raises specificity above Pico's fit-content radio labels. */
-.options .option {
+.option {
   position: relative;
   display: flex;
   gap: var(--ge-space-3);
@@ -1298,7 +1228,8 @@ main[data-monitor="on"] .exam-questions {
   transition: background-color var(--ge-transition), border-color var(--ge-transition);
 }
 
-/* The native radio stays focusable and announced, but is not drawn. */
+/* The native radio stays focusable and announced, but is not drawn: the
+   bubble draws it. */
 .option input[type="radio"] {
   position: absolute;
   width: 1px;
@@ -1316,7 +1247,7 @@ main[data-monitor="on"] .exam-questions {
 .option:has(input:checked) .bubble {
   border-color: var(--ge-accent);
   background: var(--ge-accent);
-  color: var(--ge-surface);
+  color: var(--ge-on-accent);
 }
 
 .option:has(input:focus-visible) {
@@ -1336,10 +1267,8 @@ main[data-monitor="on"] .exam-questions {
 }
 
 .answer-box .answer-text {
-  width: 100%;
   min-height: 48px;
   margin: 0;
-  font-size: max(16px, 1rem);
 }
 
 /* The box stays editable under the monitor's user-select: none above. */
@@ -1360,7 +1289,6 @@ main[data-monitor="on"] .exam-questions .answer-text {
 
 #submit-open {
   width: 100%;
-  min-height: var(--ge-touch);
 }
 
 .dialog-actions {
@@ -1370,12 +1298,8 @@ main[data-monitor="on"] .exam-questions .answer-text {
   justify-content: flex-end;
 }
 
-/* The id outranks Pico's full-width submit button and its footer button margin. */
-#submit-dialog .dialog-actions button {
+.dialog-actions button {
   flex: 1 1 auto;
-  width: auto;
-  min-height: var(--ge-touch);
-  margin: 0;
 }
 
 @media (min-width: 992px) {
@@ -1411,7 +1335,8 @@ main[data-monitor="on"] .exam-questions .answer-text {
   }
 }
 
-/* Student: result. */
+/* 12. Student: result */
+
 main.result {
   max-width: 720px;
   padding-top: var(--ge-space-6);
@@ -1423,15 +1348,12 @@ main.result {
 }
 
 .result-recorded {
-  font-size: 1.125rem;
+  font-size: var(--ge-text-lg);
 }
 
 .score-block {
   margin: var(--ge-space-5) 0;
   padding: var(--ge-space-4) var(--ge-space-5);
-  border: 1px solid var(--ge-rule);
-  border-radius: var(--ge-radius);
-  background: var(--ge-surface);
   text-align: center;
 }
 
@@ -1449,10 +1371,6 @@ main.result {
 
 .review-question {
   margin: var(--ge-space-4) 0 var(--ge-space-5);
-  padding: var(--ge-space-4);
-  border: 1px solid var(--ge-rule);
-  border-radius: var(--ge-radius);
-  background: var(--ge-surface);
 }
 
 .no-answer {
@@ -1487,7 +1405,7 @@ main.result {
 .review-option[data-picked="true"] .bubble {
   border-color: var(--ge-accent);
   background: var(--ge-accent);
-  color: var(--ge-surface);
+  color: var(--ge-on-accent);
 }
 
 .review-option[data-correct="true"] {
@@ -1501,7 +1419,7 @@ main.result {
 }
 
 .review-mark {
-  font-size: 0.875rem;
+  font-size: var(--ge-text-sm);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -1550,68 +1468,483 @@ main.result {
   color: var(--ge-ok);
 }
 
-.accepted-label {
-  margin: 0 0 var(--ge-space-2);
+/* 13. Teacher: exams list */
+
+.import {
+  margin-bottom: var(--ge-space-5);
+}
+
+.upload-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-3);
+  align-items: center;
+}
+
+.upload-row input[type="file"] {
+  flex: 1 1 16rem;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.format-help {
+  margin-top: var(--ge-space-4);
+  padding: var(--ge-space-2) var(--ge-space-4);
+}
+
+.format-help pre {
+  border: 1px solid var(--ge-rule);
+  font-size: var(--ge-text-sm);
+}
+
+.format-help ul {
+  margin-bottom: var(--ge-space-2);
+}
+
+td.code {
+  font-family: var(--ge-font-mono);
+}
+
+/* An email has no spaces; let it break so the admin list fits. */
+td.owner {
+  overflow-wrap: anywhere;
+}
+
+small.schedule {
+  display: block;
+  margin: var(--ge-space-1) 0 0;
   color: var(--ge-muted);
-  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+/* 14. Teacher: exam page, projector */
+
+.exam-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-3);
+  align-items: center;
+  margin-bottom: var(--ge-space-4);
+}
+
+.exam-head h1 {
+  margin: 0;
+}
+
+.exam-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-3);
+  align-items: center;
+  margin-bottom: var(--ge-space-5);
+}
+
+.exam-actions form {
+  margin: 0;
+}
+
+.join {
+  margin-bottom: var(--ge-space-5);
+}
+
+.join h2 {
+  margin-bottom: var(--ge-space-2);
+}
+
+.exam-code {
+  margin: 0 0 var(--ge-space-3);
+  font-family: var(--ge-font-mono);
+  font-size: clamp(3rem, 12vw, 8rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.15em;
+}
+
+.student-link {
+  margin-bottom: var(--ge-space-2);
+  overflow-wrap: anywhere;
+}
+
+.join-note {
+  margin: 0;
+  color: var(--ge-muted);
+}
+
+section.schedule {
+  margin-bottom: var(--ge-space-5);
+}
+
+section.schedule h2 {
+  margin-bottom: var(--ge-space-2);
+}
+
+.schedule-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--ge-space-4);
+}
+
+.schedule-fields label {
+  flex: 0 1 16rem;
+  min-width: 0;
+}
+
+#schedule-form button {
+  margin-bottom: var(--ge-space-3);
+}
+
+.settings {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--ge-space-2) var(--ge-space-4);
+  margin-bottom: var(--ge-space-5);
+}
+
+.settings dt {
+  color: var(--ge-muted);
   font-weight: 600;
 }
 
-.accepted-answers {
+.settings dd {
   margin: 0;
-  padding: 0;
 }
 
-.accepted-answers li {
-  margin: 0 0 var(--ge-space-2);
-  padding: var(--ge-space-2) var(--ge-space-3);
-  border: 1px solid var(--ge-ok);
-  border-radius: var(--ge-radius);
-  background: var(--ge-ok-bg);
-  list-style: none;
-  overflow-wrap: anywhere;
+.replace {
+  margin-bottom: var(--ge-space-6);
 }
 
-/* Sections: a heading between question cards, in the paper voice, with an
-   accent rule instead of a card so it does not read as a question. */
-.section-head {
+/* 15. Teacher: results, attempt */
+
+.results-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-3);
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--ge-space-2);
+}
+
+.results-bar .counts {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.name-filter,
+.rename-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-3);
+  align-items: center;
+}
+
+.name-filter {
+  margin-bottom: var(--ge-space-3);
+}
+
+.rename-form {
+  margin-bottom: var(--ge-space-5);
+}
+
+.rename-form label {
+  margin: 0;
+}
+
+.name-filter input[type="search"],
+.rename-form input[type="text"] {
+  flex: 1 1 14rem;
+  width: auto;
   min-width: 0;
-  margin: var(--ge-space-6) 0 var(--ge-space-4);
-  padding: var(--ge-space-1) 0 var(--ge-space-1) var(--ge-space-4);
-  border-left: 4px solid var(--ge-accent);
-  overflow-wrap: anywhere;
-}
-
-.section-head:first-child {
-  margin-top: var(--ge-space-4);
-}
-
-.section-title {
+  max-width: 24rem;
   margin: 0;
-  font-family: var(--ge-font-paper);
-  font-size: 1.375rem;
-  line-height: 1.3;
 }
 
-.section-body {
-  margin-top: var(--ge-space-2);
+.sort-link {
+  display: inline-block;
+  padding: var(--ge-space-2) 0;
+  color: inherit;
+}
+
+th[aria-sort] {
   color: var(--ge-ink);
 }
 
-/* Section titles wrap in the results header; the cells stay on one line
-   (#attempts td.numeric). */
+.resume-code {
+  padding: 2px var(--ge-space-1);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+/* Dense attempts table: times and scores never break mid-value and only the
+   name wraps, so the width that times without dates and seconds free goes to
+   it; the two-word headers may break. Tighter cells keep all the columns
+   inside the 1100 px column. */
+#attempts th,
+#attempts td {
+  padding-inline: var(--ge-space-2);
+}
+
+#attempts td {
+  font-size: var(--ge-text-sm);
+}
+
+#attempts td.numeric {
+  white-space: nowrap;
+}
+
+#attempts th.wrap {
+  white-space: normal;
+}
+
+/* Section titles wrap in the results header; the cells stay on one line. */
 #attempts th.section-score {
   max-width: 10rem;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  :root[data-theme="light"] {
-    --pico-transition: 0s;
-  }
+.detail-question {
+  margin-bottom: var(--ge-space-5);
+}
 
+.detail-options li[data-picked="true"][data-correct="false"] {
+  border-color: var(--ge-danger);
+  background: var(--ge-danger-bg);
+}
+
+.detail-options li[data-picked="true"] {
+  border-width: 2px;
+}
+
+.option-marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-3);
+  margin: var(--ge-space-1) 0 0;
+}
+
+.option-marks .correct-mark {
+  margin-top: 0;
+}
+
+.pick-mark {
+  font-size: var(--ge-text-sm);
+  font-weight: 600;
+}
+
+.detail-options li[data-correct="false"] .pick-mark {
+  color: var(--ge-danger);
+}
+
+/* A fill-in answer with its marks and the teacher's mark buttons, in the
+   right and wrong colours of the option list. */
+.detail-fill-in {
+  margin: var(--ge-space-4) 0 0;
+}
+
+.typed-answer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2) var(--ge-space-3);
+  align-items: center;
+  margin: 0 0 var(--ge-space-3);
+  padding: var(--ge-space-2) var(--ge-space-3);
+  border: 2px solid var(--ge-danger);
+  border-radius: var(--ge-radius);
+  background: var(--ge-danger-bg);
+}
+
+.detail-fill-in[data-correct="true"] .typed-answer {
+  border-color: var(--ge-ok);
+  background: var(--ge-ok-bg);
+}
+
+.auto-mark,
+.override-mark {
+  margin: var(--ge-space-1) 0 0;
+  font-size: var(--ge-text-sm);
+  font-weight: 600;
+}
+
+.auto-mark[data-auto="true"],
+.override-mark[data-override="true"] {
+  color: var(--ge-ok);
+}
+
+.auto-mark[data-auto="false"],
+.override-mark[data-override="false"] {
+  color: var(--ge-danger);
+}
+
+.override-mark time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.override-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-3);
+  margin: var(--ge-space-3) 0 0;
+}
+
+/* 16. Teacher: editor */
+
+.question-actions,
+.section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2);
+  margin-top: var(--ge-space-3);
+}
+
+.question-actions form,
+.section-actions form {
+  margin: 0;
+}
+
+.question-actions .edit-question,
+.question-actions .start-section,
+.section-actions .edit-section {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ge-touch);
+  padding: 0 var(--ge-space-2);
+}
+
+.settings-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--ge-space-4);
+}
+
+.settings-fields label {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.settings-fields .settings-title,
+.settings-fields .settings-monitor {
+  flex-basis: 100%;
+}
+
+.settings-monitor {
+  display: flex;
+  align-items: center;
+  min-height: var(--ge-touch);
+  margin-bottom: var(--ge-space-4);
+}
+
+#settings-form > button,
+#new-exam-form #save,
+#question-form #save,
+#section-form #save {
+  margin-bottom: var(--ge-space-4);
+}
+
+.question-kind {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2) var(--ge-space-3);
+  align-items: center;
+  font-weight: 600;
+}
+
+.option-list {
+  margin: var(--ge-space-4) 0 var(--ge-space-2);
+}
+
+.option-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2) var(--ge-space-3);
+  align-items: flex-start;
+  padding: var(--ge-space-3) 0;
+  border-top: 1px solid var(--ge-rule);
+}
+
+.option-row .option-correct {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: var(--ge-space-2);
+  align-items: center;
+  min-height: var(--ge-touch);
+  margin: 0;
+}
+
+.option-row .option-correct input {
+  margin: 0;
+}
+
+.option-row textarea {
+  flex: 1 1 12rem;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.option-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2);
+}
+
+.option-add {
+  margin-bottom: var(--ge-space-4);
+}
+
+.answer-list {
+  margin: var(--ge-space-4) 0;
+}
+
+.answer-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2) var(--ge-space-3);
+  align-items: center;
+  padding: var(--ge-space-3) 0;
+  border-top: 1px solid var(--ge-rule);
+}
+
+.answer-row input {
+  flex: 1 1 12rem;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.answer-add {
+  margin-bottom: var(--ge-space-2);
+}
+
+.answer-list small {
+  margin-top: 0;
+}
+
+.image-dropped {
+  margin: var(--ge-space-2) 0;
+  color: var(--ge-warn);
+  font-weight: 600;
+}
+
+/* 17. Teacher: confirm, teachers, history, revision */
+
+.confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-3);
+  align-items: center;
+}
+
+.confirm-actions form {
+  margin: 0;
+}
+
+/* 18. Motion */
+
+@media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     transition: none !important;
+    animation: none !important;
   }
 }

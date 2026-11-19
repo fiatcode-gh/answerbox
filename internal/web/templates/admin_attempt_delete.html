@@ -9,9 +9,9 @@
   <div class="confirm-actions">
     <form method="post" action="/admin/exams/{{.Exam.ID}}/attempts/{{.Attempt.ID}}/delete">
       <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-      <button type="submit" class="danger-button">Delete attempt</button>
+      <button type="submit" class="danger">Delete attempt</button>
     </form>
-    <a role="button" class="secondary" href="/admin/exams/{{.Exam.ID}}/attempts">Cancel</a>
+    <a class="button secondary" href="/admin/exams/{{.Exam.ID}}/attempts">Cancel</a>
   </div>
 </main>
 {{end}}

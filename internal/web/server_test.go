@@ -77,10 +77,13 @@ func TestNotFound_RendersErrorPage(t *testing.T) {
 		t.Fatalf("status = %d, want 404", rec.Code)
 	}
 	body := rec.Body.String()
-	for _, want := range []string{`<html lang="en" data-theme="light">`, `name="viewport"`, `href="/"`} {
+	for _, want := range []string{`<html lang="en">`, `<meta name="color-scheme" content="light dark">`, `name="viewport"`, `href="/"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("404 page lacks %q:\n%s", want, body)
 		}
+	}
+	if strings.Contains(body, "data-theme") {
+		t.Errorf("404 page sets a data-theme:\n%s", body)
 	}
 	if ct := rec.Header().Get("Content-Type"); ct != "text/html; charset=utf-8" {
 		t.Errorf("Content-Type = %q", ct)
@@ -123,8 +126,8 @@ func TestStatic_VersionedAndCached(t *testing.T) {
 	h := newTestHandler(t, sqlitetest.Open(t), nil)
 	page := do(h, "GET", "/nope", nil).Body.String()
 
-	for _, name := range []string{"vendor/pico.min.css", "app.css"} {
-		u := staticURL(t, page, name)
+	for _, a := range []struct{ name, contentType string }{{"app.css", "text/css"}, {"mark.svg", "image/svg+xml"}} {
+		u := staticURL(t, page, a.name)
 		rec := do(h, "GET", u, nil)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("GET %s = %d", u, rec.Code)
@@ -132,19 +135,21 @@ func TestStatic_VersionedAndCached(t *testing.T) {
 		if got := rec.Header().Get("Cache-Control"); got != "public, max-age=31536000, immutable" {
 			t.Errorf("GET %s Cache-Control = %q", u, got)
 		}
-		if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/css") {
-			t.Errorf("GET %s Content-Type = %q", u, ct)
+		if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, a.contentType) {
+			t.Errorf("GET %s Content-Type = %q, want %s", u, ct, a.contentType)
 		}
-		want, _ := fs.ReadFile(staticFS, "static/"+name)
+		want, _ := fs.ReadFile(staticFS, "static/"+a.name)
 		if !bytes.Equal(rec.Body.Bytes(), want) {
 			t.Errorf("GET %s body differs from embedded file", u)
 		}
 	}
-	if pico := strings.Index(page, "pico.min.css"); pico < 0 || pico > strings.Index(page, "app.css") {
-		t.Error("pico.min.css must be linked before app.css")
+	for _, rel := range []string{`rel="stylesheet"`, `rel="icon"`} {
+		if n := strings.Count(page, rel); n != 1 {
+			t.Errorf("page has %d %s, want 1", n, rel)
+		}
 	}
 
-	for _, u := range []string{"/static/missing.css", "/static/", "/static/vendor"} {
+	for _, u := range []string{"/static/missing.css", "/static/", "/static/vendor", "/static/vendor/pico.min.css"} {
 		if rec := do(h, "GET", u, nil); rec.Code != http.StatusNotFound {
 			t.Errorf("GET %s = %d, want 404", u, rec.Code)
 		}

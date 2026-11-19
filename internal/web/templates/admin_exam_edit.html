@@ -5,13 +5,9 @@
 {{define "main"}}
 <main class="container admin editor-page" data-exam-id="{{.Exam.ID}}" data-revision="{{.Revision}}">
   <p class="back"><a href="/admin/exams/{{.Exam.ID}}">← {{.Exam.Title}}</a></p>
-  <h1>Edit questions</h1>
+  <div class="page-head"><h1>Edit questions</h1><p class="page-actions"><a id="settings-link" class="button secondary" href="/admin/exams/{{.Exam.ID}}/settings">Settings</a> <a id="add-question" class="button" href="/admin/exams/{{.Exam.ID}}/questions/new">Add question</a></p></div>
   {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
   <p class="zone-note">Revision {{.Revision}}. Every save makes a new revision. Earlier revisions stay readable in <a href="/admin/exams/{{.Exam.ID}}/revisions">History</a>.</p>
-  <div class="exam-actions">
-    <a id="add-question" role="button" href="/admin/exams/{{.Exam.ID}}/questions/new">Add question</a>
-    <a id="settings-link" role="button" class="secondary" href="/admin/exams/{{.Exam.ID}}/settings">Settings</a>
-  </div>
   {{range .Questions}}
   {{- if .Section}}
   <div class="section-head editor-section" id="s{{.SectionNumber}}">

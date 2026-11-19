@@ -734,3 +734,37 @@ func TestAdminHeader_ShowsSignedInEmail(t *testing.T) {
 		}
 	}
 }
+
+func TestAdminHeader_MarksCurrentArea(t *testing.T) {
+	env := newTestEnv(t)
+	cookie, csrf, _ := env.signIn(t)
+	detail := importExam(t, env, cookie, csrf, "geometry.md", []byte(textExam))
+	const (
+		examsCurrent    = `<a href="/admin/exams" aria-current="page">Exams</a>`
+		examsLink       = `<a href="/admin/exams">Exams</a>`
+		teachersCurrent = `<a href="/admin/teachers" aria-current="page">Teachers</a>`
+		teachersLink    = `<a href="/admin/teachers">Teachers</a>`
+	)
+	for _, c := range []struct {
+		path  string
+		wants []string
+	}{
+		{"/admin/exams", []string{examsCurrent, teachersLink}},
+		{detail, []string{examsCurrent, teachersLink}},
+		{"/admin/teachers", []string{teachersCurrent, examsLink}},
+	} {
+		rec := do(env.h, "GET", c.path, cookie)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET %s = %d", c.path, rec.Code)
+		}
+		body := rec.Body.String()
+		for _, want := range append(c.wants, `<img class="mark" src="/static/mark.svg?v=`) {
+			if !strings.Contains(body, want) {
+				t.Errorf("GET %s lacks %q:\n%s", c.path, want, body)
+			}
+		}
+		if n := strings.Count(body, `aria-current="page"`); n != 1 {
+			t.Errorf("GET %s has %d aria-current=\"page\", want 1", c.path, n)
+		}
+	}
+}

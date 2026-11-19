@@ -33,11 +33,12 @@ const (
 type adminSessionKey struct{}
 
 // adminPage is embedded in the data of every signed-in teacher page; the
-// header reads the CSRF token for its logout form and the signed-in teacher
-// from it.
+// header reads the CSRF token for its logout form, the signed-in teacher and
+// the area the page belongs to ("exams" or "teachers") from it.
 type adminPage struct {
 	CSRFToken string
 	Me        adminauth.Teacher
+	Nav       string
 }
 
 func sessionFrom(ctx context.Context) adminauth.Session {
@@ -47,7 +48,11 @@ func sessionFrom(ctx context.Context) adminauth.Session {
 
 func adminPageFor(r *http.Request) adminPage {
 	sess := sessionFrom(r.Context())
-	return adminPage{CSRFToken: sess.CSRFToken, Me: sess.Teacher}
+	nav := "exams"
+	if strings.HasPrefix(r.URL.Path, "/admin/teachers") {
+		nav = "teachers"
+	}
+	return adminPage{CSRFToken: sess.CSRFToken, Me: sess.Teacher, Nav: nav}
 }
 
 // actorFrom returns the signed-in teacher as the actor of exam catalog calls.

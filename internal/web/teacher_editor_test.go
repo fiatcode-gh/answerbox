@@ -71,7 +71,7 @@ func TestExamPage_EditLink(t *testing.T) {
 	env := newTestEnv(t)
 	cookie, csrf, _ := env.signIn(t)
 	detail := importExam(t, env, cookie, csrf, "geometry.md", []byte(textExam))
-	link := `<a id="edit-link" role="button" class="secondary" href="` + detail + `/edit">Edit questions</a>`
+	link := `<a id="edit-link" class="button secondary" href="` + detail + `/edit">Edit questions</a>`
 	if body := getOK(t, env, detail, cookie); !strings.Contains(body, link) {
 		t.Errorf("exam page lacks %s:\n%s", link, body)
 	}
@@ -136,7 +136,7 @@ func TestEditor_PageListsQuestions(t *testing.T) {
 	}
 	for _, want := range []string{
 		`<h1>Edit questions</h1>`,
-		`<a id="settings-link" role="button" class="secondary" href="` + detail + `/settings">Settings</a>`,
+		`<a id="settings-link" class="button secondary" href="` + detail + `/settings">Settings</a>`,
 		`href="` + detail + `/revisions"`,
 		`Revision 1. Every save makes a new revision.`,
 	} {
@@ -904,7 +904,7 @@ func TestNewExam_Flow(t *testing.T) {
 	a := env.addTeacher(t, "a@example.test")
 	b := env.addTeacher(t, "b@example.test")
 
-	link := `<a id="new-exam" role="button" class="secondary" href="/admin/exams/new">New exam</a>`
+	link := `<a id="new-exam" class="button secondary" href="/admin/exams/new">New exam</a>`
 	if body := getOK(t, env, "/admin/exams", a.cookie); !strings.Contains(body, link) || !strings.Contains(body, "No exams yet.") {
 		t.Errorf("exams list lacks %s or the empty-state sentence:\n%s", link, body)
 	}

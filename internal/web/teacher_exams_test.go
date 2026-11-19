@@ -956,7 +956,7 @@ func TestDownload_Route(t *testing.T) {
 		if c.ext == ".zip" && !bytes.HasPrefix(rec.Body.Bytes(), []byte("PK")) {
 			t.Errorf("zip download does not start with PK")
 		}
-		link := `<a id="download-link" role="button" class="secondary" href="` + c.detail + `/download">Download</a>`
+		link := `<a id="download-link" class="button secondary" href="` + c.detail + `/download">Download</a>`
 		if body := getOK(t, env, c.detail, cookie); !strings.Contains(body, link) {
 			t.Errorf("exam page %s lacks %s", c.detail, link)
 		}

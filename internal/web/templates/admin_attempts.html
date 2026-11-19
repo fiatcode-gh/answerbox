@@ -10,7 +10,7 @@
   {{if .Total}}
   <div class="results-bar">
     <p class="counts">{{.Counts}}</p>
-    <a id="export-csv" role="button" class="secondary" href="/admin/exams/{{.Exam.ID}}/attempts.csv">Export CSV</a>
+    <a id="export-csv" class="button secondary" href="/admin/exams/{{.Exam.ID}}/attempts.csv">Export CSV</a>
   </div>
   <form id="name-filter" class="name-filter" method="get" action="/admin/exams/{{.Exam.ID}}/attempts" role="search">
     <label for="filter-name" class="visually-hidden">Filter by name</label>
