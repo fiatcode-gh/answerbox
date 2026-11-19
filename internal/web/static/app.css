@@ -2378,94 +2378,106 @@ section.schedule h2 {
 
 /* 15. Teacher: results, attempt */
 
-/* The page head: "Results" sits right above the exam title. */
+/* The page head: "RESULTS" sits right above the exam title. */
 .attempts-page .eyebrow {
   margin: 0 0 var(--ge-space-1);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 /* One wrapping row: the name filter on the left, Export CSV on the right. */
 .results-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--ge-space-3);
+  gap: var(--ge-space-3) var(--ge-space-5);
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--ge-space-3);
+  margin-bottom: 20px;
 }
 
+.name-filter {
+  display: flex;
+  flex: 1 1 20rem;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2) var(--ge-space-3);
+  align-items: center;
+  margin: 0;
+}
+
+.name-filter input[type="search"] {
+  flex: 1 1 12rem;
+  width: auto;
+  min-width: 0;
+  max-width: 18rem;
+  margin: 0;
+}
+
+.name-filter button {
+  flex: none;
+}
+
+#filter-clear {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ge-touch);
+  font-weight: 700;
+}
+
+#export-csv::before {
+  content: "";
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  background: currentColor;
+  -webkit-mask: var(--ge-i-download) center / contain no-repeat;
+  mask: var(--ge-i-download) center / contain no-repeat;
+}
+
+/* Shown by results.js only: a brand dot, then the sentence. */
 .live-note {
+  display: flex;
+  gap: var(--ge-space-2);
+  align-items: center;
   margin: 0 0 var(--ge-space-2);
   color: var(--ge-muted);
   font-size: var(--ge-text-sm);
 }
 
+.live-note::before {
+  content: "";
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ge-brand);
+}
+
 .counts {
   margin: 0;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
-.name-filter,
-.rename-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-3);
-  align-items: center;
+#results-live .zone-note {
+  margin-bottom: var(--ge-space-3);
 }
 
-.name-filter {
-  flex: 1 1 20rem;
-  margin: 0;
-}
-
-.rename-form {
-  margin-bottom: var(--ge-space-5);
-}
-
-.rename-form label {
-  margin: 0;
-}
-
-.name-filter input[type="search"],
-.rename-form input[type="text"] {
-  flex: 1 1 12rem;
-  width: auto;
-  min-width: 0;
-  max-width: 24rem;
-  margin: 0;
-}
-
-.name-filter input[type="search"] {
-  max-width: 16rem;
-}
-
-.name-filter button,
-.rename-form button {
-  flex: none;
-}
-
-.sort-link {
-  display: inline-block;
-  padding: var(--ge-space-2) 0;
-  color: inherit;
-}
-
-th[aria-sort] {
-  color: var(--ge-ink);
-}
-
-.resume-code {
-  padding: 2px var(--ge-space-1);
-  letter-spacing: 0.05em;
-  white-space: nowrap;
-}
-
-/* Dense attempts table: times and scores never break mid-value and only the
-   name wraps, so the width that times without dates and seconds free goes to
-   it; the two-word headers may break. Tighter cells keep all the columns
-   inside the 1100 px column. */
+/* Dense attempts table: compact cells so the nine columns and the section
+   columns fit the page column. Times and scores never break mid-value, the
+   two-word headers may break, section titles wrap at 10rem. */
 #attempts th,
 #attempts td {
-  padding-inline: var(--ge-space-2);
+  padding: var(--ge-space-3) var(--ge-space-2);
+}
+
+#attempts th:first-child,
+#attempts td:first-child {
+  padding-left: var(--ge-space-4);
+}
+
+#attempts th:last-child,
+#attempts td:last-child {
+  padding-right: var(--ge-space-4);
 }
 
 #attempts td {
@@ -2480,9 +2492,66 @@ th[aria-sort] {
   white-space: normal;
 }
 
-/* Section titles wrap in the results header; the cells stay on one line. */
 #attempts th.section-score {
   max-width: 10rem;
+}
+
+#attempts th[aria-sort] {
+  color: var(--ge-ink);
+}
+
+#attempts .sort-link {
+  display: inline-flex;
+  gap: var(--ge-space-1);
+  align-items: center;
+  min-height: var(--ge-touch);
+  color: var(--ge-ink);
+  font-weight: 700;
+}
+
+/* View and Delete side by side in every row. */
+#attempts td.row-actions {
+  white-space: nowrap;
+}
+
+#attempts td.row-actions a {
+  margin-right: var(--ge-space-3);
+  font-weight: 700;
+}
+
+#attempts td.row-actions a:last-child {
+  margin-right: 0;
+}
+
+code.resume-code {
+  padding: 2px var(--ge-space-2);
+  border-radius: var(--ge-r-sm);
+  background: var(--ge-sunken);
+  font-family: var(--ge-font-mono);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+#attempts td.flags:not([data-flags="0"]) {
+  color: var(--ge-gold-ink);
+  font-weight: 800;
+}
+
+/* No attempts yet, or none match the filter: a card with a centred line. */
+.attempts-page .empty {
+  margin: 0;
+  padding: var(--ge-space-6) var(--ge-space-5);
+  border: 1px solid var(--ge-line);
+  border-radius: var(--ge-r-lg);
+  background: var(--ge-surface);
+  box-shadow: var(--ge-shadow);
+  color: var(--ge-muted);
+  text-align: center;
+}
+
+#no-match {
+  margin-top: var(--ge-space-4);
 }
 
 /* Phone: Started and Finished are left out (the attempt page has both) and
@@ -2509,18 +2578,79 @@ th[aria-sort] {
     border-right: 1px solid var(--ge-line);
     background: var(--ge-surface);
   }
+
+  #attempts th:first-child {
+    background: var(--ge-sunken);
+  }
 }
 
-.attempt-summary {
+/* The attempt page: the student's name and its chip, as on the exam page. */
+.attempt-detail .exam-head h1 {
+  font-size: var(--ge-text-3xl);
+}
+
+.attempt-detail .exam-head .badge {
+  font-size: var(--ge-text-base);
+}
+
+/* The summary in a card of settings rows. */
+dl.attempt-summary {
+  max-width: 520px;
   margin-bottom: var(--ge-space-3);
+  padding: var(--ge-space-2) var(--ge-space-5);
+  border: 1px solid var(--ge-line);
+  border-radius: var(--ge-r-lg);
+  background: var(--ge-surface);
+  box-shadow: var(--ge-shadow);
+}
+
+/* The label above; the box and Rename on one row. */
+.rename-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2) var(--ge-space-3);
+  align-items: center;
+  margin: var(--ge-space-5) 0;
+}
+
+.rename-form label {
+  flex: 0 0 100%;
+  margin: 0;
+  font-weight: 700;
+}
+
+.rename-form input[type="text"] {
+  flex: 1 1 12rem;
+  width: auto;
+  min-width: 0;
+  max-width: 24rem;
+  margin: 0;
+}
+
+.rename-form button {
+  flex: none;
+}
+
+#events td {
+  font-size: 0.9375rem;
 }
 
 .answers-heading {
-  margin-bottom: var(--ge-space-4);
+  margin: var(--ge-space-6) 0 var(--ge-space-4);
 }
 
 .detail-question {
   margin-bottom: var(--ge-space-5);
+}
+
+/* The options in one column, the picked one with a heavier border; a wrong
+   pick in the danger colours. */
+ol.detail-options {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.detail-options li[data-picked="true"] {
+  border-width: 2px;
 }
 
 .detail-options li[data-picked="true"][data-correct="false"] {
@@ -2528,24 +2658,22 @@ th[aria-sort] {
   background: var(--ge-danger-soft);
 }
 
-.detail-options li[data-picked="true"] {
-  border-width: 2px;
-}
-
 .option-marks {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--ge-space-3);
-  margin: var(--ge-space-1) 0 0;
+  gap: var(--ge-space-2) var(--ge-space-3);
+  align-items: center;
+  margin: 0 0 0 auto;
 }
 
 .option-marks .correct-mark {
-  margin-top: 0;
+  margin-left: 0;
 }
 
 .pick-mark {
   font-size: var(--ge-text-sm);
-  font-weight: 600;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .detail-options li[data-correct="false"] .pick-mark {
@@ -2571,15 +2699,20 @@ th[aria-sort] {
 }
 
 .detail-fill-in[data-correct="true"] .typed-answer {
-  border-color: var(--ge-brand-strong);
+  border-color: var(--ge-brand);
   background: var(--ge-brand-soft);
+}
+
+.typed-text {
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .auto-mark,
 .override-mark {
   margin: var(--ge-space-1) 0 0;
   font-size: var(--ge-text-sm);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .auto-mark[data-auto="true"],
@@ -2601,7 +2734,7 @@ th[aria-sort] {
 .override-form {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--ge-space-3);
+  gap: var(--ge-space-2) var(--ge-space-3);
   align-items: center;
   margin: var(--ge-space-3) 0 0;
 }
@@ -2609,7 +2742,7 @@ th[aria-sort] {
 .override-label {
   color: var(--ge-muted);
   font-size: var(--ge-text-sm);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 /* 16. Teacher: editor */
