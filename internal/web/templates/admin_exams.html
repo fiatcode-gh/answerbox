@@ -25,7 +25,7 @@
         <tr data-exam-id="{{.ID}}">
           <td><a href="/admin/exams/{{.ID}}">{{.Title}}</a></td>
           <td class="code">{{.Code}}</td>
-          {{if $.Me.Admin}}<td class="owner">{{.OwnerEmail}}</td>{{end}}
+          {{if $.Me.Admin}}<td class="owner" title="{{.OwnerEmail}}">{{.OwnerEmail}}</td>{{end}}
           <td>{{if .Archived}}<span class="badge badge-archived">Archived</span>{{else if .Open}}<span class="badge badge-ok">Open</span>{{else}}<span class="badge badge-muted">Closed</span>{{end}}{{with .Opens}}<small class="schedule">Opens {{.}}</small>{{end}}{{with .Closes}}<small class="schedule">Closes {{.}}</small>{{end}}</td>
           <td class="numeric">{{.QuestionCount}}</td>
           <td class="numeric">{{.AttemptCount}}</td>
@@ -44,6 +44,7 @@
   {{if .ShowArchived}}<p class="list-filter"><a id="hide-archived" href="/admin/exams">Hide archived</a></p>{{else if and .Exams .HiddenArchived}}<p class="list-filter"><a id="show-archived" href="/admin/exams?archived=1">Show archived</a></p>{{end}}
   <section id="import" class="import">
     <h2>Import from a file</h2>
+    <p class="import-lede">Write the exam in a text file, or zip it with its pictures, and upload it here.</p>
     <form id="import-form" method="post" action="/admin/exams" enctype="multipart/form-data">
       <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
       <label for="import-file">Exam file (.md, .txt or .zip, up to 10 MB)</label>

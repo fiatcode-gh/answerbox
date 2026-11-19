@@ -168,7 +168,7 @@ func TestTeachers_RemoveSignsOutAtOnce(t *testing.T) {
 
 	body := do(env.h, "GET", "/admin/exams", admin.cookie).Body.String()
 	row := regexp.MustCompile(fmt.Sprintf(`(?s)<tr data-exam-id="%d">.*?</tr>`, examID)).FindString(body)
-	if !strings.Contains(row, "Tess quiz") || !strings.Contains(row, `<td class="owner">`+testTeacherEmail+`</td>`) {
+	if !strings.Contains(row, "Tess quiz") || !strings.Contains(row, `<td class="owner" title="`+testTeacherEmail+`">`+testTeacherEmail+`</td>`) {
 		t.Errorf("admin's exams list lacks the removed teacher's exam with its owner:\n%s", body)
 	}
 	if strings.Contains(do(env.h, "GET", "/admin/teachers", admin.cookie).Body.String(), testTeacherEmail) {

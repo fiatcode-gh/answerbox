@@ -252,7 +252,7 @@ func TestExamList_ScopedAndOwnerColumn(t *testing.T) {
 	}
 	for id, email := range map[int64]string{aID: "a@example.test", bID: "b@example.test"} {
 		row := regexp.MustCompile(fmt.Sprintf(`(?s)<tr data-exam-id="%d">.*?</tr>`, id)).FindString(body)
-		if !strings.Contains(row, `<td class="owner">`+email+`</td>`) {
+		if !strings.Contains(row, `<td class="owner" title="`+email+`">`+email+`</td>`) {
 			t.Errorf("row of exam %d lacks owner %s:\n%s", id, email, row)
 		}
 	}

@@ -126,7 +126,7 @@ func TestExamList_ListBeforeImport(t *testing.T) {
 	}
 	body = do(env.h, "GET", "/admin/exams", cookie).Body.String()
 	last := -1
-	for _, mark := range []string{`<h1>Exams</h1>`, `id="new-exam"`, `<table id="exams"`, `<section id="import"`, `id="import-form"`, `<details class="format-help">`} {
+	for _, mark := range []string{`<h1>Exams</h1>`, `id="new-exam"`, `<table id="exams"`, `<section id="import"`, `class="import-lede"`, `id="import-form"`, `<details class="format-help">`} {
 		at := strings.Index(body, mark)
 		if at <= last {
 			t.Errorf("%q at %d, want after %d:\n%s", mark, at, last, body)
@@ -1152,7 +1152,7 @@ func TestCopy_AdminOwnsCopyOfTeachersExam(t *testing.T) {
 	rowOf := func(body string, id int64) string {
 		return regexp.MustCompile(fmt.Sprintf(`(?s)<tr data-exam-id="%d">.*?</tr>`, id)).FindString(body)
 	}
-	if row := rowOf(getOK(t, env, "/admin/exams", admin.cookie), copyID); !strings.Contains(row, `<td class="owner">`+testAdminEmail+`</td>`) {
+	if row := rowOf(getOK(t, env, "/admin/exams", admin.cookie), copyID); !strings.Contains(row, `<td class="owner" title="`+testAdminEmail+`">`+testAdminEmail+`</td>`) {
 		t.Errorf("admin list row of the copy lacks owner %s:\n%s", testAdminEmail, row)
 	}
 	list := getOK(t, env, "/admin/exams", b.cookie)
