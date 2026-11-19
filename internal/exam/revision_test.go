@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"image/color"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -241,5 +242,40 @@ func TestRevision_Unknown(t *testing.T) {
 	revs, err := h.svc.Revisions(ctx, other+100)
 	if err != nil || len(revs) != 0 {
 		t.Errorf("Revisions(unknown) = %+v, %v; want empty, nil", revs, err)
+	}
+}
+
+// TestInsertExam_RevisionOneHasCreationTime uses a clock that moves on every
+// read, so an exam and its revision 1 share a time only when they share one
+// clock read.
+func TestInsertExam_RevisionOneHasCreationTime(t *testing.T) {
+	h := newHarness(t)
+	tick := fixedNow
+	h.svc = exam.NewService(h.db, h.media, func() time.Time {
+		tick = tick.Add(time.Millisecond)
+		return tick
+	}, rand.NewChaCha8([32]byte{9}))
+	ctx := context.Background()
+
+	imported := h.mustImport(t, []byte(simpleExam))
+	copied, err := h.svc.Copy(ctx, h.owner, imported)
+	if err != nil {
+		t.Fatalf("Copy: %v", err)
+	}
+	created, err := h.svc.Create(ctx, h.owner, defaultSettings, question("First", 0, "a", "b"))
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	for name, id := range map[string]int64{"Import": imported, "Copy": copied, "Create": created} {
+		ex := h.mustGet(t, id)
+		revs := h.mustRevisions(t, id)
+		if len(revs) != 1 || revs[0].Number != 1 {
+			t.Errorf("%s: revisions %v, want just 1", name, revisionNumbers(revs))
+			continue
+		}
+		if !revs[0].CreatedAt.Equal(ex.CreatedAt) {
+			t.Errorf("%s: revision 1 at %v, exam created at %v (diff %v)", name, revs[0].CreatedAt, ex.CreatedAt, revs[0].CreatedAt.Sub(ex.CreatedAt))
+		}
 	}
 }

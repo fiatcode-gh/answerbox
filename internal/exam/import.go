@@ -44,9 +44,10 @@ func (s *Service) insertExam(ctx context.Context, ownerID int64, summary string,
 	if err != nil {
 		return 0, err
 	}
+	now := s.now()
 	res, err := tx.ExecContext(ctx,
 		`INSERT INTO exam (title, shuffle, show_result, monitor, duration_minutes, is_open, media_key, created_at, owner_id, code) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
-		ex.Title, string(ex.Shuffle), string(ex.ShowResult), ex.Monitor, ex.DurationMinutes, key, s.now().UnixMilli(), ownerID, code)
+		ex.Title, string(ex.Shuffle), string(ex.ShowResult), ex.Monitor, ex.DurationMinutes, key, now.UnixMilli(), ownerID, code)
 	if err != nil {
 		return 0, fmt.Errorf("exam: insert: %w", err)
 	}
@@ -54,7 +55,7 @@ func (s *Service) insertExam(ctx context.Context, ownerID int64, summary string,
 	if err != nil {
 		return 0, err
 	}
-	if _, err := insertRevision(ctx, tx, id, ownerID, s.now(), summary, ex, key); err != nil {
+	if _, err := insertRevision(ctx, tx, id, ownerID, now, summary, ex, key); err != nil {
 		return 0, err
 	}
 	if err := insertQuestions(ctx, tx, id, ex); err != nil {
