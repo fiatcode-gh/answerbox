@@ -103,6 +103,13 @@ func TestAttempt_FillInBlock(t *testing.T) {
 		`<p class="auto-mark" data-auto="false">Automatic mark: ✗ Wrong</p>`,
 		form(3),
 	}, []string{"<b>x", "Remove override"})
+	for _, n := range []int{1, 3} {
+		f := regexp.MustCompile(`(?s)<form class="override-form".*?</form>`).FindString(detailSection(t, body, n))
+		label := strings.Index(f, `<span class="override-label">Mark this answer:</span>`)
+		if label < 0 || label < strings.Index(f, `name="csrf_token"`) || label > strings.Index(f, "<button") {
+			t.Errorf("question %d: override form lacks the Mark this answer: label before its first button:\n%s", n, f)
+		}
+	}
 	requireContains(t, "unanswered question 4", detailSection(t, body, 4), []string{
 		`<span class="no-answer">No answer</span>`,
 		`<div class="detail-fill-in" data-answered="false" data-correct="false">`,

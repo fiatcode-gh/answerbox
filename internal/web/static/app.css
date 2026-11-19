@@ -1877,16 +1877,28 @@ section.schedule h2 {
 
 /* 15. Teacher: results, attempt */
 
+/* The page head: "Results" sits right above the exam title. */
+.attempts-page .eyebrow {
+  margin: 0 0 var(--ge-space-1);
+}
+
+/* One wrapping row: the name filter on the left, Export CSV on the right. */
 .results-bar {
   display: flex;
   flex-wrap: wrap;
   gap: var(--ge-space-3);
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--ge-space-2);
+  margin-bottom: var(--ge-space-3);
 }
 
-.results-bar .counts {
+.live-note {
+  margin: 0 0 var(--ge-space-2);
+  color: var(--ge-muted);
+  font-size: var(--ge-text-sm);
+}
+
+.counts {
   margin: 0;
   font-variant-numeric: tabular-nums;
 }
@@ -1900,7 +1912,8 @@ section.schedule h2 {
 }
 
 .name-filter {
-  margin-bottom: var(--ge-space-3);
+  flex: 1 1 20rem;
+  margin: 0;
 }
 
 .rename-form {
@@ -1913,11 +1926,20 @@ section.schedule h2 {
 
 .name-filter input[type="search"],
 .rename-form input[type="text"] {
-  flex: 1 1 14rem;
+  flex: 1 1 12rem;
   width: auto;
   min-width: 0;
   max-width: 24rem;
   margin: 0;
+}
+
+.name-filter input[type="search"] {
+  max-width: 16rem;
+}
+
+.name-filter button,
+.rename-form button {
+  flex: none;
 }
 
 .sort-link {
@@ -1960,6 +1982,40 @@ th[aria-sort] {
 /* Section titles wrap in the results header; the cells stay on one line. */
 #attempts th.section-score {
   max-width: 10rem;
+}
+
+/* Phone: Started and Finished are left out (the attempt page has both) and
+   the name stays in place while the other columns scroll. Separate borders
+   move with the pinned cell; collapsed ones stay behind. */
+@media (max-width: 640px) {
+  #attempts {
+    border-collapse: separate;
+  }
+
+  #attempts th:nth-child(2),
+  #attempts th:nth-child(3),
+  #attempts td:nth-child(2),
+  #attempts td:nth-child(3) {
+    display: none;
+  }
+
+  #attempts th:first-child,
+  #attempts td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    max-width: 9rem;
+    border-right: 1px solid var(--ge-rule);
+    background: var(--ge-surface);
+  }
+}
+
+.attempt-summary {
+  margin-bottom: var(--ge-space-3);
+}
+
+.answers-heading {
+  margin-bottom: var(--ge-space-4);
 }
 
 .detail-question {
@@ -2040,11 +2096,19 @@ th[aria-sort] {
   white-space: nowrap;
 }
 
+/* "Mark this answer:" then the mark buttons, on one wrapping row. */
 .override-form {
   display: flex;
   flex-wrap: wrap;
   gap: var(--ge-space-3);
+  align-items: center;
   margin: var(--ge-space-3) 0 0;
+}
+
+.override-label {
+  color: var(--ge-muted);
+  font-size: var(--ge-text-sm);
+  font-weight: 600;
 }
 
 /* 16. Teacher: editor */

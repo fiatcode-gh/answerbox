@@ -49,6 +49,7 @@
     {{end}}
   </section>
 
+  <h2 class="answers-heading">Answers</h2>
   {{range .Questions}}
   {{with .Section}}{{template "section_head" .}}{{end}}<section class="detail-question" id="q{{.Position}}">
     <p class="eyebrow">Question {{.Position}}{{if not .Answered}} · <span class="no-answer">No answer</span>{{end}}</p>
@@ -60,6 +61,7 @@
       {{if .Override}}<p class="override-mark" data-override="{{.Override.Correct}}">Marked {{if .Override.Correct}}right{{else}}wrong{{end}} by {{.Override.TeacherEmail}} on <time>{{.OverrideAt}}</time></p>{{end}}
       {{if .CanOverride}}<form class="override-form" method="post" action="/admin/exams/{{$.Exam.ID}}/attempts/{{$.Attempt.ID}}/questions/{{.Position}}/override">
         <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+        <span class="override-label">Mark this answer:</span>
         <button type="submit" name="mark" value="right" class="secondary">Mark right</button>
         <button type="submit" name="mark" value="wrong" class="secondary">Mark wrong</button>
         {{if .Override}}<button type="submit" name="mark" value="none" class="secondary">Remove override</button>{{end}}

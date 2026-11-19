@@ -306,6 +306,61 @@ def flow(run: Run, email: str) -> None:
                 attempts_table_fits(teacher)
             teacher.set_viewport_size({"width": 1280, "height": 800})
 
+        with step("10b the results list updates by itself and keeps filter, sort, scroll and focus"):
+            teacher.set_viewport_size({"width": 1280, "height": 300})
+            live_url = f"{attempts_url}?sort=score&dir=desc&name=budi"
+            teacher.goto(live_url)
+            expect(teacher.locator("#results-live")).to_have_attribute("data-live", "true")
+            expect(teacher.locator("#results-status")).to_be_visible()
+            expect(teacher.locator("#results-status")).to_have_text("This list updates by itself every 10 seconds.")
+            b_row = attempt_row(teacher, BUDI)
+            left_before = b_row.locator("td").nth(5).inner_text()
+            teacher.evaluate("() => { window.__stay = 1; }")
+            teacher.locator("#filter-name").press("End")
+            teacher.locator("#filter-name").press_sequentially("x")
+            view_href = b_row.get_by_role("link", name="View").get_attribute("href")
+            # Focus without scrolling, then scroll: the window position is what
+            # the refresh must keep.
+            b_row.get_by_role("link", name="View").evaluate("a => a.focus({ preventScroll: true })")
+            teacher.evaluate("() => window.scrollTo(0, 60)")
+            scroll_before = teacher.evaluate("() => window.scrollY")
+            if scroll_before != 60:
+                raise AssertionError(f"the results page does not scroll to 60 px at 300 px high: scrollY {scroll_before}")
+            teacher.wait_for_function(
+                """([name, before]) => {
+                    const row = [...document.querySelectorAll("#attempts tbody tr[data-attempt-id]")]
+                        .find(r => r.textContent.includes(name));
+                    return row && row.querySelectorAll("td")[5].textContent.trim() !== before;
+                }""",
+                arg=[BUDI, left_before],
+                timeout=25_000,
+            )
+            after = teacher.evaluate(
+                """() => ({
+                    stay: window.__stay,
+                    url: location.href,
+                    scroll: window.scrollY,
+                    filter: document.querySelector("#filter-name").value,
+                    focused: document.activeElement && document.activeElement.getAttribute("href"),
+                    focusedRow: document.activeElement && document.activeElement.closest("tr")
+                        ? document.activeElement.closest("tr").textContent : "",
+                })"""
+            )
+            if after["stay"] != 1:
+                raise AssertionError("the results page reloaded instead of swapping the list")
+            if after["url"] != live_url:
+                raise AssertionError(f"the address changed: {after['url']}, want {live_url}")
+            if after["scroll"] != scroll_before:
+                raise AssertionError(f"the window scrolled: scrollY {scroll_before} then {after['scroll']}")
+            if not after["filter"].endswith("x"):
+                raise AssertionError(f"the typed filter was lost: {after['filter']!r}")
+            if after["focused"] != view_href or BUDI not in after["focusedRow"]:
+                raise AssertionError(f"focus is not on BUDI's View link: href {after['focused']!r}")
+            expect(teacher.locator("#attempts tbody tr[data-attempt-id]")).to_have_count(1)
+            expect(attempt_row(teacher, BUDI)).to_have_count(1)
+            teacher.set_viewport_size({"width": 1280, "height": 800})
+            teacher.goto(attempts_url)
+
         b2 = new_context(**DESKTOP).new_page()
         with step("11 student B resumes on a new desktop device with the code"):
             resume(b2, base_url, code.replace("-", "").lower())

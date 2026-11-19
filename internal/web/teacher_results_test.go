@@ -784,3 +784,112 @@ func TestAttempt_Rename(t *testing.T) {
 	requireRedirect(t, rename(path+"/rename", "Ayu L."), path)
 	nameIs("Ayu L.")
 }
+
+var liveRe = regexp.MustCompile(`<div id="results-live" data-live="([^"]*)">`)
+
+// liveFlag returns the data-live value of the results page's #results-live.
+func liveFlag(t *testing.T, body string) string {
+	t.Helper()
+	m := liveRe.FindStringSubmatch(body)
+	if m == nil {
+		t.Fatalf("no #results-live on the results page:\n%s", body)
+	}
+	return m[1]
+}
+
+func TestAttempts_LiveFlag(t *testing.T) {
+	env := newTestEnv(t)
+	cookie, _, _ := env.signIn(t)
+	ctx := context.Background()
+	text := examText("questions, options", "score", 2, 3)
+	closeExam := func(id int64) {
+		t.Helper()
+		if err := env.exams.Close(ctx, env.owner, id); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+	}
+	check := func(what, path, want string) {
+		t.Helper()
+		if got := liveFlag(t, getOK(t, env, path, cookie)); got != want {
+			t.Errorf("%s: data-live = %q, want %q", what, got, want)
+		}
+	}
+
+	closedEmpty, err := env.exams.Import(ctx, env.owner, []byte(text))
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	check("closed exam, no attempts", attemptsPath(closedEmpty), "false")
+
+	openEmpty, _ := env.resultsExam(t, 2)
+	check("open exam, no attempts", attemptsPath(openEmpty), "true")
+
+	running, _ := env.resultsExam(t, 2)
+	env.startAttempt(t, running, "Ayu")
+	closeExam(running)
+	check("closed exam, attempt in progress", attemptsPath(running), "true")
+	check("closed exam, attempt in progress hidden by the filter", attemptsPath(running)+"?name=zzz", "true")
+
+	finished, _ := env.resultsExam(t, 2)
+	token, _ := env.startAttempt(t, finished, "Budi")
+	env.submitAttempt(t, token)
+	closeExam(finished)
+	check("closed exam, every attempt finished", attemptsPath(finished), "false")
+
+	ahead := env.scheduledExam(t, text, exam.Schedule{OpensAt: testStart.Add(time.Hour)})
+	check("closed exam, open time ahead", attemptsPath(ahead), "true")
+
+	past := env.scheduledExam(t, text, exam.Schedule{ClosesAt: testStart.Add(time.Minute)})
+	env.clock = testStart.Add(2 * time.Minute)
+	check("closed exam, close time past, no open time", attemptsPath(past), "false")
+}
+
+func TestAttempts_RefreshRegion(t *testing.T) {
+	env := newTestEnv(t)
+	cookie, _, _ := env.signIn(t)
+	id, _ := env.resultsExam(t, 2)
+	env.startAttempt(t, id, "Ayu")
+
+	body := getOK(t, env, attemptsPath(id), cookie)
+	region := strings.Index(body, `<div id="results-live"`)
+	if region < 0 {
+		t.Fatalf("no #results-live:\n%s", body)
+	}
+	for _, before := range []string{`id="name-filter"`, `id="export-csv"`} {
+		if i := strings.Index(body, before); i < 0 || i > region {
+			t.Errorf("%s is not before #results-live", before)
+		}
+	}
+	for _, after := range []string{`class="counts"`, `id="attempts-date"`, `<table id="attempts"`} {
+		if i := strings.Index(body, after); i < region {
+			t.Errorf("%s is not inside #results-live", after)
+		}
+	}
+	const status = `<p id="results-status" class="live-note" role="status" data-live-text="This list updates by itself every 10 seconds." data-stale-text="Could not update the list. Trying again." hidden></p>`
+	if !strings.Contains(body, status) {
+		t.Errorf("results status line is not %s:\n%s", status, body)
+	}
+	if !regexp.MustCompile(`</main>\s*<script src="/static/results\.js\?v=[0-9a-f]{8}" defer></script>\s*</body>\s*</html>\s*$`).MatchString(body) {
+		t.Errorf("page does not end with the results.js script:\n%s", body)
+	}
+
+	empty, _ := env.resultsExam(t, 2)
+	body = getOK(t, env, attemptsPath(empty), cookie)
+	m := regexp.MustCompile(`(?s)<div id="results-live" data-live="[a-z]+">(.*?)</div>`).FindStringSubmatch(body)
+	if m == nil || !strings.Contains(m[1], "No attempts yet.") {
+		t.Errorf("#results-live does not hold No attempts yet.:\n%s", body)
+	}
+	if strings.Contains(body, `id="name-filter"`) {
+		t.Error("filter shown without attempts")
+	}
+}
+
+func TestAttemptPage_NoScript(t *testing.T) {
+	env := newTestEnv(t)
+	cookie, _, _ := env.signIn(t)
+	id, _ := env.resultsExam(t, 2)
+	_, aid := env.startAttempt(t, id, "Ayu")
+	if body := getOK(t, env, attemptPath(id, aid), cookie); strings.Contains(body, "<script") {
+		t.Errorf("attempt page loads a script:\n%s", body)
+	}
+}

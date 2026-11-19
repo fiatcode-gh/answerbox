@@ -234,6 +234,9 @@ type attemptsData struct {
 	Zone                 string
 	NameHref, ScoreHref  string
 	Started, Name, Score sortMark
+	// Live: the list can still change (an attempt in progress, the exam open,
+	// or its open time ahead), so results.js refreshes it.
+	Live bool
 }
 
 func (s *server) attemptList(w http.ResponseWriter, r *http.Request) {
@@ -248,6 +251,7 @@ func (s *server) attemptList(w http.ResponseWriter, r *http.Request) {
 	}
 	rows := res.Attempts
 	total := len(rows)
+	inProgress := slices.ContainsFunc(rows, func(sum attempt.Summary) bool { return sum.Status == attempt.InProgress })
 	filter := strings.TrimSpace(r.URL.Query().Get("name"))
 	rows = filterByName(rows, filter)
 	by := parseSort(r.URL.Query())
@@ -268,6 +272,7 @@ func (s *server) attemptList(w http.ResponseWriter, r *http.Request) {
 		Rows:      make([]attemptRow, len(rows)),
 		Counts:    countsLine(rows, total, filter != ""),
 		Total:     total,
+		Live:      inProgress || e.Open || e.Schedule.OpensAt.After(s.deps.Now()),
 		Filter:    filter,
 		ClearHref: listQuery(by.key, by.dir(), ""),
 		SortKey:   by.key,
