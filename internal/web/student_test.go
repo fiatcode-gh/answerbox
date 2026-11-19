@@ -1287,3 +1287,94 @@ func TestResult_ByShowResult(t *testing.T) {
 		}
 	})
 }
+
+// aboutHTML marks the "What is Answerbox?" part of the plain landing page.
+const aboutHTML = `class="about"`
+
+func TestLanding_AboutOnlyOnPlainPage(t *testing.T) {
+	env := newTestEnv(t)
+	openID := env.openExam(t, simpleExam("score"))
+	openCode := env.examCode(t, openID)
+	closedID := env.openExam(t, strings.Replace(simpleExam("score"), "# Algebra & Co", "# Geometry", 1))
+	closedCode := env.examCode(t, closedID)
+	if err := env.exams.Close(context.Background(), env.owner, closedID); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, path := range []string{"/", "/?code="} {
+		body := do(env.h, "GET", path, nil).Body.String()
+		for _, want := range []string{aboutHTML, `href="/admin/login"`, sourceLink, `class="landing-lead"`, `class="landing-hint"`} {
+			if !strings.Contains(body, want) {
+				t.Errorf("GET %s lacks %q", path, want)
+			}
+		}
+	}
+
+	body := do(env.h, "GET", "/?code="+openCode, nil).Body.String()
+	for _, unwanted := range []string{aboutHTML, "landing-lead", "landing-hint"} {
+		if strings.Contains(body, unwanted) {
+			t.Errorf("open exam's code page shows %q", unwanted)
+		}
+	}
+	for _, want := range []string{`<input type="hidden" id="start-code" name="code" value="` + openCode + `">`, "Use another code"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("open exam's code page lacks %q:\n%s", want, body)
+		}
+	}
+	if !strings.Contains(inputTag(body, "name"), "autofocus") {
+		t.Error("open exam's code page: name field lacks autofocus")
+	}
+
+	unknown := do(env.h, "GET", "/?code="+otherCode(openCode), nil).Body.String()
+	closed := do(env.h, "GET", "/?code="+closedCode, nil).Body.String()
+	if unknown != closed {
+		t.Errorf("unknown and closed codes differ:\n%s\n---\n%s", unknown, closed)
+	}
+	if strings.Contains(unknown, aboutHTML) {
+		t.Error("refused code page shows the about part")
+	}
+	if tag := inputTag(unknown, "start-code"); !strings.Contains(tag, `value=""`) || strings.Contains(tag, `type="hidden"`) {
+		t.Errorf("refused code page: code field = %q, want a visible empty field", tag)
+	}
+
+	for label, rec := range map[string]*httptest.ResponseRecorder{
+		"refused start":  postForm(env.h, "/start", url.Values{"code": {otherCode(openCode)}, "name": {"Ada"}}, nil),
+		"refused resume": postForm(env.h, "/resume", url.Values{"code": {"ZZZZ-ZZZZ"}}, nil),
+	} {
+		if rec.Code != http.StatusUnprocessableEntity || strings.Contains(rec.Body.String(), aboutHTML) {
+			t.Errorf("%s: status %d, about part shown: %v", label, rec.Code, strings.Contains(rec.Body.String(), aboutHTML))
+		}
+	}
+}
+
+func TestLanding_EarlyStartKeepsCode(t *testing.T) {
+	env := newJakartaEnv(t)
+	id := env.scheduledExam(t, geometryExam, exam.Schedule{OpensAt: time.Date(2026, 11, 14, 17, 0, 0, 0, env.deps.Location)})
+	code := env.examCode(t, id)
+	rec := postForm(env.h, "/start", url.Values{"code": {code}, "name": {"Ada"}}, nil)
+	body := rec.Body.String()
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("early POST /start = %d, want 422", rec.Code)
+	}
+	for _, want := range []string{
+		`<h1 class="landing-title">Geometry</h1>`,
+		`<input type="hidden" id="start-code" name="code" value="` + code + `">`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("early start page lacks %q:\n%s", want, body)
+		}
+	}
+	if !strings.Contains(inputTag(body, "name"), `value="Ada"`) {
+		t.Errorf("early start page: name field = %q, want the typed name", inputTag(body, "name"))
+	}
+}
+
+func TestErrorPage_BrandAndWayBack(t *testing.T) {
+	env := newTestEnv(t)
+	body := do(env.h, "GET", "/no/such/page", nil).Body.String()
+	for _, want := range []string{`class="brand-header"`, `href="/"`, "Go to the start page"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("error page lacks %q:\n%s", want, body)
+		}
+	}
+}

@@ -936,12 +936,62 @@ dialog > article {
 /* 10. Student: landing, sign-in, error */
 
 main.landing {
-  padding-top: var(--ge-space-6);
-  padding-bottom: var(--ge-space-6);
+  padding-top: var(--ge-space-5);
+  padding-bottom: var(--ge-space-7);
+}
+
+/* Brand, title, lead and the code line sit centred over the full-width form. */
+.landing-brand,
+.landing-title,
+.landing-lead,
+.landing-code {
+  text-align: center;
+}
+
+.landing-brand {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ge-space-1);
+  align-items: center;
+  margin: 0 0 var(--ge-space-3);
+}
+
+.landing-brand .mark {
+  width: 48px;
+  height: 48px;
+}
+
+.landing-brand .wordmark {
+  color: var(--ge-muted);
+  font-size: var(--ge-text-sm);
 }
 
 .landing-title {
+  margin-bottom: var(--ge-space-2);
+  overflow-wrap: anywhere;
+}
+
+.landing-lead {
+  margin-bottom: var(--ge-space-5);
+  color: var(--ge-muted);
+}
+
+.landing .alert {
   margin-bottom: var(--ge-space-4);
+}
+
+.landing-code {
+  margin-top: var(--ge-space-3);
+  margin-bottom: var(--ge-space-5);
+  color: var(--ge-muted);
+}
+
+.landing-code .code {
+  color: var(--ge-ink);
+}
+
+#start-form {
+  margin-bottom: var(--ge-space-3);
 }
 
 #start-form button,
@@ -949,10 +999,11 @@ main.landing {
   width: 100%;
 }
 
-.landing-note {
-  margin-top: var(--ge-space-3);
+.landing-note,
+.landing-hint {
+  margin-bottom: var(--ge-space-2);
   color: var(--ge-muted);
-  font-size: 0.9375rem;
+  font-size: var(--ge-text-sm);
 }
 
 .last-result {
@@ -965,15 +1016,51 @@ main.landing {
   padding: var(--ge-space-2) var(--ge-space-4);
 }
 
+.resume p {
+  margin: var(--ge-space-2) 0 var(--ge-space-3);
+  color: var(--ge-muted);
+  font-size: var(--ge-text-sm);
+}
+
 .resume form {
-  margin: var(--ge-space-3) 0 var(--ge-space-2);
+  margin: 0 0 var(--ge-space-2);
 }
 
 #code,
-#start-code {
+#start-code,
+.landing-code .code {
   font-family: var(--ge-font-mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.about {
+  margin-top: var(--ge-space-6);
+  padding-top: var(--ge-space-5);
+  border-top: 1px solid var(--ge-rule);
+}
+
+.about h2 {
+  font-size: var(--ge-text-lg);
+}
+
+.about-links,
+.error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2) var(--ge-space-4);
+  align-items: center;
+}
+
+.about-links a:not(.button),
+.error-actions .quiet {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ge-touch);
+}
+
+main.error-page {
+  padding-top: var(--ge-space-6);
 }
 
 main.login {

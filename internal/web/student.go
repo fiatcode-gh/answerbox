@@ -128,7 +128,8 @@ type landingData struct {
 	Alert      string
 	ResumeOpen bool
 	LastResult bool
-	Minutes    int // the exam's length; 0 when the page shows no exam
+	Minutes    int  // the exam's length; 0 when the page shows no exam
+	About      bool // show "What is Answerbox?": only GET / without a code
 }
 
 func (s *server) landing(w http.ResponseWriter, r *http.Request) {
@@ -142,7 +143,9 @@ func (s *server) landing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d := landingData{LastResult: state == cookieFinished}
-	if raw := r.URL.Query().Get("code"); raw != "" {
+	if raw := r.URL.Query().Get("code"); raw == "" {
+		d.About = true
+	} else {
 		e, found, err := s.deps.Exams.EntryByCode(r.Context(), raw)
 		switch {
 		case err != nil:

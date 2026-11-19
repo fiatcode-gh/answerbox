@@ -1,9 +1,11 @@
 {{define "title"}}{{.Title}} · Answerbox{{end}}
 
+{{define "header"}}{{template "brand_header" .}}{{end}}
+
 {{define "main"}}
-<main class="container narrow" id="error" data-status="{{.Status}}">
+<main class="container narrow error-page" id="error" data-status="{{.Status}}">
   <h1>{{.Title}}</h1>
   <p>{{.Message}}</p>
-  <p><a href="/">Go to the start page</a></p>
+  <p class="error-actions"><a class="button" href="/">Go to the start page</a> <a class="quiet" href="/admin/exams">Teacher pages</a></p>
 </main>
 {{end}}

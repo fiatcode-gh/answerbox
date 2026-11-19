@@ -156,6 +156,10 @@ func TestStatic_VersionedAndCached(t *testing.T) {
 	}
 }
 
+// sourceLink is the one external link the templates may hold: the landing
+// page's plain navigation link to the source and self-hosting guide.
+const sourceLink = `href="https://github.com/fiatcode-gh/answerbox"`
+
 func TestAssets_NoExternalReferences(t *testing.T) {
 	external := []*regexp.Regexp{
 		regexp.MustCompile(`(?i)\b(?:src|href|action)\s*=\s*["']?\s*(?:https?:|//)`),
@@ -176,6 +180,12 @@ func TestAssets_NoExternalReferences(t *testing.T) {
 				return err
 			}
 			checked++
+			if path == "templates/landing.html" {
+				if n := bytes.Count(data, []byte(sourceLink)); n != 1 {
+					t.Errorf("%s: %d occurrences of %s, want exactly 1", path, n, sourceLink)
+				}
+				data = bytes.Replace(data, []byte(sourceLink), nil, 1)
+			}
 			for _, re := range external {
 				if loc := re.FindIndex(data); loc != nil {
 					t.Errorf("%s: external reference %q", path, data[loc[0]:min(len(data), loc[1]+40)])

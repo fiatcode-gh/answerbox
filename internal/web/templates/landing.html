@@ -2,24 +2,41 @@
 
 {{define "main"}}
 <main class="container narrow landing" id="landing">
+  <p class="landing-brand"><img class="mark" src="{{static "mark.svg"}}" alt="" width="48" height="48">{{if .ExamTitle}}<span class="wordmark">Answerbox</span>{{end}}</p>
   {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
   <h1 class="landing-title">{{if .ExamTitle}}{{.ExamTitle}}{{else}}Answerbox{{end}}</h1>
+  {{if not .ExamTitle}}<p class="landing-lead">Enter the exam code your teacher gave you.</p>{{end}}
   <form id="start-form" method="post" action="/start">
+    {{if .ExamTitle}}
+    <input type="hidden" id="start-code" name="code" value="{{.Code}}">
+    <p class="landing-code">Exam code <strong class="code">{{.Code}}</strong> · <a href="/">Use another code</a></p>
+    {{else}}
     <label for="start-code">Exam code</label>
-    <input type="text" id="start-code" name="code" value="{{.Code}}" maxlength="16" autocomplete="off" autocapitalize="characters" spellcheck="false" required{{if not .ExamTitle}} autofocus{{end}}>
+    <input type="text" id="start-code" name="code" value="{{.Code}}" maxlength="16" autocomplete="off" autocapitalize="characters" spellcheck="false" required autofocus>
+    {{end}}
     <label for="name">Your name</label>
     <input type="text" id="name" name="name" value="{{.Name}}" maxlength="100" autocomplete="name" required{{if .ExamTitle}} autofocus{{end}}>
     <button type="submit">Start exam</button>
   </form>
   <p class="landing-note">{{if .Minutes}}You have {{.Minutes}} minutes. {{end}}The timer starts when you press Start and does not pause.</p>
+  {{if not .ExamTitle}}<p class="landing-hint">No code? Ask your teacher for it.</p>{{end}}
   {{if .LastResult}}<p class="last-result"><a href="/exam">See your last result</a></p>{{end}}
   <details class="resume"{{if .ResumeOpen}} open{{end}}>
-    <summary>Have a resume code?</summary>
+    <summary>Continue an interrupted exam</summary>
+    <p>If your browser closed or you changed device during an exam, ask your teacher for your resume code.</p>
     <form id="resume-form" method="post" action="/resume">
       <label for="code">Resume code</label>
       <input type="text" id="code" name="code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD-EFGH" required>
-      <button type="submit" class="secondary">Resume</button>
+      <button type="submit" class="secondary">Continue exam</button>
     </form>
   </details>
+  {{if .About}}
+  <section class="about">
+    <h2>What is Answerbox?</h2>
+    <p>Answerbox is a small web app for classroom exams. A teacher writes or imports the questions, students join with a code on their own phone or laptop, and the results are there as soon as they submit.</p>
+    <p>It is self-hosted: the source and a setup guide are on GitHub.</p>
+    <p class="about-links"><a class="button secondary" href="/admin/login">Teacher sign-in</a> <a href="https://github.com/fiatcode-gh/answerbox">Source code and self-hosting guide</a></p>
+  </section>
+  {{end}}
 </main>
 {{end}}
