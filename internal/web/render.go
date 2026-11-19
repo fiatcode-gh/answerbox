@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"net/http"
 	"slices"
+	"strings"
 )
 
 //go:embed templates
@@ -31,7 +32,11 @@ func newRenderer(a assets) (*renderer, error) {
 		shared[i] = "templates/" + name
 	}
 	base, err := template.New(baseTemplate).
-		Funcs(template.FuncMap{"static": a.url}).
+		Funcs(template.FuncMap{
+			"static": a.url,
+			// chars is the code as one string per symbol, for its tiles.
+			"chars": func(s string) []string { return strings.Split(s, "") },
+		}).
 		ParseFS(templateFS, shared...)
 	if err != nil {
 		return nil, fmt.Errorf("web: parse %s and partials: %w", baseTemplate, err)

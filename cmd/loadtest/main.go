@@ -42,7 +42,7 @@ var (
 	radioRe = regexp.MustCompile(`<input type="radio" name="q(\d+)" value="(\d+)"[^>]*?( checked)?>`)
 	scoreRe = regexp.MustCompile(`<p id="score">(\d+) / (\d+)</p>`)
 	examRe  = regexp.MustCompile(`^/admin/exams/(\d+)$`)
-	codeRe  = regexp.MustCompile(`id="exam-code"[^>]*>([A-Z2-9]{6})<`)
+	codeRe  = regexp.MustCompile(`id="exam-code"[^>]*>((?:<span>[A-Z2-9]</span>){6})</p>`)
 )
 
 type config struct {
@@ -329,7 +329,8 @@ func setup(ctx context.Context, c *client, cfg config) (admin string, examID int
 	if m = codeRe.FindSubmatch(body); m == nil {
 		return "", 0, "", errors.New("exam page: no exam code")
 	}
-	return admin, examID, string(m[1]), nil
+	code = strings.NewReplacer("<span>", "", "</span>", "").Replace(string(m[1]))
+	return admin, examID, code, nil
 }
 
 // examText generates the exam file. The correct option of question q

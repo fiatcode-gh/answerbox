@@ -312,3 +312,75 @@ func TestRename_WrongExamOrUnknown(t *testing.T) {
 		t.Fatalf("name = %q, want Ayu", got)
 	}
 }
+
+func (h *harness) counts(t *testing.T, examID int64) attempt.Counts {
+	t.Helper()
+	c, err := h.svc.Counts(context.Background(), examID)
+	if err != nil {
+		t.Fatalf("Counts(%d): %v", examID, err)
+	}
+	return c
+}
+
+// threeStatuses gives examID one attempt in progress, one submitted and one
+// left past its deadline, and moves the clock to where the last is overdue.
+func (h *harness) threeStatuses(t *testing.T, examID int64) {
+	t.Helper()
+	h.startIn(t, examID, "Overdue")
+	h.clock = t0.Add(30 * time.Minute)
+	h.startIn(t, examID, "Live")
+	h.submit(t, h.startIn(t, examID, "Done"))
+	h.clock = deadline0.Add(attempt.Grace + time.Millisecond)
+}
+
+func TestCounts_ByStatus(t *testing.T) {
+	h := newHarness(t)
+	id := h.openExam(t, examText("none", examfile.ShowScore, 2, 2))
+	h.threeStatuses(t, id)
+
+	got := h.counts(t, id)
+	if want := (attempt.Counts{InProgress: 1, Submitted: 1, TimedOut: 1}); got != want {
+		t.Fatalf("Counts = %+v, want %+v", got, want)
+	}
+	if got.Total() != 3 {
+		t.Fatalf("Total = %d, want 3", got.Total())
+	}
+	var status string
+	if err := h.db.QueryRow(`SELECT status FROM attempt WHERE student_name = 'Overdue'`).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != string(attempt.TimedOut) {
+		t.Fatalf("overdue attempt is %s after Counts, want timed_out", status)
+	}
+
+	var fromList attempt.Counts
+	for _, s := range h.list(t, id) {
+		switch s.Status {
+		case attempt.InProgress:
+			fromList.InProgress++
+		case attempt.Submitted:
+			fromList.Submitted++
+		case attempt.TimedOut:
+			fromList.TimedOut++
+		}
+	}
+	if fromList != got {
+		t.Fatalf("List gives %+v, Counts %+v", fromList, got)
+	}
+}
+
+func TestCounts_OnlyThisExam(t *testing.T) {
+	h := newHarness(t)
+	id := h.openExam(t, examText("none", examfile.ShowScore, 2, 2))
+	other := h.openExam(t, examText("none", examfile.ShowScore, 2, 2))
+	h.startIn(t, other, "Elsewhere")
+	h.submit(t, h.startIn(t, other, "Elsewhere too"))
+	h.startIn(t, id, "Here")
+
+	if got, want := h.counts(t, id), (attempt.Counts{InProgress: 1}); got != want {
+		t.Fatalf("Counts = %+v, want %+v", got, want)
+	}
+	if got := h.counts(t, other+100); got != (attempt.Counts{}) {
+		t.Fatalf("Counts of an unknown exam = %+v, want zero", got)
+	}
+}

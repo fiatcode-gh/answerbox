@@ -87,6 +87,52 @@ func (s *Service) List(ctx context.Context, examID int64) (Results, error) {
 	return res, tx.Commit()
 }
 
+// Counts is how many attempts of an exam are in each status.
+type Counts struct{ InProgress, Submitted, TimedOut int }
+
+// Total is every attempt of the exam.
+func (c Counts) Total() int { return c.InProgress + c.Submitted + c.TimedOut }
+
+// Counts counts the attempts of examID by status. Like List it runs after
+// the due sweep, so an overdue attempt counts as timed out. An unknown exam
+// has none.
+func (s *Service) Counts(ctx context.Context, examID int64) (Counts, error) {
+	tx, _, err := s.begin(ctx)
+	if err != nil {
+		return Counts{}, err
+	}
+	defer tx.Rollback()
+
+	rows, err := tx.QueryContext(ctx, `SELECT status, COUNT(*) FROM attempt WHERE exam_id = ? GROUP BY status`, examID)
+	if err != nil {
+		return Counts{}, err
+	}
+	defer rows.Close()
+	var c Counts
+	for rows.Next() {
+		var status Status
+		var n int
+		if err := rows.Scan(&status, &n); err != nil {
+			return Counts{}, err
+		}
+		switch status {
+		case InProgress:
+			c.InProgress = n
+		case Submitted:
+			c.Submitted = n
+		case TimedOut:
+			c.TimedOut = n
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return Counts{}, err
+	}
+	if err := rows.Close(); err != nil {
+		return Counts{}, err
+	}
+	return c, tx.Commit()
+}
+
 // Detail returns one attempt of examID with every question in original file
 // order, the answer key and the student's answers. An attempt that does not
 // exist or belongs to another exam is ErrNotFound.

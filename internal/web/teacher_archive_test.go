@@ -126,7 +126,7 @@ func TestArchive_Flow(t *testing.T) {
 		fmt.Sprintf(`href="/admin/exams/%d/revisions"`, id),
 		fmt.Sprintf(`href="/admin/exams/%d/download"`, id),
 		`id="copy-form"`,
-		`<p id="exam-code" class="exam-code">` + code + `</p>`,
+		codeTiles("exam-code", "exam-code", code),
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("archived exam page lacks %q", want)

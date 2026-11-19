@@ -217,7 +217,7 @@ func TestExamPage_ShowsCodeAndStudentLink(t *testing.T) {
 		t.Fatalf("exam code %q is not 6 symbols of the alphabet", e.Code)
 	}
 	page := fmt.Sprintf("/admin/exams/%d", id)
-	codeLine := `<p id="exam-code" class="exam-code">` + e.Code + `</p>`
+	codeLine := codeTiles("exam-code", "exam-code", e.Code)
 	link := `<a id="student-link" href="http://app.test/?code=` + e.Code + `">http://app.test/?code=` + e.Code + `</a>`
 	const note = "Students can start with this code only while the exam is open."
 
@@ -1107,7 +1107,7 @@ func TestCopy_Flow(t *testing.T) {
 		t.Fatal(err)
 	}
 	body := getOK(t, env, copyPath, cookie)
-	for _, want := range []string{"<h1>" + html.EscapeString(src.Title) + "</h1>", ">Closed</span>", `<p id="exam-code" class="exam-code">` + c.Code + `</p>`} {
+	for _, want := range []string{"<h1>" + html.EscapeString(src.Title) + "</h1>", ">Closed</span>", codeTiles("exam-code", "exam-code", c.Code)} {
 		if !strings.Contains(body, want) {
 			t.Errorf("copy page lacks %s", want)
 		}
@@ -1291,7 +1291,7 @@ func TestExamPage_CopyLink(t *testing.T) {
 	f := newScheduleFixture(t)
 	body := f.page(t)
 	link := "http://app.test/?code=" + f.env.examCode(t, f.id)
-	button := `<p class="join-actions"><button type="button" id="copy-link" class="secondary" data-copy="` + link +
+	button := `<p class="join-actions"><button type="button" id="copy-link" data-copy="` + link +
 		`" data-done="Copied" data-failed="Could not copy. Select the link and copy it." hidden>Copy link</button> <a id="projector-link" class="button secondary" href="` +
 		examPath(f.id) + `/projector">Projector view</a> <span id="copy-status" class="copy-status" role="status"></span></p>`
 	if !strings.Contains(body, button) {
@@ -1323,7 +1323,7 @@ func TestProjector_Page(t *testing.T) {
 	for _, want := range []string{
 		`<h1 class="projector-title">Geometry &amp; Co</h1>`,
 		`<strong class="projector-host">app.test</strong>`,
-		`<p id="projector-code" class="exam-code projector-code">` + code + `</p>`,
+		codeTiles("projector-code", "exam-code projector-code", code),
 		closed,
 		`<p class="projector-link">` + link + `</p>`,
 		`<a class="quiet" href="` + examPath(f.id) + `">← Back to the exam</a>`,
@@ -1506,4 +1506,184 @@ func TestOpenClose_RefusalsIgnoreFrom(t *testing.T) {
 	env.requireArchivedClosed(t, "open with from=exam", id)
 	requireRedirect(t, press(sid, "close", who, nil), examPath(id))
 	env.requireArchivedClosed(t, "close with from=exam", id)
+}
+
+// codeTiles is the code element with id and class as the exam page and the
+// projector render it: one span per symbol.
+func codeTiles(id, class, code string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, `<p id="%s" class="%s">`, id, class)
+	for _, r := range code {
+		fmt.Fprintf(&b, "<span>%c</span>", r)
+	}
+	b.WriteString("</p>")
+	return b.String()
+}
+
+// tableDump is every row query returns, one line per row.
+func tableDump(t *testing.T, env *testEnv, query string, args ...any) string {
+	t.Helper()
+	rows, err := env.db.Query(query, args...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	cols, err := rows.Columns()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var b strings.Builder
+	for rows.Next() {
+		vals := make([]any, len(cols))
+		ptrs := make([]any, len(cols))
+		for i := range vals {
+			ptrs[i] = &vals[i]
+		}
+		if err := rows.Scan(ptrs...); err != nil {
+			t.Fatal(err)
+		}
+		fmt.Fprintln(&b, vals...)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return b.String()
+}
+
+func TestExamPage_AttemptCounts(t *testing.T) {
+	f := newScheduleFixture(t)
+	if err := f.env.exams.Open(context.Background(), f.env.owner, f.id); err != nil {
+		t.Fatal(err)
+	}
+	results := `<a class="button secondary" href="` + examPath(f.id) + `/attempts">Results</a>`
+	body := f.page(t)
+	for _, want := range []string{results, `<p id="attempt-counts" class="attempt-counts">No attempts yet</p>`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("page without attempts lacks %s:\n%s", want, body)
+		}
+	}
+
+	start := f.env.clock
+	f.env.startAttempt(t, f.id, "Overdue")
+	if body := f.page(t); !strings.Contains(body, `<strong class="count-total">1 attempt</strong>`) {
+		t.Errorf("page with one attempt lacks the total 1 attempt:\n%s", body)
+	}
+
+	f.at(t, start.Add(30*time.Minute))
+	live, _ := f.env.startAttempt(t, f.id, "Live")
+	qs, err := f.env.exams.Questions(context.Background(), f.id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := qs[0]
+	f.env.pick(t, live, q, 1)
+	done, _ := f.env.startAttempt(t, f.id, "Done")
+	f.env.submitAttempt(t, done)
+	f.at(t, start.Add(60*time.Minute+attempt.Grace+time.Millisecond))
+
+	examRow := tableDump(t, f.env, `SELECT * FROM exam WHERE id = ?`, f.id)
+	body = f.page(t)
+	stored := func() string {
+		return tableDump(t, f.env, `SELECT * FROM exam WHERE id = ?`, f.id) +
+			tableDump(t, f.env, `SELECT * FROM attempt WHERE exam_id = ? ORDER BY id`, f.id) +
+			tableDump(t, f.env, `SELECT * FROM answer ORDER BY attempt_id, question_id`)
+	}
+	after := stored()
+	if !strings.HasPrefix(after, examRow) {
+		t.Errorf("the page load changed the exam:\nbefore %safter %s", examRow, after)
+	}
+	counts := regexp.MustCompile(`<p id="attempt-counts" class="attempt-counts">(.*?)</p>`).FindStringSubmatch(body)
+	if counts == nil {
+		t.Fatalf("page lacks the attempt counts:\n%s", body)
+	}
+	want := `<strong class="count-total">3 attempts</strong> <span class="count count-live">1 in progress</span> <span class="count count-done">1 submitted</span> <span class="count count-out">1 timed out</span>`
+	if counts[1] != want {
+		t.Errorf("attempt counts = %s, want %s", counts[1], want)
+	}
+	if !strings.Contains(body, results) {
+		t.Errorf("page lacks %s:\n%s", results, body)
+	}
+	list := getOK(t, f.env, examPath(f.id)+"/attempts", f.cookie)
+	if line := `<p class="counts">3 attempts — 1 in progress, 1 submitted, 1 timed out</p>`; !strings.Contains(list, line) {
+		t.Errorf("results page lacks %s:\n%s", line, list)
+	}
+	f.page(t)
+	if again := stored(); again != after {
+		t.Errorf("a second page load changed stored rows:\nbefore %s\nafter %s", after, again)
+	}
+}
+
+func TestExamPage_StatePanel(t *testing.T) {
+	f := newScheduleFixture(t)
+	nowRe := regexp.MustCompile(`<p class="state-now" data-open="([^"]*)">([^<]*)</p>`)
+	explainRe := regexp.MustCompile(`<p class="state-explain">([^<]*)</p>`)
+	check := func(state, now, open, explain string) {
+		t.Helper()
+		body := f.page(t)
+		panel := factFirst(body, "section", `^<section class="exam-state">$`).inner
+		if strings.Contains(panel, "<section") {
+			t.Errorf("%s: section.exam-state holds a section:\n%s", state, panel)
+		}
+		if !strings.Contains(panel, `<h2 class="state-label">Right now</h2>`) {
+			t.Errorf("%s: state panel lacks its label:\n%s", state, panel)
+		}
+		m := nowRe.FindStringSubmatch(panel)
+		if m == nil || m[2] != now || m[1] != open {
+			t.Errorf("%s: state-now = %q, want %q with data-open=%q:\n%s", state, m, now, open, panel)
+		}
+		e := explainRe.FindStringSubmatch(panel)
+		if e == nil || e[1] != explain {
+			t.Errorf("%s: state-explain = %q, want %q", state, e, explain)
+		}
+	}
+
+	check("closed", "Students cannot join", "false", "Open it when the class is ready.")
+	f.action(t, "open")
+	check("opened by the button", "Students can join", "true", "Closing stops new starts. Students already inside can finish.")
+	requireRedirect(t, f.schedule("2026-11-17T08:00", "2026-11-17T09:30"), examPath(f.id))
+	const scheduled = "The schedule decides when it is open. Open or Close removes the schedule."
+	check("scheduled, before its window", "Students cannot join", "false", scheduled)
+	f.at(t, time.Date(2026, 11, 17, 1, 30, 0, 0, time.UTC))
+	check("scheduled, inside its window", "Students can join", "true", scheduled)
+	if err := f.env.exams.Archive(context.Background(), f.env.owner, f.id); err != nil {
+		t.Fatal(err)
+	}
+	check("archived", "Archived", "false", "Unarchive it to open or schedule it.")
+}
+
+func TestExamPage_CodeTiles(t *testing.T) {
+	f := newScheduleFixture(t)
+	code := f.env.examCode(t, f.id)
+	body := f.page(t)
+	board := factFirst(body, "div", `^<div class="exam-board on-board">$`).inner
+	m := regexp.MustCompile(`<p id="exam-code" class="exam-code">((?:<span>[A-Z2-9]</span>)*)</p>`).FindStringSubmatch(board)
+	if m == nil {
+		t.Fatalf("div.exam-board lacks #exam-code as tiles:\n%s", body)
+	}
+	if m[0] != codeTiles("exam-code", "exam-code", code) || strings.Count(m[1], "<span>") != 6 {
+		t.Errorf("#exam-code = %s, want the six symbols of %s", m[0], code)
+	}
+	if n := strings.Count(body, `id="exam-code"`); n != 1 {
+		t.Errorf("page has %d #exam-code, want 1", n)
+	}
+}
+
+func TestExamPage_Columns(t *testing.T) {
+	f := newScheduleFixture(t)
+	body := f.page(t)
+	inOrder := func(where, s string, marks ...string) {
+		t.Helper()
+		last := -1
+		for _, mark := range marks {
+			at := strings.Index(s, mark)
+			if at <= last {
+				t.Errorf("%s: %q at %d, want after %d:\n%s", where, mark, at, last, s)
+			}
+			last = at
+		}
+	}
+	side := factFirst(body, "div", `^<div class="exam-side">$`).inner
+	inOrder("exam-side", side, `<section class="schedule">`, `<section class="exam-settings">`, `<section class="more">`)
+	preview := factFirst(body, "section", `^<section class="exam-preview">$`).inner
+	inOrder("exam-preview", preview, `<h2>Preview</h2>`, `class="preview-lede"`, `class="preview-question"`)
 }

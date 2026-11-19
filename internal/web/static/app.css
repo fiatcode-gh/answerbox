@@ -3399,71 +3399,386 @@ main.result h1 {
   margin: 0;
 }
 
+.exam-detail .exam-head h1 {
+  font-size: 2.25rem;
+}
+
+.exam-detail .exam-head .badge {
+  min-height: 32px;
+  font-size: 1rem;
+}
+
+.exam-detail > .frozen-notice {
+  margin-bottom: var(--ge-space-4);
+}
+
+/* The live band: what students can do right now beside the code board. */
+.exam-live {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  overflow: hidden;
+  border-radius: var(--ge-r-xl);
+  box-shadow: var(--ge-shadow);
+}
+
+.exam-live > * {
+  min-width: 0;
+}
+
 .exam-state {
-  margin-bottom: var(--ge-space-5);
-}
-
-.exam-actions,
-.exam-links,
-.join-actions,
-.more-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-3);
-  align-items: center;
+  flex-direction: column;
+  gap: 14px;
+  padding: 28px;
+  border: 1px solid var(--ge-line);
+  border-right: 0;
+  border-radius: var(--ge-r-xl) 0 0 var(--ge-r-xl);
+  background: var(--ge-surface);
 }
 
-.exam-actions form,
-.more-actions form {
+.exam-state > * {
   margin: 0;
 }
 
-.join {
-  margin-bottom: var(--ge-space-5);
+.state-label {
+  color: var(--ge-muted);
+  font-family: var(--ge-font-ui);
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.state-now {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  color: var(--ge-ink);
+  font-family: var(--ge-font-display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+/* A ring while students cannot join; a filled dot with a halo when they can. */
+.state-now::before {
+  content: "";
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 3px var(--ge-muted);
+}
+
+.state-now[data-open="true"] {
+  color: var(--ge-brand-strong);
+}
+
+.state-now[data-open="true"]::before {
+  background: var(--ge-brand);
+  box-shadow: 0 0 0 5px var(--ge-brand-soft);
+}
+
+.state-explain {
+  color: var(--ge-muted);
+}
+
+.exam-state .exam-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.exam-actions form {
+  margin: 0;
+}
+
+.exam-actions button {
+  width: 100%;
+  min-height: 56px;
+  border-radius: 16px;
+  font-size: 1.125rem;
+}
+
+.exam-actions form[action$="/open"] button::before,
+.exam-actions form[action$="/close"] button::before,
+#copy-link::before,
+#projector-link::before,
+.results-entry > a::before,
+#edit-link::before,
+#history-link::before,
+#download-link::before,
+#copy-form button::before,
+#archive-link::before,
+.replace .frozen-notice::before {
+  content: "";
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  background: currentColor;
+}
+
+.exam-actions form[action$="/open"] button::before {
+  -webkit-mask: var(--ge-i-play) center / contain no-repeat;
+  mask: var(--ge-i-play) center / contain no-repeat;
+}
+
+.exam-actions form[action$="/close"] button::before {
+  -webkit-mask: var(--ge-i-stop) center / contain no-repeat;
+  mask: var(--ge-i-stop) center / contain no-repeat;
+}
+
+/* The code board. */
+.exam-board {
+  padding: 28px 32px;
 }
 
 .join h2 {
-  margin-bottom: var(--ge-space-2);
+  margin: 0 0 14px;
+  color: var(--ge-chalk-muted);
+  font-family: var(--ge-font-ui);
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0;
 }
 
+/* Six chalk tiles. They stay inline boxes, so the element's text is the
+   plain code, and shrink with the line so all six fit from 360 px. */
 .exam-code {
-  margin: 0 0 var(--ge-space-3);
+  --tile-gap: clamp(6px, 1.6vw, 12px);
+  margin: 0 0 20px;
   font-family: var(--ge-font-mono);
-  font-size: clamp(2.5rem, 9vw, 4.5rem);
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: 0.15em;
+  font-size: clamp(1.75rem, 9vw, 4rem);
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.exam-code span {
+  display: inline-grid;
+  place-items: center;
+  width: min(88px, calc((100% - 5 * var(--tile-gap)) / 6));
+  aspect-ratio: 88 / 104;
+  margin-right: var(--tile-gap);
+  border-radius: 14px;
+  background: var(--ge-chalk);
+  color: var(--ge-board);
+  box-shadow: 0 4px 0 var(--ge-tile-shadow);
+  vertical-align: top;
+}
+
+.exam-code span:last-child {
+  margin-right: 0;
 }
 
 .student-link {
-  margin-bottom: var(--ge-space-2);
+  margin: 0 0 16px;
+  color: var(--ge-chalk-muted);
+  font-size: 0.9375rem;
+}
+
+.student-link a {
+  color: var(--ge-chalk);
+  font-family: var(--ge-font-mono);
+  font-size: 1rem;
   overflow-wrap: anywhere;
 }
 
 .join-actions {
-  margin: 0 0 var(--ge-space-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 0;
+}
+
+#copy-link::before {
+  -webkit-mask: var(--ge-i-copy) center / contain no-repeat;
+  mask: var(--ge-i-copy) center / contain no-repeat;
+}
+
+#projector-link::before {
+  -webkit-mask: var(--ge-i-screen) center / contain no-repeat;
+  mask: var(--ge-i-screen) center / contain no-repeat;
 }
 
 .copy-status {
-  color: var(--ge-muted);
-  font-size: var(--ge-text-sm);
+  color: var(--ge-chalk);
+  font-weight: 700;
 }
 
 .join-note {
+  margin: 14px 0 0;
+  color: var(--ge-chalk-muted);
+}
+
+/* Results with the attempt counts, then the quiet links. */
+.exam-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin: 20px 0 36px;
+}
+
+/* One outlined block that is a link as a whole: the link's ::after covers
+   it, so a click on the counts opens the results too. */
+.results-entry {
+  position: relative;
+  display: inline-flex;
+  gap: 14px;
+  align-items: center;
+  min-height: 56px;
+  padding: 0 18px;
+  border: 2px solid var(--ge-brand);
+  border-radius: 16px;
+  background: var(--ge-surface);
+}
+
+.results-entry:hover {
+  background: var(--ge-brand-soft);
+}
+
+.results-entry > a.button,
+.results-entry > a.button:hover {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ge-brand);
+  font-size: 1.125rem;
+}
+
+.results-entry:hover > a.button {
+  color: var(--ge-brand-strong);
+}
+
+.results-entry > a::before {
+  -webkit-mask: var(--ge-i-chart) center / contain no-repeat;
+  mask: var(--ge-i-chart) center / contain no-repeat;
+}
+
+.results-entry > a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+}
+
+/* The ring goes round the whole block, the link's real target. */
+.results-entry > a:focus-visible {
+  outline: 0;
+}
+
+.results-entry:has(> a:focus-visible) {
+  outline: 3px solid var(--ge-focus);
+  outline-offset: 3px;
+}
+
+.attempt-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  align-items: center;
   margin: 0;
   color: var(--ge-muted);
 }
 
-.exam-links {
-  margin-bottom: var(--ge-space-6);
+.count-total {
+  padding: 2px 10px;
+  border-radius: var(--ge-r-pill);
+  background: var(--ge-brand-soft);
+  color: var(--ge-brand-strong);
+  font-size: 0.875rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
-section.schedule {
-  margin-bottom: var(--ge-space-5);
+.count {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--ge-ink);
+  font-size: 0.9375rem;
+  white-space: nowrap;
 }
 
-section.schedule h2 {
+.count::before {
+  content: "";
+  flex: none;
+  width: 9px;
+  height: 9px;
+}
+
+.count-live::before {
+  background: var(--ge-gold-ink);
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+
+.count-done::before {
+  border-radius: 50%;
+  background: var(--ge-brand);
+}
+
+.count-out::before {
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px var(--ge-closed-ink);
+}
+
+#edit-link,
+#history-link {
+  min-height: 56px;
+  font-size: 1.125rem;
+}
+
+#edit-link::before {
+  -webkit-mask: var(--ge-i-pencil) center / contain no-repeat;
+  mask: var(--ge-i-pencil) center / contain no-repeat;
+}
+
+#history-link::before {
+  -webkit-mask: var(--ge-i-history) center / contain no-repeat;
+  mask: var(--ge-i-history) center / contain no-repeat;
+}
+
+/* Side cards (schedule, settings, more actions) beside the preview. */
+.exam-cols {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 28px;
+  align-items: start;
+}
+
+.exam-cols > * {
+  min-width: 0;
+}
+
+.exam-side {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.exam-side > section {
+  padding: 22px var(--ge-space-5);
+  border: 1px solid var(--ge-line);
+  border-radius: var(--ge-r-lg);
+  background: var(--ge-surface);
+  box-shadow: var(--ge-shadow);
+}
+
+.exam-side > section > :last-child {
+  margin-bottom: 0;
+}
+
+.exam-side h2 {
+  margin: 0 0 10px;
+  font-size: 1.25rem;
+}
+
+#schedule-times {
   margin-bottom: var(--ge-space-2);
+  color: var(--ge-muted);
 }
 
 #schedule-details {
@@ -3489,24 +3804,73 @@ section.schedule h2 {
   margin-bottom: var(--ge-space-3);
 }
 
-.more {
-  margin-bottom: var(--ge-space-6);
-  padding-top: var(--ge-space-5);
-  border-top: 1px solid var(--ge-line);
-}
-
-.more h2 {
-  margin-bottom: var(--ge-space-2);
-}
-
 .more-actions {
-  margin-bottom: var(--ge-space-5);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  margin: 0 -12px;
+}
+
+.more-actions form {
+  margin: 0;
+}
+
+#download-link,
+#archive-link {
+  gap: var(--ge-space-2);
+}
+
+#download-link::before {
+  -webkit-mask: var(--ge-i-download) center / contain no-repeat;
+  mask: var(--ge-i-download) center / contain no-repeat;
+}
+
+#copy-form button::before {
+  -webkit-mask: var(--ge-i-copy) center / contain no-repeat;
+  mask: var(--ge-i-copy) center / contain no-repeat;
+}
+
+#archive-link::before {
+  -webkit-mask: var(--ge-i-archive) center / contain no-repeat;
+  mask: var(--ge-i-archive) center / contain no-repeat;
+}
+
+.replace {
+  margin-top: 18px;
 }
 
 .replace h3 {
-  margin-bottom: var(--ge-space-2);
+  margin: 0 0 var(--ge-space-2);
+  font-family: var(--ge-font-ui);
+  font-size: 1rem;
+  letter-spacing: 0;
 }
 
+.replace .frozen-notice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0;
+}
+
+.replace .frozen-notice::before {
+  margin-top: 0.2em;
+  -webkit-mask: var(--ge-i-lock) center / contain no-repeat;
+  mask: var(--ge-i-lock) center / contain no-repeat;
+}
+
+.exam-preview h2 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.preview-lede {
+  margin: 4px 0 16px;
+  color: var(--ge-muted);
+}
+
+/* Projector: the board fills the window under the header. */
 .brand-header:has(> .quiet) {
   display: flex;
   flex-wrap: wrap;
@@ -3520,10 +3884,11 @@ section.schedule h2 {
   flex-direction: column;
   gap: var(--ge-space-6);
   align-items: center;
+  justify-content: center;
   box-sizing: border-box;
   width: 100%;
+  min-height: calc(100vh - 69px);
   padding: var(--ge-space-7) var(--ge-space-4);
-  background: var(--ge-bg);
   text-align: center;
 }
 
@@ -3533,7 +3898,7 @@ section.schedule h2 {
 }
 
 .projector-title {
-  font-size: var(--ge-text-2xl);
+  font-size: 2.25rem;
   overflow-wrap: anywhere;
 }
 
@@ -3543,30 +3908,70 @@ section.schedule h2 {
 }
 
 .projector-host {
+  color: var(--ge-chalk);
+  font-weight: 800;
   overflow-wrap: anywhere;
 }
 
 .projector-code {
-  font-size: clamp(4rem, 17vw, 13rem);
-  line-height: 1;
-  white-space: nowrap;
-  text-indent: 0.15em;
+  --tile-gap: clamp(6px, 2vw, 28px);
+  width: 100%;
+  max-width: 92vw;
+  font-size: clamp(4rem, 13vw, 13rem);
+}
+
+.projector-code span {
+  width: min(16vw, calc((100% - 5 * var(--tile-gap)) / 6));
 }
 
 .projector-link {
-  color: var(--ge-muted);
+  color: var(--ge-chalk-muted);
   overflow-wrap: anywhere;
 }
 
+@media (max-width: 992px) {
+  .exam-live,
+  .exam-cols {
+    grid-template-columns: 1fr;
+  }
+
+  .exam-state {
+    border-right: 1px solid var(--ge-line);
+    border-bottom: 0;
+    border-radius: var(--ge-r-xl) var(--ge-r-xl) 0 0;
+  }
+}
+
 @media (max-width: 640px) {
-  .exam-actions,
+  .exam-detail .exam-head h1 {
+    font-size: 1.75rem;
+  }
+
+  .exam-state {
+    padding: 20px;
+  }
+
+  .exam-board {
+    padding: 20px;
+  }
+
   .exam-links {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .exam-actions button {
-    width: 100%;
+  .results-entry {
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    padding: 10px 18px;
+  }
+
+  .attempt-counts {
+    flex-basis: 100%;
+  }
+
+  .exam-side > section {
+    padding: var(--ge-space-4);
   }
 }
 

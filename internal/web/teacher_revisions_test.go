@@ -153,7 +153,7 @@ func TestExamPage_HistoryLinkAndNoRevisionNotice(t *testing.T) {
 	cookie, csrf, _ := env.signIn(t)
 	detail := importExam(t, env, cookie, csrf, "geometry.md", []byte(textExam))
 	body := getOK(t, env, detail, cookie)
-	if !strings.Contains(body, `<a id="history-link" class="button secondary" href="`+detail+`/revisions">History</a>`) {
+	if !strings.Contains(body, `<a id="history-link" class="button quiet" href="`+detail+`/revisions">History</a>`) {
 		t.Errorf("exam page lacks the History link:\n%s", body)
 	}
 	if strings.Contains(body, `id="no-revision"`) {

@@ -3,12 +3,14 @@ package web
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/fiatcode-gh/answerbox/internal/attempt"
 	"github.com/fiatcode-gh/answerbox/internal/exam"
 	"github.com/fiatcode-gh/answerbox/internal/examfile"
 )
@@ -169,6 +171,10 @@ type examDetailData struct {
 	Zone         string
 	// ArchivedOn is the archive date as text, empty when not archived.
 	ArchivedOn string
+	// Counts splits the exam's attempts by status; AttemptsLabel is their
+	// total as "1 attempt" or "N attempts".
+	Counts        attempt.Counts
+	AttemptsLabel string
 }
 
 // scheduleInput is the schedule form's two datetime-local values.
@@ -212,6 +218,15 @@ func (s *server) renderExamDetail(w http.ResponseWriter, r *http.Request, status
 		s.serverError(w, r, err)
 		return
 	}
+	counts, err := s.deps.Attempts.Counts(r.Context(), id)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	attemptsLabel := fmt.Sprintf("%d attempts", counts.Total())
+	if counts.Total() == 1 {
+		attemptsLabel = "1 attempt"
+	}
 	archivedOn := ""
 	if e.Archived() {
 		archivedOn = e.ArchivedAt.In(s.deps.Location).Format(dateLayout)
@@ -236,6 +251,8 @@ func (s *server) renderExamDetail(w http.ResponseWriter, r *http.Request, status
 		ScheduleOpen:     e.Schedule.Set() || typed != nil,
 		Zone:             s.deps.Location.String(),
 		ArchivedOn:       archivedOn,
+		Counts:           counts,
+		AttemptsLabel:    attemptsLabel,
 	})
 }
 

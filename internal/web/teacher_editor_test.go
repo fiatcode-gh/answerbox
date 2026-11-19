@@ -71,7 +71,7 @@ func TestExamPage_EditLink(t *testing.T) {
 	env := newTestEnv(t)
 	cookie, csrf, _ := env.signIn(t)
 	detail := importExam(t, env, cookie, csrf, "geometry.md", []byte(textExam))
-	link := `<a id="edit-link" class="button secondary" href="` + detail + `/edit">Edit questions</a>`
+	link := `<a id="edit-link" class="button quiet" href="` + detail + `/edit">Edit questions</a>`
 	if body := getOK(t, env, detail, cookie); !strings.Contains(body, link) {
 		t.Errorf("exam page lacks %s:\n%s", link, body)
 	}
