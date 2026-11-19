@@ -4125,18 +4125,37 @@ ol.detail-options {
 
 /* 17. Teacher: confirm, teachers, history, revision */
 
-/* Confirmation page: the question, what follows from it in muted notes, the
-   question a removal takes away, then the confirm button and Cancel. */
+/* Confirmation page: one card on the page background with the question, what
+   follows from it in muted notes, the question a removal takes away, then
+   the confirm button and Cancel. */
+main.confirm {
+  width: calc(100% - 2 * var(--ge-space-5));
+  margin: 40px auto var(--ge-space-7);
+  padding: 28px;
+  border: 1px solid var(--ge-line);
+  border-radius: var(--ge-r-xl);
+  background: var(--ge-surface);
+  box-shadow: var(--ge-shadow);
+}
+
+.confirm h1 {
+  font-size: 1.75rem;
+}
+
 .confirm-question {
-  font-size: var(--ge-text-lg);
+  margin-bottom: var(--ge-space-2);
+  font-size: var(--ge-text-xl);
+  font-weight: 700;
 }
 
 .confirm-note {
+  margin-bottom: var(--ge-space-2);
   color: var(--ge-muted);
 }
 
 .confirm .preview-question {
-  margin: var(--ge-space-5) 0;
+  margin: var(--ge-space-5) 0 0;
+  box-shadow: none;
 }
 
 .confirm-actions {
@@ -4151,7 +4170,21 @@ ol.detail-options {
   margin: 0;
 }
 
-/* Teachers: the email field and Add teacher on one row under the label. */
+/* Teachers: a card with the label above the email box and Add teacher. */
+#add-teacher-form {
+  margin-bottom: var(--ge-space-5);
+  padding: 22px var(--ge-space-5);
+  border: 1px solid var(--ge-line);
+  border-radius: var(--ge-r-lg);
+  background: var(--ge-surface);
+  box-shadow: var(--ge-shadow);
+}
+
+#add-teacher-form label {
+  margin-bottom: var(--ge-space-2);
+  font-weight: 700;
+}
+
 .add-teacher-row {
   display: flex;
   flex-wrap: wrap;
@@ -4163,6 +4196,106 @@ ol.detail-options {
   flex: 1 1 16rem;
   max-width: 24rem;
   margin: 0;
+}
+
+.add-teacher-row button {
+  flex: none;
+}
+
+/* Admin is a label, not a status: no marker. */
+#teachers .badge::before {
+  content: none;
+}
+
+#teachers td:nth-child(3) {
+  white-space: nowrap;
+}
+
+/* History: the summary takes the free width; the other columns fit their
+   content. */
+#revisions th:not(:nth-child(4)),
+#revisions td:not(:nth-child(4)) {
+  width: 1%;
+}
+
+#revisions td.numeric {
+  white-space: nowrap;
+}
+
+#revisions td:last-child a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ge-touch);
+  font-weight: 700;
+}
+
+/* No revision yet: a notice. */
+#no-revision {
+  padding: var(--ge-space-3) var(--ge-space-4);
+  border-left: 6px solid var(--ge-gold);
+  border-radius: var(--ge-r-md);
+  background: var(--ge-gold-soft);
+  color: var(--ge-ink);
+  font-weight: 600;
+}
+
+/* Revision: the saved line, the settings in a card, then the previews. */
+.revision-page > .zone-note {
+  margin: 0 0 var(--ge-space-5);
+  font-size: var(--ge-text-base);
+}
+
+.revision-page dl.settings {
+  max-width: 520px;
+  padding: var(--ge-space-2) var(--ge-space-5);
+  border: 1px solid var(--ge-line);
+  border-radius: var(--ge-r-lg);
+  background: var(--ge-surface);
+  box-shadow: var(--ge-shadow);
+}
+
+@media (max-width: 640px) {
+  main.confirm {
+    width: calc(100% - 2 * var(--ge-space-4));
+    margin-top: var(--ge-space-5);
+    padding: 20px;
+  }
+
+  .confirm-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .confirm-actions button,
+  .confirm-actions .button {
+    width: 100%;
+  }
+
+  #add-teacher-form,
+  .revision-page dl.settings {
+    padding-inline: var(--ge-space-4);
+  }
+
+  .add-teacher-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .add-teacher-row input {
+    flex: none;
+    max-width: none;
+  }
+
+  /* The email breaks anywhere but keeps a readable width; the table card
+     scrolls sideways instead of the page. */
+  #teachers td:first-child {
+    min-width: 10rem;
+    overflow-wrap: anywhere;
+  }
+
+  #revisions td:nth-child(4) {
+    min-width: 14rem;
+  }
 }
 
 /* 18. Motion */
