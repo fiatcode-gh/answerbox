@@ -166,43 +166,56 @@ var contrastPairs = []struct {
 	fg, bg string
 	min    float64
 }{
-	{"ink", "paper", 4.5},
+	{"ink", "bg", 4.5},
 	{"ink", "surface", 4.5},
 	{"ink", "sunken", 4.5},
-	{"ink", "accent-soft", 4.5},
-	{"ink", "ok-bg", 4.5},
-	{"ink", "danger-bg", 4.5},
-	{"muted", "paper", 4.5},
+	{"ink", "brand-soft", 4.5},
+	{"ink", "gold-soft", 4.5},
+	{"ink", "danger-soft", 4.5},
+	{"muted", "bg", 4.5},
 	{"muted", "surface", 4.5},
 	{"muted", "sunken", 4.5},
-	{"accent", "paper", 4.5},
-	{"accent", "surface", 4.5},
-	{"accent-strong", "paper", 4.5},
-	{"accent-strong", "surface", 4.5},
-	{"on-accent", "accent", 4.5},
-	{"on-accent", "accent-strong", 4.5},
-	{"on-danger", "danger-solid", 4.5},
-	{"on-danger", "danger-strong", 4.5},
-	{"danger", "paper", 4.5},
+	{"brand", "bg", 4.5},
+	{"brand", "surface", 4.5},
+	{"brand-strong", "bg", 4.5},
+	{"brand-strong", "surface", 4.5},
+	{"brand-strong", "brand-soft", 4.5},
+	{"on-brand", "brand", 4.5},
+	{"on-brand", "brand-strong", 4.5},
+	{"gold-ink", "gold-soft", 4.5},
+	{"gold-ink", "surface", 4.5},
+	{"gold-ink", "bg", 4.5},
+	{"on-gold", "gold", 4.5},
+	{"danger", "bg", 4.5},
 	{"danger", "surface", 4.5},
-	{"danger", "danger-bg", 4.5},
-	{"ok", "paper", 4.5},
-	{"ok", "surface", 4.5},
-	{"ok", "ok-bg", 4.5},
-	{"warn", "paper", 4.5},
-	{"warn", "surface", 4.5},
-	{"warn", "warn-bg", 4.5},
+	{"danger", "danger-soft", 4.5},
+	{"on-danger", "danger", 4.5},
+	{"on-danger", "danger-strong", 4.5},
+	{"closed-ink", "closed-bg", 4.5},
+	{"chalk", "board", 4.5},
+	{"chalk-muted", "board", 4.5},
+	{"board", "chalk", 4.5},
+	{"board", "chalk-strong", 4.5},
+	{"band-ink", "band", 4.5},
+	{"band-muted", "band", 4.5},
+	{"band-link", "band", 4.5},
+	{"gold", "band", 4.5},
+	{"band-ink", "band-code", 4.5},
 	{"edge", "surface", 3},
-	{"edge", "paper", 3},
-	{"edge", "accent-soft", 3},
-	{"accent", "surface", 3},
-	{"accent", "paper", 3},
-	{"accent", "accent-soft", 3},
-	{"danger-solid", "paper", 3},
-	{"danger-solid", "surface", 3},
-	{"ok", "surface", 3},
-	{"warn", "surface", 3},
+	{"edge", "bg", 3},
+	{"brand", "surface", 3},
+	{"brand", "bg", 3},
+	{"brand", "brand-soft", 3},
+	{"focus", "bg", 3},
+	{"focus", "surface", 3},
+	{"focus", "brand-soft", 3},
+	{"gold", "board", 3},
+	{"chalk-muted", "board", 3},
+	{"chalk", "board", 3},
 	{"danger", "surface", 3},
+	{"danger", "bg", 3},
+	{"gold", "band", 3},
+	{"band-muted", "band", 3},
 }
 
 var markColours = regexp.MustCompile(`<rect [^>]*fill="(#[0-9a-fA-F]{6})"[^>]*/><path [^>]*stroke="(#[0-9a-fA-F]{6})"`)
@@ -231,8 +244,8 @@ func TestCSS_TokensContrastAA(t *testing.T) {
 		dark[k] = v
 	}
 
-	if len(contrastPairs) != 37 {
-		t.Fatalf("contrast table has %d rows, want the 37 of PLAN section 3.3", len(contrastPairs))
+	if len(contrastPairs) != 50 {
+		t.Fatalf("contrast table has %d rows, want the 50 of PLAN section 3.3", len(contrastPairs))
 	}
 	themes := []struct {
 		name   string
@@ -262,7 +275,7 @@ func TestCSS_TokensContrastAA(t *testing.T) {
 		t.Errorf("mark tick = %s, want #ffffff", tick)
 	}
 	for _, th := range themes {
-		for _, bg := range []string{"paper", "surface"} {
+		for _, bg := range []string{"bg", "surface"} {
 			r := contrast(t, fill, th.tokens[bg])
 			t.Logf("%-5s mark %s on %-13s %5.2f (min 3.0)", th.name, fill, bg, r)
 			if r < 3 {
@@ -274,6 +287,58 @@ func TestCSS_TokensContrastAA(t *testing.T) {
 	t.Logf("      mark tick %s on %s %5.2f (min 3.0)", tick, fill, r)
 	if r < 3 {
 		t.Errorf("mark tick %s on %s = %.2f, below 3", tick, fill, r)
+	}
+}
+
+var fontFace = regexp.MustCompile(`@font-face\s*\{([^}]*)\}`)
+
+func TestCSS_FontFace(t *testing.T) {
+	css := cssComment.ReplaceAllString(readStatic(t, "app.css"), "")
+	if n := strings.Count(css, "@font-face"); n != 1 {
+		t.Fatalf("app.css has %d @font-face rules, want 1", n)
+	}
+	m := fontFace.FindStringSubmatch(css)
+	if m == nil {
+		t.Fatal("app.css: @font-face has no block")
+	}
+	for _, want := range []string{
+		`font-family: "Atkinson Hyperlegible Next"`,
+		"font-weight: 200 800",
+		"font-display: swap",
+		`url("fonts/AtkinsonHyperlegibleNext-latin.woff2") format("woff2")`,
+	} {
+		if !strings.Contains(m[1], want) {
+			t.Errorf("@font-face lacks %q:\n%s", want, m[1])
+		}
+	}
+}
+
+// iconTokens are the icons of PLAN section 3.8, in table order.
+var iconTokens = []string{
+	"arrow", "down", "check", "clock", "alert", "person", "resume", "play", "stop", "copy", "screen",
+	"chart", "pencil", "history", "download", "upload", "plus", "archive", "lock", "calendar", "eye", "table",
+}
+
+func TestCSS_IconTokens(t *testing.T) {
+	light, darkOnly := cssTokens(t)
+	if len(iconTokens) != 22 {
+		t.Fatalf("icon list has %d names, want 22", len(iconTokens))
+	}
+	for _, name := range iconTokens {
+		v, ok := light["i-"+name]
+		if !ok {
+			t.Errorf("--ge-i-%s is not in the first token block", name)
+			continue
+		}
+		if !strings.HasPrefix(v, `url("data:image/svg+xml,`) {
+			t.Errorf("--ge-i-%s = %.60q…, want a url(\"data:image/svg+xml,…\")", name, v)
+		}
+		if strings.ContainsAny(v, ";{#") {
+			t.Errorf("--ge-i-%s holds ; { or #: %q", name, v)
+		}
+		if _, ok := darkOnly["i-"+name]; ok {
+			t.Errorf("--ge-i-%s is redefined in the dark block", name)
+		}
 	}
 }
 

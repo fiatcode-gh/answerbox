@@ -1,8 +1,10 @@
 {{define "title"}}{{.ExamTitle}} · Answerbox{{end}}
 
+{{define "head"}}{{template "font_preload"}}{{end}}
+
 {{define "header"}}
 <header class="exam-header">
-  <div class="exam-header-inner"><img class="mark" src="{{static "mark.svg"}}" alt="" width="24" height="24">
+  <div class="exam-header-inner">{{template "mark"}}
     <h1 class="exam-title">{{.ExamTitle}}</h1>
     <p class="student-name"><span class="visually-hidden">Student: </span>{{.StudentName}}</p>
   </div>
@@ -11,7 +13,7 @@
 
 {{define "main"}}
 <main id="exam" data-remaining-ms="{{.RemainingMS}}" data-answer-url="/exam/answer" data-status-url="/exam/status" data-event-url="/exam/event" data-monitor="{{if .Monitor}}on{{else}}off{{end}}">
-  <div class="exam-bar">
+  <div class="exam-bar on-board">
     <p class="timer-box"><span class="visually-hidden">Time remaining</span><span id="timer" role="timer" data-level="{{.Level}}">{{.Timer}}</span></p>
     <span id="save-state" role="status" data-state="saved">✓ All answers saved</span>
     <button type="button" id="nav-toggle" aria-expanded="false" aria-controls="question-nav" hidden class="secondary">Questions</button>

@@ -118,6 +118,7 @@ def attempts_table_fits(page: Page) -> None:
             const box = document.querySelector("main.attempts-page .overflow-auto");
             return {
                 column: document.querySelector("main.attempts-page").getBoundingClientRect().width,
+                window: document.documentElement.clientWidth,
                 scroll: box.scrollWidth,
                 client: box.clientWidth,
                 right: box.getBoundingClientRect().right,
@@ -126,8 +127,8 @@ def attempts_table_fits(page: Page) -> None:
             };
         }"""
     )
-    if m["column"] != 1100:
-        raise AssertionError(f"page column is {m['column']} px wide, want 1100")
+    if m["column"] != min(1280, m["window"]):
+        raise AssertionError(f"page column is {m['column']} px wide, want min(1280, {m['window']})")
     if m["scroll"] > m["client"]:
         raise AssertionError(f"attempts table scrolls sideways: needs {m['scroll']} px, has {m['client']}")
     if not m["deletes"] or any(r > m["right"] + 0.5 for r in m["deletes"]):
@@ -299,7 +300,7 @@ def flow(run: Run, email: str) -> None:
             code = b_row.locator("code.resume-code").inner_text()
             run.shot(teacher, "desktop-admin-attempts.png")
 
-        with step("10a the attempts table fits the 1100 px column at 1280 and 1100 px: Delete is not clipped"):
+        with step("10a the attempts table fits the page column at 1280 and 1100 px: Delete is not clipped"):
             for w in (1280, 1100):
                 teacher.set_viewport_size({"width": w, "height": 800})
                 teacher.reload()

@@ -26,7 +26,7 @@
           <td><a href="/admin/exams/{{.ID}}">{{.Title}}</a></td>
           <td class="code">{{.Code}}</td>
           {{if $.Me.Admin}}<td class="owner">{{.OwnerEmail}}</td>{{end}}
-          <td>{{if .Archived}}<span class="badge badge-muted">Archived</span>{{else if .Open}}<span class="badge badge-ok">Open</span>{{else}}<span class="badge badge-muted">Closed</span>{{end}}{{with .Opens}}<small class="schedule">Opens {{.}}</small>{{end}}{{with .Closes}}<small class="schedule">Closes {{.}}</small>{{end}}</td>
+          <td>{{if .Archived}}<span class="badge badge-archived">Archived</span>{{else if .Open}}<span class="badge badge-ok">Open</span>{{else}}<span class="badge badge-muted">Closed</span>{{end}}{{with .Opens}}<small class="schedule">Opens {{.}}</small>{{end}}{{with .Closes}}<small class="schedule">Closes {{.}}</small>{{end}}</td>
           <td class="numeric">{{.QuestionCount}}</td>
           <td class="numeric">{{.AttemptCount}}</td>
           <td class="row-actions">{{if and (not .Archived) (or .Schedule.Set (not .Open))}}<form method="post" action="/admin/exams/{{.ID}}/open"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit" class="secondary">Open</button></form>{{end}}{{if or .Schedule.Set .Open}}<form method="post" action="/admin/exams/{{.ID}}/close"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit" class="secondary">Close</button></form>{{end}} <a href="/admin/exams/{{.ID}}/attempts">Results</a></td>

@@ -1295,7 +1295,7 @@ func TestExamPage_ToggleAndMark(t *testing.T) {
 	if want := `id="nav-toggle" aria-expanded="false" aria-controls="question-nav" hidden class="secondary"`; !strings.Contains(body, want) {
 		t.Errorf("exam page lacks %q", want)
 	}
-	mark, main := strings.Index(body, `<img class="mark"`), strings.Index(body, "<main")
+	mark, main := strings.Index(body, `<svg class="mark"`), strings.Index(body, "<main")
 	if mark < 0 || main < 0 || mark > main {
 		t.Errorf("exam page has no mark before <main (mark at %d, main at %d)", mark, main)
 	}

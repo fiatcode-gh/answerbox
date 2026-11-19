@@ -103,7 +103,7 @@ func TestArchive_Flow(t *testing.T) {
 
 	body := env.teacherExamPage(t, id, who)
 	head := examHead(body)
-	if !strings.Contains(head, `<span class="badge badge-muted">Archived</span>`) ||
+	if !strings.Contains(head, `<span class="badge badge-archived">Archived</span>`) ||
 		strings.Contains(head, ">Open</span>") || strings.Contains(head, ">Closed</span>") {
 		t.Errorf("exam head = %q, want the Archived badge only", head)
 	}

@@ -14,7 +14,7 @@ import (
 const requestTimeout = 15 * time.Second
 
 const contentSecurityPolicy = "default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; " +
-	"connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+	"font-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
 
 // recoverer turns a handler panic into a logged 500 error page.
 func (s *server) recoverer(next http.Handler) http.Handler {

@@ -48,7 +48,7 @@ RENAMED = "Sari Renamed"
 ADDED_TEACHER = "walk@example.test"
 TOUCH = 44
 # Computed body colours of the two schemes: (background, text).
-SCHEMES = {"dark": ("rgb(20, 23, 28)", "rgb(231, 233, 238)"), "light": ("rgb(250, 248, 243)", "rgb(27, 35, 48)")}
+SCHEMES = {"dark": ("rgb(17, 26, 21)", "rgb(232, 238, 232)"), "light": ("rgb(244, 245, 238)", "rgb(23, 37, 30)")}
 
 
 class StepFailed(Exception):

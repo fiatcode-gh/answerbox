@@ -1,5 +1,7 @@
 {{define "brand_header"}}
 <header class="brand-header">
-  <a class="brand" href="/"><img class="mark" src="{{static "mark.svg"}}" alt="" width="28" height="28"><span class="wordmark">Answerbox</span></a>
+  <a class="brand" href="/">{{template "mark"}}<span class="wordmark">Answerbox</span></a>
 </header>
 {{end}}
+{{define "mark"}}<svg class="mark" viewBox="0 0 32 32" width="30" height="30" aria-hidden="true" focusable="false"><rect class="mark-box" x="2" y="2" width="28" height="28" rx="8"/><path class="mark-tick" d="M9 16.5l5 5L23 11"/></svg>{{end}}
+{{define "font_preload"}}<link rel="preload" href="{{static "fonts/AtkinsonHyperlegibleNext-latin.woff2"}}" as="font" type="font/woff2" crossorigin>{{end}}

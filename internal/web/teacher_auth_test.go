@@ -763,7 +763,7 @@ func TestAdminHeader_MarksCurrentArea(t *testing.T) {
 			t.Fatalf("GET %s = %d", c.path, rec.Code)
 		}
 		body := rec.Body.String()
-		for _, want := range append(c.wants, `<img class="mark" src="/static/mark.svg?v=`) {
+		for _, want := range append(c.wants, `<svg class="mark" `) {
 			if !strings.Contains(body, want) {
 				t.Errorf("GET %s lacks %q:\n%s", c.path, want, body)
 			}

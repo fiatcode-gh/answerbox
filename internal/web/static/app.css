@@ -1,42 +1,75 @@
-/* Answerbox stylesheet. Every colour is a --ge-* token of section 1; dark
-   mode comes from the device setting through the media query there. */
+/* Answerbox stylesheet, direction "Friendly classroom". Every colour is a
+   --ge-* token of section 1; dark mode comes from the device setting through
+   the media query there. Every url() with a double-quoted path names a file
+   under static/ and is versioned when the app loads its assets. */
+
+/* 0. Fonts */
+
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("fonts/AtkinsonHyperlegibleNext-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
 /* 1. Tokens */
 
 :root {
   color-scheme: light dark;
 
-  --ge-paper: #faf8f3;
+  --ge-bg: #f4f5ee;
   --ge-surface: #ffffff;
-  --ge-sunken: #f1eee6;
-  --ge-ink: #1b2330;
-  --ge-muted: #57606d;
-  --ge-rule: #dcd7cc;
-  --ge-edge: #7c8490;
-  --ge-accent: #1f4fa3;
-  --ge-accent-strong: #173d80;
-  --ge-accent-soft: #e9effa;
-  --ge-on-accent: #ffffff;
-  --ge-ok: #1a6b3a;
-  --ge-ok-bg: #e6f3ea;
-  --ge-warn: #7a4a00;
-  --ge-warn-bg: #fff1d1;
-  --ge-danger: #a3231f;
-  --ge-danger-bg: #fbe8e6;
-  --ge-danger-solid: #a3231f;
-  --ge-danger-strong: #861b18;
+  --ge-sunken: #e9ede3;
+  --ge-line: #d6ddd2;
+  --ge-edge: #788a80;
+  --ge-ink: #17251e;
+  --ge-muted: #4b5b52;
+  --ge-brand: #17694a;
+  --ge-brand-strong: #0f5238;
+  --ge-brand-soft: #dcefe2;
+  --ge-on-brand: #ffffff;
+  --ge-gold: #f4b73c;
+  --ge-gold-ink: #7a4f00;
+  --ge-gold-soft: #fdeec8;
+  --ge-on-gold: #17251e;
+  --ge-danger: #b3361f;
+  --ge-danger-strong: #8f2a17;
+  --ge-danger-soft: #fbe5df;
   --ge-on-danger: #ffffff;
+  --ge-closed-bg: #e5e8e2;
+  --ge-closed-ink: #3c4740;
+  --ge-board: #1d4f3b;
+  --ge-chalk: #fbf6e4;
+  --ge-chalk-muted: #cfe0d3;
+  --ge-chalk-strong: #ffffff;
+  --ge-chalk-line: rgb(251 246 228 / 0.25);
+  --ge-chalk-wash: rgb(251 246 228 / 0.12);
+  --ge-tile-shadow: rgb(0 0 0 / 0.22);
+  --ge-focus: #0f5238;
+  --ge-band: #17251e;
+  --ge-band-ink: #e8eee8;
+  --ge-band-muted: #a7b6ad;
+  --ge-band-line: #33473c;
+  --ge-band-code: #0f1a14;
+  --ge-band-link: #8fe0b9;
   --ge-scrim: rgb(0 0 0 / 0.5);
+  --ge-shadow: 0 1px 0 rgb(23 37 30 / 0.06), 0 6px 18px -10px rgb(23 37 30 / 0.25);
+  --ge-shadow-lift: 0 14px 30px -16px rgb(0 0 0 / 0.55);
 
-  --ge-font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --ge-font-paper: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-  --ge-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --ge-font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial, sans-serif;
+  --ge-font-display: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ge-font-student: "Atkinson Hyperlegible Next", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ge-font-mono: ui-monospace, "Cascadia Mono", "Roboto Mono", "DejaVu Sans Mono", Menlo, Consolas, monospace;
 
   --ge-text-sm: 0.875rem;
   --ge-text-base: 1rem;
+  --ge-text-md: 1.0625rem;
   --ge-text-lg: 1.125rem;
   --ge-text-xl: 1.25rem;
-  --ge-text-2xl: 1.75rem;
+  --ge-text-2xl: 1.5rem;
+  --ge-text-3xl: 2.25rem;
 
   --ge-space-1: 4px;
   --ge-space-2: 8px;
@@ -45,35 +78,79 @@
   --ge-space-5: 24px;
   --ge-space-6: 32px;
   --ge-space-7: 48px;
-  --ge-radius: 6px;
+  --ge-r-sm: 10px;
+  --ge-r-md: 14px;
+  --ge-r-lg: 20px;
+  --ge-r-xl: 24px;
+  --ge-r-pill: 999px;
   --ge-touch: 44px;
-  --ge-bubble-size: 32px;
-  --ge-transition: 150ms ease-in-out;
+  --ge-bar: 64px;
+  --ge-transition: 120ms ease;
+
+  --ge-i-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14M13 6l6 6-6 6'/%3E%3C/svg%3E");
+  --ge-i-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14M6 13l6 6 6-6'/%3E%3C/svg%3E");
+  --ge-i-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+  --ge-i-clock: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2'/%3E%3C/svg%3E");
+  --ge-i-alert: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7.5v5.5M12 16.5v.01'/%3E%3C/svg%3E");
+  --ge-i-person: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='8' r='4'/%3E%3Cpath d='M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6'/%3E%3C/svg%3E");
+  --ge-i-resume: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12a8 8 0 1 0 2.4-5.7'/%3E%3Cpath d='M4 4v4.5h4.5'/%3E%3Cpath d='M10.5 9.5v5l4-2.5z'/%3E%3C/svg%3E");
+  --ge-i-play: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 5.5v13l10.5-6.5z'/%3E%3C/svg%3E");
+  --ge-i-stop: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='6' y='6' width='12' height='12' rx='2'/%3E%3C/svg%3E");
+  --ge-i-copy: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='8' y='8' width='12' height='12' rx='2'/%3E%3Cpath d='M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3'/%3E%3C/svg%3E");
+  --ge-i-screen: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='12' rx='2'/%3E%3Cpath d='M12 16v4M8 20h8'/%3E%3C/svg%3E");
+  --ge-i-chart: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 20V11M12 20V5M19 20v-6M3 20h18'/%3E%3C/svg%3E");
+  --ge-i-pencil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 20h4L19 9l-4-4L4 16z'/%3E%3C/svg%3E");
+  --ge-i-history: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12a9 9 0 1 0 3-6.7'/%3E%3Cpath d='M3 4v5h5M12 7v5l3 2'/%3E%3C/svg%3E");
+  --ge-i-download: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 4v11M7 10l5 5 5-5M5 20h14'/%3E%3C/svg%3E");
+  --ge-i-upload: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 15V4M7 9l5-5 5 5M5 15v5h14v-5'/%3E%3C/svg%3E");
+  --ge-i-plus: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E");
+  --ge-i-archive: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='4' rx='1'/%3E%3Cpath d='M5 8v11h14V8M10 12h4'/%3E%3C/svg%3E");
+  --ge-i-lock: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='9' rx='2'/%3E%3Cpath d='M8 11V8a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E");
+  --ge-i-calendar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='5' width='16' height='15' rx='2'/%3E%3Cpath d='M4 10h16M9 3v4M15 3v4M9 14.5l2 2 4-4'/%3E%3C/svg%3E");
+  --ge-i-eye: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
+  --ge-i-table: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='4' width='16' height='16' rx='2'/%3E%3Cpath d='M4 10h16M4 15h16M10 10v10'/%3E%3C/svg%3E");
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --ge-paper: #14171c;
-    --ge-surface: #1d2128;
-    --ge-sunken: #0f1216;
-    --ge-ink: #e7e9ee;
-    --ge-muted: #a3acb9;
-    --ge-rule: #343a45;
-    --ge-edge: #7f8896;
-    --ge-accent: #8ab4ff;
-    --ge-accent-strong: #b3ceff;
-    --ge-accent-soft: #1f2c45;
-    --ge-on-accent: #0f1a2e;
-    --ge-ok: #7fd49a;
-    --ge-ok-bg: #15301f;
-    --ge-warn: #f2c46b;
-    --ge-warn-bg: #3a2c0c;
-    --ge-danger: #ff9d96;
-    --ge-danger-bg: #3d1614;
-    --ge-danger-solid: #c9352f;
-    --ge-danger-strong: #d23c36;
-    --ge-on-danger: #ffffff;
+    --ge-bg: #111a15;
+    --ge-surface: #18231d;
+    --ge-sunken: #0d140f;
+    --ge-line: #2c3a32;
+    --ge-edge: #71847a;
+    --ge-ink: #e8eee8;
+    --ge-muted: #a7b6ad;
+    --ge-brand: #62cf9c;
+    --ge-brand-strong: #8fe0b9;
+    --ge-brand-soft: #1b3b2c;
+    --ge-on-brand: #08200f;
+    --ge-gold: #f5c24f;
+    --ge-gold-ink: #f5c24f;
+    --ge-gold-soft: #3a2d0d;
+    --ge-on-gold: #241a00;
+    --ge-danger: #ff9480;
+    --ge-danger-strong: #ffb3a4;
+    --ge-danger-soft: #3d1a12;
+    --ge-on-danger: #2b0f08;
+    --ge-closed-bg: #26302a;
+    --ge-closed-ink: #c3cfc7;
+    --ge-board: #173a2b;
+    --ge-chalk: #fbf6e4;
+    --ge-chalk-muted: #b9d0c1;
+    --ge-chalk-strong: #ffffff;
+    --ge-chalk-line: rgb(251 246 228 / 0.25);
+    --ge-chalk-wash: rgb(251 246 228 / 0.12);
+    --ge-tile-shadow: rgb(0 0 0 / 0.22);
+    --ge-focus: #f5c24f;
+    --ge-band: #0a110d;
+    --ge-band-ink: #e8eee8;
+    --ge-band-muted: #a7b6ad;
+    --ge-band-line: #2c3a32;
+    --ge-band-code: #141f19;
+    --ge-band-link: #8fe0b9;
     --ge-scrim: rgb(0 0 0 / 0.65);
+    --ge-shadow: 0 1px 0 rgb(0 0 0 / 0.4);
+    --ge-shadow-lift: 0 14px 30px -16px rgb(0 0 0 / 0.7);
   }
 }
 
@@ -92,33 +169,51 @@ html {
 
 body {
   margin: 0;
-  background: var(--ge-paper);
+  background: var(--ge-bg);
   color: var(--ge-ink);
   font-family: var(--ge-font-ui);
   font-size: var(--ge-text-base);
   line-height: 1.5;
 }
 
+/* Student-facing text: the student pages, and question and option text
+   wherever a teacher page shows it. */
+#landing,
+.exam-header,
+#exam,
+#result,
+.question-body,
+.option-body,
+.section-head,
+.accepted-answers,
+.typed-text {
+  font-family: var(--ge-font-student);
+}
+
 h1,
 h2,
 h3 {
   margin: 0 0 var(--ge-space-4);
-  font-weight: 700;
+  font-family: var(--ge-font-display);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+:is(#landing, .exam-header, #exam, #result, .section-head) :is(h1, h2, h3) {
+  font-family: var(--ge-font-student);
 }
 
 h1 {
-  font-size: var(--ge-text-2xl);
-  line-height: 1.2;
+  font-size: var(--ge-text-3xl);
 }
 
 h2 {
-  font-size: var(--ge-text-xl);
-  line-height: 1.3;
+  font-size: var(--ge-text-2xl);
 }
 
 h3 {
-  font-size: 1.0625rem;
-  line-height: 1.4;
+  font-size: var(--ge-text-lg);
 }
 
 * + h2 {
@@ -160,13 +255,13 @@ img {
 }
 
 a {
-  color: var(--ge-accent);
-  text-underline-offset: 0.15em;
-  transition: color var(--ge-transition);
+  color: var(--ge-brand);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.18em;
 }
 
 a:hover {
-  color: var(--ge-accent-strong);
+  color: var(--ge-brand-strong);
 }
 
 code,
@@ -179,14 +274,14 @@ samp {
 
 code {
   padding: 0 var(--ge-space-1);
-  border-radius: var(--ge-radius);
+  border-radius: 6px;
   background: var(--ge-sunken);
 }
 
 pre {
   overflow-x: auto;
-  padding: var(--ge-space-3);
-  border-radius: var(--ge-radius);
+  padding: var(--ge-space-3) var(--ge-space-4);
+  border-radius: var(--ge-r-sm);
   background: var(--ge-sunken);
   line-height: 1.5;
 }
@@ -199,15 +294,15 @@ pre code {
 
 blockquote {
   padding-left: var(--ge-space-4);
-  border-left: 4px solid var(--ge-rule);
+  border-left: 4px solid var(--ge-line);
   color: var(--ge-muted);
 }
 
-/* The "paper" voice: question, option and section text. */
+/* Question, option and section text: prose with its own paragraphs, lists
+   and code. */
 .question-body,
 .option-body,
 .section-body {
-  font-family: var(--ge-font-paper);
   font-size: var(--ge-text-lg);
   line-height: 1.6;
   overflow-wrap: anywhere;
@@ -243,8 +338,27 @@ blockquote {
 }
 
 :focus-visible {
-  outline: 3px solid var(--ge-accent);
-  outline-offset: 2px;
+  outline: 3px solid var(--ge-focus);
+  outline-offset: 3px;
+}
+
+/* A chalkboard surface: the student's exam bar. */
+.on-board {
+  background: var(--ge-board);
+  color: var(--ge-chalk);
+}
+
+.on-board a {
+  color: var(--ge-chalk);
+}
+
+.on-board :focus-visible {
+  outline-color: var(--ge-gold);
+}
+
+/* A light card on a board (the monitor banner) takes the page's ring. */
+.on-board .banner :focus-visible {
+  outline-color: var(--ge-focus);
 }
 
 [hidden] {
@@ -270,33 +384,37 @@ blockquote {
   font-variant-numeric: tabular-nums;
 }
 
+@media (max-width: 640px) {
+  h1 {
+    font-size: 1.75rem;
+  }
+}
+
 /* 3. Layout */
 
+/* The page column is the window up to 1280 px. */
 .container {
   width: 100%;
+  max-width: 1280px;
   margin-inline: auto;
-  padding-inline: var(--ge-space-4);
+  padding-inline: var(--ge-space-5);
 }
 
 main.container {
-  padding-block: var(--ge-space-5) var(--ge-space-7);
-}
-
-main.admin {
-  max-width: 1100px;
+  padding-block: var(--ge-space-6) var(--ge-space-7);
 }
 
 .narrow {
-  max-width: 28rem;
+  max-width: 520px;
 }
 
 .page-head {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--ge-space-3) var(--ge-space-4);
-  align-items: center;
+  gap: var(--ge-space-3) var(--ge-space-5);
+  align-items: flex-end;
   justify-content: space-between;
-  margin-bottom: var(--ge-space-4);
+  margin-bottom: var(--ge-space-5);
 }
 
 .page-head h1 {
@@ -311,13 +429,20 @@ main.admin {
 }
 
 .back {
-  margin-bottom: var(--ge-space-3);
-  font-size: var(--ge-text-sm);
+  margin: 0 0 var(--ge-space-2);
+}
+
+.back a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ge-touch);
+  font-weight: 700;
+  text-decoration: none;
 }
 
 @media (max-width: 640px) {
-  h1 {
-    font-size: 1.5rem;
+  .container {
+    padding-inline: var(--ge-space-4);
   }
 
   .page-head {
@@ -328,6 +453,8 @@ main.admin {
 
 /* 4. Actions: primary, secondary, quiet, destructive. */
 
+/* A button without a class, and a.button without .secondary, is the view's
+   one primary action. */
 button,
 .button {
   display: inline-flex;
@@ -336,49 +463,48 @@ button,
   justify-content: center;
   min-height: var(--ge-touch);
   margin: 0;
-  padding: var(--ge-space-2) var(--ge-space-4);
-  border: 1px solid var(--ge-accent);
-  border-radius: var(--ge-radius);
-  background: var(--ge-accent);
-  color: var(--ge-on-accent);
+  padding: 0 18px;
+  border: 2px solid transparent;
+  border-radius: var(--ge-r-md);
+  background: var(--ge-brand);
+  color: var(--ge-on-brand);
   font: inherit;
-  font-weight: 600;
-  line-height: 1.25;
+  font-weight: 700;
+  line-height: 1.2;
   text-align: center;
   text-decoration: none;
+  white-space: nowrap;
   cursor: pointer;
-  transition: background-color var(--ge-transition), border-color var(--ge-transition), color var(--ge-transition);
 }
 
 button:hover,
 .button:hover {
-  border-color: var(--ge-accent-strong);
-  background: var(--ge-accent-strong);
-  color: var(--ge-on-accent);
+  background: var(--ge-brand-strong);
+  color: var(--ge-on-brand);
   text-decoration: none;
 }
 
 button.secondary,
 .button.secondary {
-  border-color: var(--ge-edge);
+  border-color: var(--ge-brand);
   background: var(--ge-surface);
-  color: var(--ge-ink);
+  color: var(--ge-brand);
 }
 
 button.secondary:hover,
 .button.secondary:hover {
-  border-color: var(--ge-accent);
-  background: var(--ge-accent-soft);
-  color: var(--ge-ink);
+  background: var(--ge-brand-soft);
+  color: var(--ge-brand-strong);
 }
 
 button.quiet,
 .quiet {
-  padding-inline: var(--ge-space-2);
+  padding: 0 var(--ge-space-3);
   border-color: transparent;
+  border-radius: var(--ge-r-md);
   background: transparent;
-  color: var(--ge-accent);
-  font-weight: 600;
+  color: var(--ge-brand);
+  font-weight: 700;
   text-decoration: none;
 }
 
@@ -392,41 +518,73 @@ button.quiet:hover,
 .quiet:hover,
 .quiet:focus-visible {
   border-color: transparent;
-  background: transparent;
-  color: var(--ge-accent-strong);
-  text-decoration: underline;
+  background: var(--ge-sunken);
+  color: var(--ge-brand-strong);
+}
+
+.account .quiet,
+.account .quiet:hover {
+  color: var(--ge-ink);
 }
 
 button.danger {
-  border-color: var(--ge-danger-solid);
-  background: var(--ge-danger-solid);
+  background: var(--ge-danger);
   color: var(--ge-on-danger);
 }
 
 button.danger:hover {
-  border-color: var(--ge-danger-strong);
   background: var(--ge-danger-strong);
   color: var(--ge-on-danger);
 }
 
 /* A quiet trigger stays quiet: without this, button.danger (declared later,
    same specificity as button.quiet) would fill it. */
-button.quiet.danger,
-button.quiet.danger:hover {
-  border-color: transparent;
+button.quiet.danger {
   background: transparent;
+}
+
+button.quiet.danger:hover {
+  background: var(--ge-sunken);
 }
 
 .quiet.danger,
 .quiet.danger:hover,
-.danger-link,
-.danger-link:hover {
+a.danger-link,
+a.danger-link:hover {
   color: var(--ge-danger);
+}
+
+a.danger-link {
+  font-weight: 700;
 }
 
 button:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+/* On a board: the filled action is chalk, the others are chalk outlines. */
+.on-board button:not([class]),
+.on-board a.button:not(.secondary) {
+  background: var(--ge-chalk);
+  color: var(--ge-board);
+}
+
+.on-board button:not([class]):hover,
+.on-board a.button:not(.secondary):hover {
+  background: var(--ge-chalk-strong);
+  color: var(--ge-board);
+}
+
+.on-board .secondary {
+  border-color: var(--ge-chalk-muted);
+  background: transparent;
+  color: var(--ge-chalk);
+}
+
+.on-board .secondary:hover {
+  background: var(--ge-chalk-wash);
+  color: var(--ge-chalk);
 }
 
 /* 5. Forms */
@@ -441,19 +599,33 @@ select,
 textarea {
   display: block;
   width: 100%;
-  min-height: var(--ge-touch);
+  min-height: 48px;
   margin: 0 0 var(--ge-space-4);
-  padding: var(--ge-space-2) var(--ge-space-3);
-  border: 1px solid var(--ge-edge);
-  border-radius: var(--ge-radius);
+  padding: var(--ge-space-2) 14px;
+  border: 2px solid var(--ge-edge);
+  border-radius: var(--ge-r-md);
   background: var(--ge-surface);
   color: var(--ge-ink);
   font: inherit;
   font-size: max(16px, 1rem);
   font-weight: 400;
   line-height: 1.5;
-  accent-color: var(--ge-accent);
-  transition: border-color var(--ge-transition);
+  accent-color: var(--ge-brand);
+}
+
+:is(#landing, #exam) input:where(:not([type="checkbox"], [type="radio"], [type="file"], [type="hidden"])) {
+  min-height: 56px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--ge-brand);
+}
+
+[aria-invalid="true"] {
+  border-color: var(--ge-danger);
+  box-shadow: inset 0 0 0 1px var(--ge-danger);
 }
 
 label > input:where(:not([type="checkbox"], [type="radio"], [type="file"], [type="hidden"])),
@@ -476,7 +648,7 @@ input[type="radio"] {
   height: 1.25rem;
   margin: 0 var(--ge-space-2) 0 0;
   vertical-align: -0.25em;
-  accent-color: var(--ge-accent);
+  accent-color: var(--ge-brand);
 }
 
 input[type="file"] {
@@ -484,28 +656,27 @@ input[type="file"] {
   width: 100%;
   max-width: 100%;
   margin: 0 0 var(--ge-space-4);
-  color: var(--ge-ink);
+  color: var(--ge-muted);
   font: inherit;
-  accent-color: var(--ge-accent);
+  accent-color: var(--ge-brand);
 }
 
 ::file-selector-button {
   min-height: var(--ge-touch);
   margin-right: var(--ge-space-3);
-  padding: var(--ge-space-2) var(--ge-space-4);
-  border: 1px solid var(--ge-edge);
-  border-radius: var(--ge-radius);
+  padding: 0 var(--ge-space-4);
+  border: 2px solid var(--ge-edge);
+  border-radius: var(--ge-r-md);
   background: var(--ge-surface);
   color: var(--ge-ink);
   font: inherit;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: background-color var(--ge-transition), border-color var(--ge-transition);
 }
 
 ::file-selector-button:hover {
-  border-color: var(--ge-accent);
-  background: var(--ge-accent-soft);
+  border-color: var(--ge-brand);
+  background: var(--ge-brand-soft);
 }
 
 fieldset {
@@ -527,19 +698,41 @@ input + small {
 legend {
   margin-bottom: var(--ge-space-2);
   padding: 0;
-  font-weight: 600;
+  font-weight: 700;
 }
 
+/* A fold: its summary is a 52 px row with a chevron that turns when open. */
 details {
   margin: 0 0 var(--ge-space-4);
 }
 
 details > summary {
-  display: list-item;
-  min-height: var(--ge-touch);
-  padding-block: var(--ge-space-2);
-  font-weight: 600;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-height: 52px;
+  font-weight: 700;
+  list-style: none;
   cursor: pointer;
+}
+
+details > summary::-webkit-details-marker {
+  display: none;
+}
+
+details > summary::before {
+  content: "";
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin: 0 4px 0 2px;
+  border-right: 2.5px solid currentColor;
+  border-bottom: 2.5px solid currentColor;
+  transform: rotate(-45deg);
+}
+
+details[open] > summary::before {
+  transform: rotate(45deg);
 }
 
 dialog {
@@ -559,27 +752,6 @@ dialog > article h2 {
   margin-top: 0;
 }
 
-/* A form's save button and its quiet Cancel. From 641 px it stays in view at
-   the bottom of a long form; not below, where the on-screen keyboard is. */
-.form-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ge-space-2) var(--ge-space-3);
-  align-items: center;
-  margin: var(--ge-space-4) 0;
-  padding-block: var(--ge-space-3);
-}
-
-@media (min-width: 641px) {
-  .form-actions {
-    position: sticky;
-    bottom: 0;
-    z-index: 1;
-    border-top: 1px solid var(--ge-rule);
-    background: var(--ge-paper);
-  }
-}
-
 /* 6. Tables */
 
 table {
@@ -591,30 +763,52 @@ table {
 
 th,
 td {
-  padding: var(--ge-space-2) var(--ge-space-3);
-  border-bottom: 1px solid var(--ge-rule);
+  padding: var(--ge-space-4) 10px;
+  border-bottom: 1px solid var(--ge-line);
   text-align: left;
 }
 
 th {
-  border-bottom-width: 2px;
+  padding-block: 14px;
+  background: var(--ge-sunken);
   color: var(--ge-muted);
   font-size: var(--ge-text-sm);
-  font-weight: 600;
+  font-weight: 700;
   white-space: nowrap;
 }
 
-/* Positioned, so a visually hidden header cell stays inside the scroller
-   instead of widening the page. */
+th:first-child,
+td:first-child {
+  padding-left: var(--ge-space-5);
+}
+
+th:last-child,
+td:last-child {
+  padding-right: var(--ge-space-5);
+}
+
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+tbody tr:hover td {
+  background: color-mix(in srgb, var(--ge-brand-soft) 35%, transparent);
+}
+
+/* The table card. Positioned, so a visually hidden header cell stays inside
+   the scroller instead of widening the page. */
 .overflow-auto {
   position: relative;
   overflow-x: auto;
   margin-bottom: var(--ge-space-4);
+  border: 1px solid var(--ge-line);
+  border-radius: var(--ge-r-lg);
+  background: var(--ge-surface);
+  box-shadow: var(--ge-shadow);
 }
 
 .overflow-auto table {
   margin-bottom: 0;
-  background: var(--ge-surface);
 }
 
 /* The actions wrap between buttons and links, never inside one. */
@@ -629,7 +823,7 @@ th {
 }
 
 .row-actions button {
-  padding: var(--ge-space-1) var(--ge-space-3);
+  padding: 0 14px;
 }
 
 .row-actions a {
@@ -644,7 +838,7 @@ th {
 }
 
 .zone-note {
-  margin: var(--ge-space-3) 0;
+  margin: 14px var(--ge-space-1) 0;
   color: var(--ge-muted);
   font-size: var(--ge-text-sm);
 }
@@ -653,81 +847,122 @@ th {
   color: var(--ge-muted);
 }
 
-/* 7. Feedback. Badges always carry text; colour only reinforces it. */
+/* 7. Feedback. A status is a word plus a shape; colour comes third. */
 
 .badge {
-  display: inline-block;
-  padding: 2px var(--ge-space-2);
-  border: 1px solid var(--ge-rule);
-  border-radius: var(--ge-radius);
-  background: var(--ge-surface);
-  color: var(--ge-ink);
-  font-size: var(--ge-text-sm);
-  font-weight: 600;
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  min-height: 28px;
+  padding: 2px 12px 2px 10px;
+  border-radius: var(--ge-r-pill);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.2;
   white-space: nowrap;
 }
 
+.badge::before {
+  content: "";
+  flex: none;
+  width: 9px;
+  height: 9px;
+}
+
+/* Open, Submitted: a filled dot. */
 .badge-ok {
-  border-color: var(--ge-ok);
-  background: var(--ge-ok-bg);
-  color: var(--ge-ok);
+  background: var(--ge-brand-soft);
+  color: var(--ge-brand-strong);
 }
 
+.badge-ok::before {
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* In progress: a triangle pointing right. */
 .badge-warn {
-  border-color: var(--ge-warn);
-  background: var(--ge-warn-bg);
-  color: var(--ge-warn);
+  background: var(--ge-gold-soft);
+  color: var(--ge-gold-ink);
 }
 
+.badge-warn::before {
+  background: currentColor;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+
+/* Closed, Timed out, Admin: a ring. */
 .badge-muted {
+  background: var(--ge-closed-bg);
+  color: var(--ge-closed-ink);
+}
+
+.badge-muted::before {
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px currentColor;
+}
+
+/* Archived: an outline and a small square. */
+.badge-archived {
   color: var(--ge-muted);
+  box-shadow: inset 0 0 0 1.5px var(--ge-edge);
+}
+
+.badge-archived::before {
+  border-radius: 2px;
+  background: currentColor;
+}
+
+/* Alerts: ink on the danger tint, a danger bar and the alert icon. */
+.alert,
+.banner-danger {
+  position: relative;
+  padding: var(--ge-space-3) var(--ge-space-4) var(--ge-space-3) 46px;
+  border-left: 6px solid var(--ge-danger);
+  border-radius: var(--ge-r-md);
+  background: var(--ge-danger-soft);
+  color: var(--ge-ink);
+  font-weight: 700;
 }
 
 .alert {
   margin-bottom: var(--ge-space-4);
-  padding: var(--ge-space-3) var(--ge-space-4);
-  border: 1px solid var(--ge-danger);
-  border-radius: var(--ge-radius);
-  background: var(--ge-danger-bg);
-  color: var(--ge-danger);
-  font-weight: 600;
 }
 
-.frozen-notice {
+.alert::before,
+.banner-danger::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--ge-space-3) + 0.1em);
+  left: var(--ge-space-3);
+  width: 1.25em;
+  height: 1.25em;
+  background: var(--ge-danger);
+  -webkit-mask: var(--ge-i-alert) center / contain no-repeat;
+  mask: var(--ge-i-alert) center / contain no-repeat;
+}
+
+/* Notices: ink on the gold tint with a gold bar. */
+.frozen-notice,
+.banner-warn {
   padding: var(--ge-space-3) var(--ge-space-4);
-  border: 1px solid var(--ge-warn);
-  border-radius: var(--ge-radius);
-  background: var(--ge-warn-bg);
-  color: var(--ge-warn);
+  border-left: 6px solid var(--ge-gold);
+  border-radius: var(--ge-r-md);
+  background: var(--ge-gold-soft);
+  color: var(--ge-ink);
   font-weight: 600;
 }
 
 .banner {
   max-width: 720px;
   margin: var(--ge-space-3) auto;
-  padding: var(--ge-space-3) var(--ge-space-4);
-  border: 1px solid var(--ge-rule);
-  border-radius: var(--ge-radius);
-  font-weight: 600;
-}
-
-.banner-danger {
-  border-color: var(--ge-danger);
-  background: var(--ge-danger-bg);
-  color: var(--ge-danger);
-}
-
-.banner-warn {
-  border-color: var(--ge-warn);
-  background: var(--ge-warn-bg);
-  color: var(--ge-warn);
 }
 
 .banner a {
   color: inherit;
 }
 
-/* 8. Paper: cards, bubbles, question parts, marks. */
+/* 8. Paper: cards, bubbles, question parts, previews, marks. */
 
 .question,
 .review-question,
@@ -735,55 +970,71 @@ th {
 .detail-question,
 .score-block,
 .format-help,
-.resume,
 #question-nav,
 dialog > article {
-  padding: var(--ge-space-4);
-  border: 1px solid var(--ge-rule);
-  border-radius: var(--ge-radius);
+  padding: 22px var(--ge-space-5);
+  border: 1px solid var(--ge-line);
+  border-radius: var(--ge-r-lg);
   background: var(--ge-surface);
+  box-shadow: var(--ge-shadow);
 }
 
-/* The answer-sheet bubble: empty outline = open, filled = answered or picked. */
+dialog > article {
+  border-radius: var(--ge-r-xl);
+}
+
+@media (max-width: 640px) {
+  .question,
+  .review-question,
+  .preview-question,
+  .detail-question,
+  .score-block,
+  .format-help,
+  #question-nav,
+  dialog > article {
+    padding: var(--ge-space-4);
+  }
+}
+
+/* The answer-sheet bubble: empty ring = open, filled = answered or picked. */
 .bubble {
   display: inline-flex;
   flex: none;
   align-items: center;
   justify-content: center;
-  width: var(--ge-bubble-size);
-  height: var(--ge-bubble-size);
-  border: 2px solid var(--ge-edge);
+  width: 32px;
+  height: 32px;
+  border: 2.5px solid var(--ge-edge);
   border-radius: 50%;
   background: var(--ge-surface);
   color: var(--ge-ink);
-  font-family: var(--ge-font-ui);
   font-size: var(--ge-text-sm);
-  font-weight: 600;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
   line-height: 1;
   text-decoration: none;
-  transition: background-color var(--ge-transition), border-color var(--ge-transition), color var(--ge-transition);
 }
 
 .bubble[data-answered="true"] {
-  border-color: var(--ge-accent);
-  background: var(--ge-accent);
-  color: var(--ge-on-accent);
+  border-color: var(--ge-brand);
+  background: var(--ge-brand);
+  color: var(--ge-on-brand);
 }
 
 .eyebrow {
   margin-bottom: var(--ge-space-2);
-  color: var(--ge-muted);
-  font-size: var(--ge-text-sm);
+  color: var(--ge-brand);
+  font-size: 0.9375rem;
+  font-weight: 800;
 }
 
-/* Sections: a heading between question cards, in the paper voice, with an
-   accent rule instead of a card so it does not read as a question. */
+/* Sections: a heading between question cards with a gold bar instead of a
+   card, so it does not read as a question. */
 .section-head {
   min-width: 0;
   margin: var(--ge-space-6) 0 var(--ge-space-4);
   padding: var(--ge-space-1) 0 var(--ge-space-1) var(--ge-space-4);
-  border-left: 4px solid var(--ge-accent);
+  border-left: 6px solid var(--ge-gold);
   overflow-wrap: anywhere;
 }
 
@@ -793,36 +1044,72 @@ dialog > article {
 
 .section-title {
   margin: 0;
-  font-family: var(--ge-font-paper);
   font-size: 1.375rem;
   line-height: 1.3;
 }
 
 .section-body {
-  margin-top: var(--ge-space-2);
+  margin-top: var(--ge-space-1);
   color: var(--ge-ink);
+  font-size: var(--ge-text-md);
 }
 
 .preview-question {
   margin-bottom: var(--ge-space-5);
 }
 
-.preview-options {
+/* Options in two columns, each with its letter in a bubble; the right one
+   filled. */
+ol.preview-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ge-space-2);
   margin: var(--ge-space-3) 0 0;
-  padding-left: var(--ge-space-5);
-  list-style-type: upper-alpha;
+  padding: 0;
+  list-style: none;
 }
 
 .preview-options li {
-  margin-bottom: var(--ge-space-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2) 10px;
+  align-items: center;
   padding: var(--ge-space-2) var(--ge-space-3);
-  border: 1px solid var(--ge-rule);
-  border-radius: var(--ge-radius);
+  border: 1.5px solid var(--ge-line);
+  border-radius: var(--ge-r-md);
+  counter-increment: list-item;
+}
+
+.preview-options li::before {
+  content: counter(list-item, upper-alpha);
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--ge-edge);
+  border-radius: 50%;
+  font-size: var(--ge-text-sm);
+  font-weight: 700;
+}
+
+.preview-options .option-body {
+  flex: 1 1 8rem;
+  min-width: 0;
+  font-size: var(--ge-text-base);
 }
 
 .preview-options li[data-correct="true"] {
-  border-color: var(--ge-ok);
-  background: var(--ge-ok-bg);
+  border-color: var(--ge-brand);
+  background: var(--ge-brand-soft);
+  font-weight: 700;
+}
+
+.preview-options li[data-correct="true"]::before {
+  border-color: var(--ge-brand);
+  background: var(--ge-brand);
+  color: var(--ge-on-brand);
 }
 
 .preview-answers {
@@ -830,61 +1117,133 @@ dialog > article {
 }
 
 .correct-mark {
-  display: inline-block;
-  margin-top: var(--ge-space-1);
-  color: var(--ge-ok);
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  padding: 2px 10px;
+  border-radius: var(--ge-r-pill);
+  background: var(--ge-surface);
+  color: var(--ge-brand-strong);
   font-size: var(--ge-text-sm);
-  font-weight: 600;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .accepted-label {
   margin: 0 0 var(--ge-space-2);
   color: var(--ge-muted);
   font-size: var(--ge-text-sm);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .accepted-answers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2);
   margin: 0;
   padding: 0;
+  list-style: none;
 }
 
 .accepted-answers li {
-  margin: 0 0 var(--ge-space-2);
-  padding: var(--ge-space-2) var(--ge-space-3);
-  border: 1px solid var(--ge-ok);
-  border-radius: var(--ge-radius);
-  background: var(--ge-ok-bg);
-  list-style: none;
+  padding: var(--ge-space-1) var(--ge-space-3);
+  border-radius: var(--ge-r-sm);
+  background: var(--ge-brand-soft);
+  color: var(--ge-brand-strong);
+  font-weight: 700;
   overflow-wrap: anywhere;
+}
+
+/* Settings (exam page, revision, attempt summary): label on the left, value
+   on the right, one ruled row each. */
+dl.settings {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  gap: 0;
+  margin: 0 0 var(--ge-space-6);
+}
+
+.settings dt,
+.settings dd {
+  display: flex;
+  align-items: center;
+  min-height: var(--ge-touch);
+  margin: 0;
+  padding: var(--ge-space-2) 0;
+  border-top: 1px solid var(--ge-line);
+}
+
+.settings dt {
+  padding-right: var(--ge-space-4);
+  color: var(--ge-muted);
+}
+
+.settings dd {
+  justify-content: flex-end;
+  font-weight: 700;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.settings dt:first-of-type,
+.settings dd:first-of-type {
+  border-top: 0;
+}
+
+@media (max-width: 640px) {
+  ol.preview-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A narrow column: the label small above its value, so a long label never
+   squeezes the value. */
+@media (max-width: 480px) {
+  dl.settings {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings dt {
+    min-height: 0;
+    padding: 10px 0 0;
+    font-size: var(--ge-text-sm);
+  }
+
+  .settings dd {
+    justify-content: flex-start;
+    min-height: 0;
+    padding: 2px 0 10px;
+    border-top: 0;
+    text-align: left;
+  }
 }
 
 /* 9. Headers */
 
 .admin-header,
 .brand-header {
-  border-bottom: 1px solid var(--ge-rule);
+  border-bottom: 1px solid var(--ge-line);
   background: var(--ge-surface);
 }
 
 .admin-header nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 var(--ge-space-4);
+  gap: 0 var(--ge-space-6);
   align-items: center;
-  max-width: 1100px;
+  min-height: 68px;
 }
 
 .brand-header {
-  padding: 0 max(var(--ge-space-4), calc((100% - 1100px) / 2 + var(--ge-space-4)));
+  padding: 0 max(var(--ge-space-5), calc((100% - 1280px) / 2 + var(--ge-space-5)));
 }
 
 .brand {
   display: inline-flex;
   flex: none;
-  gap: var(--ge-space-2);
+  gap: 10px;
   align-items: center;
-  min-height: 56px;
+  min-height: 68px;
   color: var(--ge-ink);
   text-decoration: none;
 }
@@ -895,15 +1254,37 @@ dialog > article {
 
 .mark {
   display: block;
-  width: 28px;
-  height: 28px;
+  flex: none;
+  width: 30px;
+  height: 30px;
+}
+
+.mark-box {
+  fill: var(--ge-brand);
+}
+
+.mark-tick {
+  fill: none;
+  stroke: var(--ge-on-brand);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.on-board .mark-box {
+  fill: var(--ge-chalk);
+}
+
+.on-board .mark-tick {
+  stroke: var(--ge-board);
 }
 
 .wordmark {
-  font-family: var(--ge-font-ui);
-  font-size: var(--ge-text-lg);
-  font-weight: 700;
-  letter-spacing: 0.01em;
+  font-family: var(--ge-font-display);
+  font-size: 1.3125rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.01em;
 }
 
 .nav-links {
@@ -912,24 +1293,36 @@ dialog > article {
 }
 
 .nav-links a {
+  position: relative;
   display: inline-flex;
   align-items: center;
   min-height: var(--ge-touch);
-  padding: 0 var(--ge-space-2);
-  color: var(--ge-ink);
+  padding: 0 14px;
+  border-radius: var(--ge-r-sm);
+  color: var(--ge-muted);
   font-weight: 600;
   text-decoration: none;
 }
 
 .nav-links a:hover {
-  color: var(--ge-accent);
+  background: var(--ge-sunken);
+  color: var(--ge-ink);
 }
 
 .nav-links a[aria-current="page"] {
-  color: var(--ge-accent);
-  text-decoration: underline;
-  text-decoration-thickness: 3px;
-  text-underline-offset: 8px;
+  color: var(--ge-ink);
+  font-weight: 800;
+}
+
+.nav-links a[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  right: var(--ge-space-3);
+  bottom: var(--ge-space-1);
+  left: var(--ge-space-3);
+  height: 5px;
+  border-radius: 3px;
+  background: var(--ge-gold);
 }
 
 .account {
@@ -947,7 +1340,7 @@ dialog > article {
   max-width: 18rem;
   overflow: hidden;
   color: var(--ge-muted);
-  font-size: var(--ge-text-sm);
+  font-size: 0.9375rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -958,6 +1351,19 @@ dialog > article {
 }
 
 @media (max-width: 640px) {
+  .admin-header nav {
+    gap: 0 var(--ge-space-4);
+    min-height: 0;
+  }
+
+  .brand-header {
+    padding: 0 var(--ge-space-4);
+  }
+
+  .brand {
+    min-height: 56px;
+  }
+
   .account {
     flex: 1 1 0;
     justify-content: flex-end;
@@ -966,7 +1372,7 @@ dialog > article {
   .nav-links {
     flex-basis: 100%;
     order: 3;
-    margin-left: calc(-1 * var(--ge-space-2));
+    margin-left: calc(-1 * var(--ge-space-3));
   }
 }
 
@@ -1074,7 +1480,7 @@ main.landing {
 .about {
   margin-top: var(--ge-space-6);
   padding-top: var(--ge-space-5);
-  border-top: 1px solid var(--ge-rule);
+  border-top: 1px solid var(--ge-line);
 }
 
 .about h2 {
@@ -1162,7 +1568,8 @@ main.login .button {
   overflow-wrap: break-word;
 }
 
-/* Sticky top bar: timer, save state, navigator toggle; one 56 px row. */
+/* Sticky top bar, a chalkboard: timer, save state, navigator toggle; one
+   row of --ge-bar. */
 .exam-bar {
   position: sticky;
   top: 0;
@@ -1171,11 +1578,8 @@ main.login .button {
   gap: var(--ge-space-3);
   align-items: center;
   justify-content: space-between;
-  height: 56px;
+  height: var(--ge-bar);
   padding: 0 max(var(--ge-space-4), calc((100% - var(--ge-column)) / 2 + var(--ge-space-4)));
-  border-top: 1px solid var(--ge-rule);
-  border-bottom: 1px solid var(--ge-rule);
-  background: var(--ge-surface);
 }
 
 .timer-box {
@@ -1183,29 +1587,30 @@ main.login .button {
   margin: 0;
 }
 
+/* A chalk pill; every level keeps its 2 px chalk border so the pill stands
+   off the board. */
 #timer {
   display: inline-block;
   min-width: 4.5ch;
-  padding: var(--ge-space-1) var(--ge-space-2);
-  border: 1px solid transparent;
-  border-radius: var(--ge-radius);
-  color: var(--ge-ink);
-  font-size: var(--ge-text-xl);
-  font-weight: 700;
+  padding: 6px 10px;
+  border: 2px solid var(--ge-chalk);
+  border-radius: var(--ge-r-md);
+  background: var(--ge-chalk);
+  color: var(--ge-board);
+  font-size: 1.3125rem;
+  font-weight: 800;
+  line-height: 1;
   text-align: center;
-  transition: background-color var(--ge-transition), border-color var(--ge-transition), color var(--ge-transition);
 }
 
 #timer[data-level="warn"] {
-  border-color: var(--ge-warn);
-  background: var(--ge-warn-bg);
-  color: var(--ge-warn);
+  background: var(--ge-gold);
+  color: var(--ge-on-gold);
 }
 
 #timer[data-level="danger"] {
-  border-color: var(--ge-danger);
-  background: var(--ge-danger-bg);
-  color: var(--ge-danger);
+  background: var(--ge-danger);
+  color: var(--ge-on-danger);
 }
 
 #save-state {
@@ -1220,15 +1625,21 @@ main.login .button {
 }
 
 #save-state[data-state="saved"] {
-  color: var(--ge-ok);
+  color: var(--ge-chalk);
 }
 
 #save-state[data-state="saving"] {
-  color: var(--ge-muted);
+  color: var(--ge-chalk-muted);
 }
 
 #save-state[data-state="error"] {
-  color: var(--ge-danger);
+  flex: 0 1 auto;
+  padding: 2px 10px;
+  border: 2px solid var(--ge-chalk);
+  border-radius: var(--ge-r-pill);
+  background: var(--ge-danger);
+  color: var(--ge-on-danger);
+  font-weight: 700;
 }
 
 #nav-toggle {
@@ -1274,7 +1685,8 @@ main.login .button {
 }
 
 .nav-grid .bubble {
-  --ge-bubble-size: 40px;
+  width: 40px;
+  height: 40px;
   position: relative;
 }
 
@@ -1294,18 +1706,18 @@ main.login .button {
 
   html.js #question-nav[data-open="true"] {
     position: sticky;
-    top: calc(56px + var(--ge-monitor-offset, 0px));
+    top: calc(var(--ge-bar) + var(--ge-monitor-offset, 0px));
     z-index: 9;
-    max-height: calc(100vh - 56px - var(--ge-monitor-offset, 0px));
+    max-height: calc(100vh - var(--ge-bar) - var(--ge-monitor-offset, 0px));
     margin-top: 0;
     overflow-y: auto;
     border-top: 0;
-    border-radius: 0 0 var(--ge-radius) var(--ge-radius);
+    border-radius: 0 0 var(--ge-r-md) var(--ge-r-md);
   }
 }
 
 .question {
-  scroll-margin-top: calc(56px + var(--ge-space-2) + var(--ge-monitor-offset, 0px));
+  scroll-margin-top: calc(var(--ge-bar) + var(--ge-space-2) + var(--ge-monitor-offset, 0px));
   margin: var(--ge-space-4) 0 var(--ge-space-5);
 }
 
@@ -1335,7 +1747,7 @@ main[data-monitor="on"] .exam-questions {
 }
 
 .q-state[data-state="saved"] {
-  color: var(--ge-ok);
+  color: var(--ge-brand-strong);
 }
 
 .q-state[data-state="saving"] {
@@ -1359,8 +1771,8 @@ main[data-monitor="on"] .exam-questions {
   min-height: 48px;
   margin: 0 0 var(--ge-space-2);
   padding: var(--ge-space-2) var(--ge-space-3);
-  border: 1px solid var(--ge-rule);
-  border-radius: var(--ge-radius);
+  border: 1px solid var(--ge-line);
+  border-radius: var(--ge-r-md);
   background: var(--ge-surface);
   cursor: pointer;
   transition: background-color var(--ge-transition), border-color var(--ge-transition);
@@ -1378,18 +1790,18 @@ main[data-monitor="on"] .exam-questions {
 
 .option:has(input:checked) {
   padding: calc(var(--ge-space-2) - 1px) calc(var(--ge-space-3) - 1px);
-  border: 2px solid var(--ge-accent);
-  background: var(--ge-accent-soft);
+  border: 2px solid var(--ge-brand);
+  background: var(--ge-brand-soft);
 }
 
 .option:has(input:checked) .bubble {
-  border-color: var(--ge-accent);
-  background: var(--ge-accent);
-  color: var(--ge-on-accent);
+  border-color: var(--ge-brand);
+  background: var(--ge-brand);
+  color: var(--ge-on-brand);
 }
 
 .option:has(input:focus-visible) {
-  outline: 3px solid var(--ge-accent);
+  outline: 3px solid var(--ge-brand);
   outline-offset: 2px;
 }
 
@@ -1419,7 +1831,7 @@ main[data-monitor="on"] .exam-questions {
 }
 
 .answer-box .answer-text:focus {
-  border-color: var(--ge-accent);
+  border-color: var(--ge-brand);
 }
 
 /* The box stays editable under the monitor's user-select: none above. */
@@ -1431,7 +1843,7 @@ main[data-monitor="on"] .exam-questions .answer-text {
 .exam-footer {
   margin-top: var(--ge-space-6);
   padding: var(--ge-space-4) 0 var(--ge-space-6);
-  border-top: 1px solid var(--ge-rule);
+  border-top: 1px solid var(--ge-line);
 }
 
 .answered-summary {
@@ -1472,8 +1884,8 @@ main[data-monitor="on"] .exam-questions .answer-text {
 
   #question-nav {
     position: sticky;
-    top: calc(56px + var(--ge-space-4) + var(--ge-monitor-offset, 0px));
-    max-height: calc(100vh - 56px - var(--ge-space-5) - var(--ge-monitor-offset, 0px));
+    top: calc(var(--ge-bar) + var(--ge-space-4) + var(--ge-monitor-offset, 0px));
+    max-height: calc(100vh - var(--ge-bar) - var(--ge-space-5) - var(--ge-monitor-offset, 0px));
     overflow-y: auto;
   }
 
@@ -1553,8 +1965,8 @@ main.result {
   min-height: 48px;
   margin: 0 0 var(--ge-space-2);
   padding: var(--ge-space-2) var(--ge-space-3);
-  border: 1px solid var(--ge-rule);
-  border-radius: var(--ge-radius);
+  border: 1px solid var(--ge-line);
+  border-radius: var(--ge-r-md);
   background: var(--ge-surface);
   list-style: none;
 }
@@ -1564,19 +1976,19 @@ main.result {
 }
 
 .review-option[data-picked="true"] .bubble {
-  border-color: var(--ge-accent);
-  background: var(--ge-accent);
-  color: var(--ge-on-accent);
+  border-color: var(--ge-brand);
+  background: var(--ge-brand);
+  color: var(--ge-on-brand);
 }
 
 .review-option[data-correct="true"] {
-  border-color: var(--ge-ok);
-  background: var(--ge-ok-bg);
+  border-color: var(--ge-brand-strong);
+  background: var(--ge-brand-soft);
 }
 
 .review-option[data-picked="true"][data-correct="false"] {
   border-color: var(--ge-danger);
-  background: var(--ge-danger-bg);
+  background: var(--ge-danger-soft);
 }
 
 .review-mark {
@@ -1586,7 +1998,7 @@ main.result {
 }
 
 .review-option[data-correct="true"] .review-mark {
-  color: var(--ge-ok);
+  color: var(--ge-brand-strong);
 }
 
 .review-option[data-picked="true"][data-correct="false"] .review-mark {
@@ -1605,8 +2017,8 @@ main.result {
   margin: 0 0 var(--ge-space-3);
   padding: var(--ge-space-2) var(--ge-space-3);
   border: 1px solid var(--ge-danger);
-  border-radius: var(--ge-radius);
-  background: var(--ge-danger-bg);
+  border-radius: var(--ge-r-md);
+  background: var(--ge-danger-soft);
 }
 
 .typed-text {
@@ -1621,12 +2033,12 @@ main.result {
 }
 
 .review-fill-in[data-correct="true"] .review-typed {
-  border-color: var(--ge-ok);
-  background: var(--ge-ok-bg);
+  border-color: var(--ge-brand-strong);
+  background: var(--ge-brand-soft);
 }
 
 .review-fill-in[data-correct="true"] .review-typed .review-mark {
-  color: var(--ge-ok);
+  color: var(--ge-brand-strong);
 }
 
 /* 13. Teacher: exams list */
@@ -1637,9 +2049,9 @@ main.result {
 
 /* "Import from file" jumps here; the outline shows where it landed. */
 #import:target {
-  outline: 3px solid var(--ge-accent);
+  outline: 3px solid var(--ge-brand);
   outline-offset: var(--ge-space-2);
-  border-radius: var(--ge-radius);
+  border-radius: var(--ge-r-md);
 }
 
 .list-filter {
@@ -1666,7 +2078,7 @@ main.result {
 }
 
 .format-help pre {
-  border: 1px solid var(--ge-rule);
+  border: 1px solid var(--ge-line);
   font-size: var(--ge-text-sm);
 }
 
@@ -1726,8 +2138,8 @@ small.schedule {
     gap: var(--ge-space-1) var(--ge-space-3);
     margin-bottom: var(--ge-space-3);
     padding: var(--ge-space-3) var(--ge-space-4);
-    border: 1px solid var(--ge-rule);
-    border-radius: var(--ge-radius);
+    border: 1px solid var(--ge-line);
+    border-radius: var(--ge-r-md);
     background: var(--ge-surface);
   }
 
@@ -1883,26 +2295,10 @@ section.schedule h2 {
   margin-bottom: var(--ge-space-3);
 }
 
-.settings {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: var(--ge-space-2) var(--ge-space-4);
-  margin-bottom: var(--ge-space-6);
-}
-
-.settings dt {
-  color: var(--ge-muted);
-  font-weight: 600;
-}
-
-.settings dd {
-  margin: 0;
-}
-
 .more {
   margin-bottom: var(--ge-space-6);
   padding-top: var(--ge-space-5);
-  border-top: 1px solid var(--ge-rule);
+  border-top: 1px solid var(--ge-line);
 }
 
 .more h2 {
@@ -1933,7 +2329,7 @@ section.schedule h2 {
   box-sizing: border-box;
   width: 100%;
   padding: var(--ge-space-7) var(--ge-space-4);
-  background: var(--ge-paper);
+  background: var(--ge-bg);
   text-align: center;
 }
 
@@ -2110,7 +2506,7 @@ th[aria-sort] {
     left: 0;
     z-index: 1;
     max-width: 9rem;
-    border-right: 1px solid var(--ge-rule);
+    border-right: 1px solid var(--ge-line);
     background: var(--ge-surface);
   }
 }
@@ -2129,7 +2525,7 @@ th[aria-sort] {
 
 .detail-options li[data-picked="true"][data-correct="false"] {
   border-color: var(--ge-danger);
-  background: var(--ge-danger-bg);
+  background: var(--ge-danger-soft);
 }
 
 .detail-options li[data-picked="true"] {
@@ -2170,13 +2566,13 @@ th[aria-sort] {
   margin: 0 0 var(--ge-space-3);
   padding: var(--ge-space-2) var(--ge-space-3);
   border: 2px solid var(--ge-danger);
-  border-radius: var(--ge-radius);
-  background: var(--ge-danger-bg);
+  border-radius: var(--ge-r-md);
+  background: var(--ge-danger-soft);
 }
 
 .detail-fill-in[data-correct="true"] .typed-answer {
-  border-color: var(--ge-ok);
-  background: var(--ge-ok-bg);
+  border-color: var(--ge-brand-strong);
+  background: var(--ge-brand-soft);
 }
 
 .auto-mark,
@@ -2188,7 +2584,7 @@ th[aria-sort] {
 
 .auto-mark[data-auto="true"],
 .override-mark[data-override="true"] {
-  color: var(--ge-ok);
+  color: var(--ge-brand-strong);
 }
 
 .auto-mark[data-auto="false"],
@@ -2218,6 +2614,27 @@ th[aria-sort] {
 
 /* 16. Teacher: editor */
 
+/* A form's save button and its quiet Cancel. From 641 px it stays in view at
+   the bottom of a long form; not below, where the on-screen keyboard is. */
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ge-space-2) var(--ge-space-3);
+  align-items: center;
+  margin: var(--ge-space-4) 0;
+  padding-block: var(--ge-space-3);
+}
+
+@media (min-width: 641px) {
+  .form-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    border-top: 1px solid var(--ge-line);
+    background: var(--ge-bg);
+  }
+}
+
 /* Editor list: each card ends in one action row. Edit leads, the quiet
    actions follow, Remove sits at the row's end. */
 .question-actions {
@@ -2227,7 +2644,7 @@ th[aria-sort] {
   align-items: center;
   margin-top: var(--ge-space-4);
   padding-top: var(--ge-space-3);
-  border-top: 1px solid var(--ge-rule);
+  border-top: 1px solid var(--ge-line);
 }
 
 .question-actions .remove-question {
@@ -2296,7 +2713,7 @@ th[aria-sort] {
   gap: var(--ge-space-2) var(--ge-space-3);
   align-items: start;
   padding: var(--ge-space-3) 0;
-  border-top: 1px solid var(--ge-rule);
+  border-top: 1px solid var(--ge-line);
 }
 
 .option-row .option-correct {
@@ -2335,7 +2752,7 @@ th[aria-sort] {
   gap: var(--ge-space-2) var(--ge-space-3);
   align-items: center;
   padding: var(--ge-space-3) 0;
-  border-top: 1px solid var(--ge-rule);
+  border-top: 1px solid var(--ge-line);
 }
 
 .answer-row input {
@@ -2352,7 +2769,7 @@ th[aria-sort] {
 
 .image-dropped {
   margin: var(--ge-space-2) 0;
-  color: var(--ge-warn);
+  color: var(--ge-gold-ink);
   font-weight: 600;
 }
 
@@ -2422,6 +2839,27 @@ th[aria-sort] {
 }
 
 /* 18. Motion */
+
+/* Colour changes ease in only for those who have not asked for less motion,
+   and the in-page links of / scroll smoothly; nothing else moves. Smooth
+   scrolling stays off the other pages: there a script's or a jump link's
+   scroll lands at once (the exam page's scroll-position rules rely on it). */
+@media (prefers-reduced-motion: no-preference) {
+  html:has(#landing) {
+    scroll-behavior: smooth;
+  }
+
+  a,
+  button,
+  .button,
+  .bubble,
+  input,
+  select,
+  textarea,
+  ::file-selector-button {
+    transition: background-color var(--ge-transition), border-color var(--ge-transition), color var(--ge-transition);
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *,

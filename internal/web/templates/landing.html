@@ -1,8 +1,10 @@
 {{define "title"}}{{with .ExamTitle}}{{.}} · {{end}}Answerbox{{end}}
 
+{{define "head"}}{{template "font_preload"}}{{end}}
+
 {{define "main"}}
 <main class="container narrow landing" id="landing">
-  <p class="landing-brand"><img class="mark" src="{{static "mark.svg"}}" alt="" width="48" height="48">{{if .ExamTitle}}<span class="wordmark">Answerbox</span>{{end}}</p>
+  <p class="landing-brand">{{template "mark"}}{{if .ExamTitle}}<span class="wordmark">Answerbox</span>{{end}}</p>
   {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
   <h1 class="landing-title">{{if .ExamTitle}}{{.ExamTitle}}{{else}}Answerbox{{end}}</h1>
   {{if not .ExamTitle}}<p class="landing-lead">Enter the exam code your teacher gave you.</p>{{end}}

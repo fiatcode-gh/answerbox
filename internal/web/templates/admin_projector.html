@@ -1,6 +1,6 @@
 {{define "title"}}{{.Exam.Title}} · Answerbox{{end}}
 
-{{define "header"}}<header class="brand-header"><span class="brand"><img class="mark" src="{{static "mark.svg"}}" alt="" width="28" height="28"><span class="wordmark">Answerbox</span></span> <a class="quiet" href="/admin/exams/{{.Exam.ID}}">← Back to the exam</a></header>{{end}}
+{{define "header"}}<header class="brand-header"><span class="brand">{{template "mark"}}<span class="wordmark">Answerbox</span></span> <a class="quiet" href="/admin/exams/{{.Exam.ID}}">← Back to the exam</a></header>{{end}}
 
 {{define "main"}}
 <main class="projector" id="projector" data-exam-id="{{.Exam.ID}}">

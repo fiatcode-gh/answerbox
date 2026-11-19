@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"path"
 	"regexp"
 	"strings"
 	"testing"
@@ -53,17 +54,35 @@ func TestHealthz(t *testing.T) {
 	}
 }
 
+// servedStatic is what /static/name must answer: the embedded file, and for a
+// stylesheet the file with its url() references versioned.
+func servedStatic(t *testing.T, name string) []byte {
+	t.Helper()
+	data, err := fs.ReadFile(staticFS, "static/"+name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path.Ext(name) != ".css" {
+		return data
+	}
+	a, err := loadAssets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err = versionCSS(data, a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
 func staticURL(t *testing.T, body, name string) string {
 	t.Helper()
 	m := regexp.MustCompile(`href="(/static/` + regexp.QuoteMeta(name) + `\?v=([0-9a-f]{8}))"`).FindStringSubmatch(body)
 	if m == nil {
 		t.Fatalf("page does not link %s with ?v=<8 hex>:\n%s", name, body)
 	}
-	data, err := fs.ReadFile(staticFS, "static/"+name)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sum := sha256.Sum256(data)
+	sum := sha256.Sum256(servedStatic(t, name))
 	if want := hex.EncodeToString(sum[:])[:8]; m[2] != want {
 		t.Errorf("%s version = %s, want %s", name, m[2], want)
 	}
@@ -96,7 +115,7 @@ func TestHeaders_CSP(t *testing.T) {
 	cssURL := staticURL(t, notFound.Body.String(), "app.css")
 
 	want := map[string]string{
-		"Content-Security-Policy": "default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+		"Content-Security-Policy": "default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
 		"X-Content-Type-Options":  "nosniff",
 		"Referrer-Policy":         "same-origin",
 		"X-Frame-Options":         "DENY",
@@ -138,9 +157,8 @@ func TestStatic_VersionedAndCached(t *testing.T) {
 		if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, a.contentType) {
 			t.Errorf("GET %s Content-Type = %q, want %s", u, ct, a.contentType)
 		}
-		want, _ := fs.ReadFile(staticFS, "static/"+a.name)
-		if !bytes.Equal(rec.Body.Bytes(), want) {
-			t.Errorf("GET %s body differs from embedded file", u)
+		if !bytes.Equal(rec.Body.Bytes(), servedStatic(t, a.name)) {
+			t.Errorf("GET %s body differs from the embedded file", u)
 		}
 	}
 	for _, rel := range []string{`rel="stylesheet"`, `rel="icon"`} {
@@ -153,6 +171,92 @@ func TestStatic_VersionedAndCached(t *testing.T) {
 		if rec := do(h, "GET", u, nil); rec.Code != http.StatusNotFound {
 			t.Errorf("GET %s = %d, want 404", u, rec.Code)
 		}
+	}
+}
+
+const (
+	fontName   = "fonts/AtkinsonHyperlegibleNext-latin.woff2"
+	fontSHA256 = "18b2a1a39a2fa298b0ba5390aca68462669826c90925656f1c1f6796e0e1bbaf"
+)
+
+var fontPreload = regexp.MustCompile(`<link rel="preload" href="(/static/` + regexp.QuoteMeta(fontName) + `\?v=[0-9a-f]{8})" as="font" type="font/woff2" crossorigin>`)
+
+func TestStatic_Font(t *testing.T) {
+	h := newTestHandler(t, sqlitetest.Open(t), nil)
+	landing := do(h, "GET", "/", nil).Body.String()
+	links := fontPreload.FindAllStringSubmatch(landing, -1)
+	if len(links) != 1 || strings.Count(landing, `rel="preload"`) != 1 {
+		t.Fatalf("GET / has %d font preloads (%d rel=preload), want exactly 1:\n%s", len(links), strings.Count(landing, `rel="preload"`), landing)
+	}
+	href := links[0][1]
+
+	rec := do(h, "GET", href, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET %s = %d", href, rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "font/woff2" {
+		t.Errorf("GET %s Content-Type = %q, want font/woff2", href, ct)
+	}
+	if cc := rec.Header().Get("Cache-Control"); cc != "public, max-age=31536000, immutable" {
+		t.Errorf("GET %s Cache-Control = %q", href, cc)
+	}
+	if sum := sha256.Sum256(rec.Body.Bytes()); hex.EncodeToString(sum[:]) != fontSHA256 {
+		t.Errorf("GET %s body sha256 = %x, want %s", href, sum, fontSHA256)
+	}
+
+	css := do(h, "GET", staticURL(t, landing, "app.css"), nil).Body.String()
+	if n := strings.Count(css, `url("`+href+`")`); n != 1 {
+		t.Errorf("app.css holds url(%q) %d times, want 1", href, n)
+	}
+	if strings.Contains(css, `url("fonts/`) {
+		t.Error(`served app.css still holds an unversioned url("fonts/`)
+	}
+
+	ofl := do(h, "GET", "/static/fonts/OFL.txt", nil)
+	if ofl.Code != http.StatusOK || !strings.HasPrefix(ofl.Header().Get("Content-Type"), "text/plain") ||
+		!strings.Contains(ofl.Body.String(), "Open Font License") {
+		t.Errorf("GET /static/fonts/OFL.txt = %d %q, want 200 text/plain with the licence", ofl.Code, ofl.Header().Get("Content-Type"))
+	}
+
+	if login := do(h, "GET", "/admin/login", nil).Body.String(); strings.Contains(login, `rel="preload"`) {
+		t.Errorf("GET /admin/login preloads:\n%s", login)
+	}
+}
+
+func TestStatic_VersionCSS(t *testing.T) {
+	a := assets{
+		"fonts/x.woff2": {version: "aaaaaaaa"},
+		"img/y.svg":     {version: "bbbbbbbb"},
+	}
+	for _, c := range []struct{ name, in, want string }{
+		{"known path", `src: url("fonts/x.woff2") format("woff2")`, `src: url("/static/fonts/x.woff2?v=aaaaaaaa") format("woff2")`},
+		{"two references", `a{b:url("fonts/x.woff2")}c{d:url("img/y.svg")}`, `a{b:url("/static/fonts/x.woff2?v=aaaaaaaa")}c{d:url("/static/img/y.svg?v=bbbbbbbb")}`},
+		{"data url", `--i: url("data:image/svg+xml,%3Csvg%3E%3C/svg%3E");`, `--i: url("data:image/svg+xml,%3Csvg%3E%3C/svg%3E");`},
+		{"unquoted", `src: url(fonts/x.woff2)`, `src: url(fonts/x.woff2)`},
+		{"single quotes", `src: url('fonts/x.woff2')`, `src: url('fonts/x.woff2')`},
+	} {
+		got, err := versionCSS([]byte(c.in), a)
+		if err != nil || string(got) != c.want {
+			t.Errorf("%s: versionCSS(%q) = %q, %v; want %q", c.name, c.in, got, err, c.want)
+		}
+	}
+	if _, err := versionCSS([]byte(`src: url("fonts/missing.woff2")`), a); err == nil || !strings.Contains(err.Error(), "fonts/missing.woff2") {
+		t.Errorf("unknown path: err = %v, want an error naming fonts/missing.woff2", err)
+	}
+}
+
+func TestStatic_StylesheetVersionFollowsFont(t *testing.T) {
+	css := []byte(`@font-face { src: url("fonts/x.woff2") format("woff2"); }`)
+	one, err := versionCSS(css, assets{"fonts/x.woff2": {version: "11111111"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	two, err := versionCSS(css, assets{"fonts/x.woff2": {version: "22222222"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Equal(one, two) {
+		t.Errorf("versionCSS gives the same bytes for two font versions: %q", one)
 	}
 }
 

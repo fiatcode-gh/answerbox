@@ -8,7 +8,7 @@
   {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
   <div class="exam-head">
     <h1>{{.Exam.Title}}</h1>
-    {{if .Exam.Archived}}<span class="badge badge-muted">Archived</span>{{else if .Exam.Open}}<span class="badge badge-ok">Open</span>{{else}}<span class="badge badge-muted">Closed</span>{{end}}
+    {{if .Exam.Archived}}<span class="badge badge-archived">Archived</span>{{else if .Exam.Open}}<span class="badge badge-ok">Open</span>{{else}}<span class="badge badge-muted">Closed</span>{{end}}
   </div>
   {{if .Exam.Archived}}<p id="archived-note" class="frozen-notice">Archived on {{.ArchivedOn}}. It stays closed and out of the exams list until you unarchive it.</p>{{end}}
   {{if and (not .Exam.Revision) (ne .Alert .NoRevisionNotice)}}<p id="no-revision" class="frozen-notice">{{.NoRevisionNotice}}</p>{{end}}

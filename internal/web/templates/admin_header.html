@@ -1,7 +1,7 @@
 {{define "admin_header"}}
 <header class="admin-header">
   <nav class="container" aria-label="Main">
-    <a class="brand" href="/admin/exams"><img class="mark" src="{{static "mark.svg"}}" alt="" width="28" height="28"><span class="wordmark">Answerbox</span></a>
+    <a class="brand" href="/admin/exams">{{template "mark"}}<span class="wordmark">Answerbox</span></a>
     <ul class="nav-links">
       <li><a href="/admin/exams"{{if eq .Nav "exams"}} aria-current="page"{{end}}>Exams</a></li>
       {{if .Me.Admin}}<li><a href="/admin/teachers"{{if eq .Nav "teachers"}} aria-current="page"{{end}}>Teachers</a></li>{{end}}
