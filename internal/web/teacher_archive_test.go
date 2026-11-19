@@ -170,7 +170,7 @@ func TestArchive_ListEmptyStates(t *testing.T) {
 	}
 
 	body := env.listBody(t, "", who)
-	if !strings.Contains(body, "No exams yet. Import one above.") {
+	if !strings.Contains(body, "No exams yet. Use New exam to write one, or Import from file to upload one.") {
 		t.Errorf("no exams: empty text missing")
 	}
 	requireNoFilter("no exams", body)

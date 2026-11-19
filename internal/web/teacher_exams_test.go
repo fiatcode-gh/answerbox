@@ -48,7 +48,7 @@ func TestAdminExams_ListAndEmptyState(t *testing.T) {
 		t.Fatalf("GET /admin/exams = %d", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "No exams yet. Import one above.") {
+	if !strings.Contains(body, "No exams yet. Use New exam to write one, or Import from file to upload one.") {
 		t.Errorf("empty state text missing:\n%s", body)
 	}
 	logout := regexp.MustCompile(`(?s)<form[^>]*action="/admin/logout"[^>]*>.*?</form>`).FindString(body)
@@ -77,6 +77,9 @@ func TestAdminExams_ListAndEmptyState(t *testing.T) {
 	if row == "" {
 		t.Fatalf("row for exam %d missing:\n%s", id, body)
 	}
+	if title := fmt.Sprintf(`<td><a href="/admin/exams/%d">Algebra &amp; Co</a></td>`, id); !strings.Contains(row, title) {
+		t.Errorf("row lacks the title link %q:\n%s", title, row)
+	}
 	cells := regexp.MustCompile(`(?s)<td[^>]*>(.*?)</td>`).FindAllStringSubmatch(row, -1)
 	var got []string
 	for _, c := range cells {
@@ -86,7 +89,7 @@ func TestAdminExams_ListAndEmptyState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"Algebra &amp; Co", e.Code, testAdminEmail, "Closed", "2", "0", "Open View Results"}
+	want := []string{"Algebra &amp; Co", e.Code, testAdminEmail, "Closed", "2", "0", "Open Results"}
 	if strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("row cells = %q, want %q", got, want)
 	}
@@ -101,6 +104,86 @@ func TestAdminExams_ListAndEmptyState(t *testing.T) {
 	}
 	if body = do(env.h, "GET", "/admin/exams", cookie).Body.String(); !strings.Contains(body, ">Open</span>") {
 		t.Errorf("open exam not shown as Open:\n%s", body)
+	}
+}
+
+func TestExamList_ListBeforeImport(t *testing.T) {
+	env := newTestEnv(t)
+	cookie, _, _ := env.signIn(t)
+
+	body := do(env.h, "GET", "/admin/exams", cookie).Body.String()
+	empty := "No exams yet. Use New exam to write one, or Import from file to upload one."
+	if e, imp := strings.Index(body, empty), strings.Index(body, `<section id="import"`); e < 0 || imp < 0 || e > imp {
+		t.Errorf("empty sentence at %d, import section at %d: want the sentence first:\n%s", e, imp, body)
+	}
+	if n := len(regexp.MustCompile(`<[a-z0-9]+[^>]*>[^<]*No exams yet\.`).FindAllString(body, -1)); n != 1 || strings.Count(body, "No exams yet.") != 1 {
+		t.Errorf("elements holding %q = %d, want 1:\n%s", "No exams yet.", n, body)
+	}
+
+	if _, err := env.exams.Import(context.Background(), env.owner, []byte("# One\n\n1. Q\n- a *\n- b\n")); err != nil {
+		t.Fatal(err)
+	}
+	body = do(env.h, "GET", "/admin/exams", cookie).Body.String()
+	last := -1
+	for _, mark := range []string{`<h1>Exams</h1>`, `id="new-exam"`, `<table id="exams"`, `<section id="import"`, `id="import-form"`, `<details class="format-help">`} {
+		at := strings.Index(body, mark)
+		if at <= last {
+			t.Errorf("%q at %d, want after %d:\n%s", mark, at, last, body)
+		}
+		last = at
+	}
+	if !regexp.MustCompile(`<a[^>]*id="import-link"[^>]*href="#import"`).MatchString(body) {
+		t.Errorf("import-link to #import missing:\n%s", body)
+	}
+	if !strings.Contains(body, `<button type="submit" class="secondary">Import exam</button>`) {
+		t.Errorf("secondary import button missing:\n%s", body)
+	}
+}
+
+// postedForm returns the hidden fields of the one form in body whose action
+// is action, values unescaped.
+func postedForm(t *testing.T, body, action string) url.Values {
+	t.Helper()
+	forms := regexp.MustCompile(`(?s)<form[^>]*action="`+regexp.QuoteMeta(action)+`"[^>]*>.*?</form>`).FindAllString(body, -1)
+	if len(forms) != 1 {
+		t.Fatalf("forms with action %q = %d, want 1:\n%s", action, len(forms), body)
+	}
+	fields := url.Values{}
+	for _, m := range regexp.MustCompile(`<input type="hidden" name="([^"]*)" value="([^"]*)">`).FindAllStringSubmatch(forms[0], -1) {
+		fields.Add(html.UnescapeString(m[1]), html.UnescapeString(m[2]))
+	}
+	return fields
+}
+
+func TestExamList_RowFormsLandOnList(t *testing.T) {
+	env := newTestEnv(t)
+	cookie, csrf := loginThroughHandler(t, env)
+	id := detailID(t, importExam(t, env, cookie, csrf, "a.md", []byte(textExam)))
+
+	for _, step := range []struct {
+		action string
+		open   bool
+	}{{"open", true}, {"close", false}} {
+		body := do(env.h, "GET", "/admin/exams", cookie).Body.String()
+		if strings.Contains(body, `name="from"`) {
+			t.Errorf("list holds a from field:\n%s", body)
+		}
+		path := fmt.Sprintf("/admin/exams/%d/%s", id, step.action)
+		fields := postedForm(t, body, path)
+		if len(fields) != 1 || fields.Get("csrf_token") != csrf {
+			t.Fatalf("%s form fields = %v, want only csrf_token", step.action, fields)
+		}
+		requireRedirect(t, postForm(env.h, path, fields, cookie), "/admin/exams")
+		e, err := env.exams.Get(context.Background(), env.owner, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if e.Open != step.open {
+			t.Errorf("after %s the exam is open = %v, want %v", step.action, e.Open, step.open)
+		}
+	}
+	if body := do(env.h, "GET", "/admin/exams", cookie).Body.String(); strings.Contains(body, `name="from"`) {
+		t.Errorf("list holds a from field:\n%s", body)
 	}
 }
 

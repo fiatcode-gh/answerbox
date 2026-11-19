@@ -1558,7 +1558,18 @@ main.result {
 /* 13. Teacher: exams list */
 
 .import {
-  margin-bottom: var(--ge-space-5);
+  margin-block: var(--ge-space-6) var(--ge-space-5);
+}
+
+/* "Import from file" jumps here; the outline shows where it landed. */
+#import:target {
+  outline: 3px solid var(--ge-accent);
+  outline-offset: var(--ge-space-2);
+  border-radius: var(--ge-radius);
+}
+
+.list-filter {
+  margin: var(--ge-space-3) 0;
 }
 
 .upload-row {
@@ -1603,6 +1614,95 @@ small.schedule {
   margin: var(--ge-space-1) 0 0;
   color: var(--ge-muted);
   white-space: nowrap;
+}
+
+/* A row's Open or Close and Results stay on one line on a wide screen. */
+#exams td.row-actions {
+  white-space: nowrap;
+}
+
+/* Phones: each exam is a card. Title; code and status on one line; owner;
+   then the actions. Questions and Attempts are on the exam page. */
+@media (max-width: 640px) {
+  #exams,
+  #exams tbody {
+    display: block;
+  }
+
+  .overflow-auto #exams {
+    background: transparent;
+  }
+
+  #exams thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    border: 0;
+    white-space: nowrap;
+  }
+
+  #exams tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--ge-space-1) var(--ge-space-3);
+    margin-bottom: var(--ge-space-3);
+    padding: var(--ge-space-3) var(--ge-space-4);
+    border: 1px solid var(--ge-rule);
+    border-radius: var(--ge-radius);
+    background: var(--ge-surface);
+  }
+
+  #exams td {
+    display: block;
+    flex: 1 1 100%;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  #exams td:first-child {
+    order: 1;
+    font-weight: 600;
+  }
+
+  #exams td.code {
+    flex: 0 0 auto;
+    order: 2;
+  }
+
+  #exams td:nth-last-child(4) {
+    flex: 1 1 auto;
+    order: 3;
+  }
+
+  #exams td.owner {
+    order: 4;
+    color: var(--ge-muted);
+    font-size: var(--ge-text-sm);
+  }
+
+  #exams td:nth-last-child(2),
+  #exams td:nth-last-child(3) {
+    display: none;
+  }
+
+  #exams td.row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ge-space-2) var(--ge-space-3);
+    order: 5;
+    white-space: normal;
+  }
+
+  #exams td.row-actions form {
+    margin: 0;
+  }
 }
 
 /* 14. Teacher: exam page, projector */

@@ -286,7 +286,7 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
             expect(archived.locator(".badge")).to_have_text("Archived")
             expect(action_form(archived, exam_a, "open")).to_have_count(0)
             expect(action_form(archived, exam_a, "close")).to_have_count(0)
-            expect(archived.get_by_role("link", name="View", exact=True)).to_be_visible()
+            expect(archived.get_by_role("link", name=TITLE_A, exact=True)).to_be_visible()
             expect(archived.get_by_role("link", name="Results", exact=True)).to_be_visible()
             expect(a.locator("#hide-archived")).to_be_visible()
             shot(a, "desktop-show-archived.png")

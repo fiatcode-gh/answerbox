@@ -3,17 +3,53 @@
 {{define "header"}}{{template "admin_header" .}}{{end}}
 
 {{define "main"}}
-<main class="container admin">
-  <h1>Exams</h1>
+<main class="container admin exams-page">
+  <div class="page-head"><h1>Exams</h1><p class="page-actions"><a id="import-link" class="button secondary" href="#import">Import from file</a> <a id="new-exam" class="button secondary" href="/admin/exams/new">New exam</a></p></div>
   {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
-  <section class="import">
+  {{if .Exams}}
+  <div class="overflow-auto">
+    <table id="exams">
+      <thead>
+        <tr>
+          <th scope="col">Title</th>
+          <th scope="col">Code</th>
+          {{if .Me.Admin}}<th scope="col">Owner</th>{{end}}
+          <th scope="col">Status</th>
+          <th scope="col">Questions</th>
+          <th scope="col">Attempts</th>
+          <th scope="col">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Exams}}
+        <tr data-exam-id="{{.ID}}">
+          <td><a href="/admin/exams/{{.ID}}">{{.Title}}</a></td>
+          <td class="code">{{.Code}}</td>
+          {{if $.Me.Admin}}<td class="owner">{{.OwnerEmail}}</td>{{end}}
+          <td>{{if .Archived}}<span class="badge badge-muted">Archived</span>{{else if .Open}}<span class="badge badge-ok">Open</span>{{else}}<span class="badge badge-muted">Closed</span>{{end}}{{with .Opens}}<small class="schedule">Opens {{.}}</small>{{end}}{{with .Closes}}<small class="schedule">Closes {{.}}</small>{{end}}</td>
+          <td class="numeric">{{.QuestionCount}}</td>
+          <td class="numeric">{{.AttemptCount}}</td>
+          <td class="row-actions">{{if and (not .Archived) (or .Schedule.Set (not .Open))}}<form method="post" action="/admin/exams/{{.ID}}/open"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit" class="secondary">Open</button></form>{{end}}{{if or .Schedule.Set .Open}}<form method="post" action="/admin/exams/{{.ID}}/close"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit" class="secondary">Close</button></form>{{end}} <a href="/admin/exams/{{.ID}}/attempts">Results</a></td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{if .Scheduled}}<p class="zone-note">Times are shown in {{.Zone}}.</p>{{end}}
+  {{else if .HiddenArchived}}
+  <p id="all-archived" class="empty">All exams are archived. <a id="show-archived" href="/admin/exams?archived=1">Show archived</a></p>
+  {{else}}
+  <p class="empty">No exams yet. Use New exam to write one, or Import from file to upload one.</p>
+  {{end}}
+  {{if .ShowArchived}}<p class="list-filter"><a id="hide-archived" href="/admin/exams">Hide archived</a></p>{{else if and .Exams .HiddenArchived}}<p class="list-filter"><a id="show-archived" href="/admin/exams?archived=1">Show archived</a></p>{{end}}
+  <section id="import" class="import">
+    <h2>Import from a file</h2>
     <form id="import-form" method="post" action="/admin/exams" enctype="multipart/form-data">
       <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
       <label for="import-file">Exam file (.md, .txt or .zip, up to 10 MB)</label>
       <div class="upload-row">
         <input type="file" id="import-file" name="file" accept=".md,.txt,.zip" required>
-        <button type="submit">Import exam</button>
-        <a id="new-exam" class="button secondary" href="/admin/exams/new">New exam</a>
+        <button type="submit" class="secondary">Import exam</button>
       </div>
     </form>
     <details class="format-help">
@@ -52,41 +88,5 @@ fmt.Println(2 + 3)
       </ul>
     </details>
   </section>
-  {{if .ShowArchived}}<p class="list-filter"><a id="hide-archived" href="/admin/exams">Hide archived</a></p>{{else if and .Exams .HiddenArchived}}<p class="list-filter"><a id="show-archived" href="/admin/exams?archived=1">Show archived</a></p>{{end}}
-  {{if .Exams}}
-  <div class="overflow-auto">
-    <table id="exams">
-      <thead>
-        <tr>
-          <th scope="col">Title</th>
-          <th scope="col">Code</th>
-          {{if .Me.Admin}}<th scope="col">Owner</th>{{end}}
-          <th scope="col">Status</th>
-          <th scope="col">Questions</th>
-          <th scope="col">Attempts</th>
-          <th scope="col">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{range .Exams}}
-        <tr data-exam-id="{{.ID}}">
-          <td>{{.Title}}</td>
-          <td class="code">{{.Code}}</td>
-          {{if $.Me.Admin}}<td class="owner">{{.OwnerEmail}}</td>{{end}}
-          <td>{{if .Archived}}<span class="badge badge-muted">Archived</span>{{else if .Open}}<span class="badge badge-ok">Open</span>{{else}}<span class="badge badge-muted">Closed</span>{{end}}{{with .Opens}}<small class="schedule">Opens {{.}}</small>{{end}}{{with .Closes}}<small class="schedule">Closes {{.}}</small>{{end}}</td>
-          <td class="numeric">{{.QuestionCount}}</td>
-          <td class="numeric">{{.AttemptCount}}</td>
-          <td class="row-actions">{{if and (not .Archived) (or .Schedule.Set (not .Open))}}<form method="post" action="/admin/exams/{{.ID}}/open"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit">Open</button></form>{{end}}{{if or .Schedule.Set .Open}}<form method="post" action="/admin/exams/{{.ID}}/close"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit" class="secondary">Close</button></form>{{end}} <a href="/admin/exams/{{.ID}}">View</a> <a href="/admin/exams/{{.ID}}/attempts">Results</a></td>
-        </tr>
-        {{end}}
-      </tbody>
-    </table>
-  </div>
-  {{if .Scheduled}}<p class="zone-note">Times are shown in {{.Zone}}.</p>{{end}}
-  {{else if .HiddenArchived}}
-  <p id="all-archived" class="empty">All exams are archived. <a id="show-archived" href="/admin/exams?archived=1">Show archived</a></p>
-  {{else}}
-  <p class="empty">No exams yet. Import one above.</p>
-  {{end}}
 </main>
 {{end}}
