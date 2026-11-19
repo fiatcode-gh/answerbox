@@ -2,6 +2,7 @@ package web
 
 import (
 	"io/fs"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
@@ -339,6 +340,32 @@ func TestCSS_IconTokens(t *testing.T) {
 		if _, ok := darkOnly["i-"+name]; ok {
 			t.Errorf("--ge-i-%s is redefined in the dark block", name)
 		}
+	}
+}
+
+// TestCSS_TokensUsed keeps the token block free of leftovers: every token of
+// the first block is read by a rule outside the two token blocks.
+func TestCSS_TokensUsed(t *testing.T) {
+	light, _ := cssTokens(t)
+	var used strings.Builder
+	for _, r := range parseCSS(t, readStatic(t, "app.css")) {
+		if r.tokens {
+			continue
+		}
+		for _, d := range r.decls {
+			used.WriteString(d)
+			used.WriteByte('\n')
+		}
+	}
+	text := used.String()
+	for _, name := range slices.Sorted(maps.Keys(light)) {
+		ref := regexp.MustCompile(`var\(\s*--ge-` + regexp.QuoteMeta(name) + `\s*[,)]`)
+		if !ref.MatchString(text) {
+			t.Errorf("--ge-%s is defined but no rule outside the token blocks reads it", name)
+		}
+	}
+	if len(light) < 50 {
+		t.Fatalf("checked only %d tokens", len(light))
 	}
 }
 

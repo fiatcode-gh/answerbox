@@ -1,25 +1,31 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["playwright==1.63.0"]
+# dependencies = ["playwright==1.63.0", "pillow==13.0.0"]
 # ///
 """Screenshot set of Answerbox in real Chromium: every page in the light and
 dark colour schemes at 412 and 1280 px wide, and the classroom pages at 360 px,
 each checked for sideways page scroll. With --readme, also the ten viewport-sized
-pictures the README shows. Needs a fresh instance.
+pictures the README shows; with --landing, the two pictures of the exam page
+that the landing page shows (preview-exam-light.webp, preview-exam-dark.webp).
+Needs a fresh instance; takes about six minutes, because one attempt has to
+run out of time.
 
-uv run e2e/screenshots.py --base-url URL --admin-email EMAIL --oidc-url URL --out DIR [--readme DIR]
+uv run e2e/screenshots.py --base-url URL --admin-email EMAIL --oidc-url URL --out DIR [--readme DIR] [--landing DIR]
 """
 
 import argparse
+import io
 import re
 import sys
 import tempfile
+import time
 import zipfile
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from PIL import Image
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeout, expect, sync_playwright
 
 from common import (
@@ -46,11 +52,19 @@ CLASSROOM = (360, 412, 1280)
 INPUT_LAYOUT = "%Y-%m-%dT%H:%M"
 MISSING = "/no-such-page"
 SECOND_TEACHER = "teacher@example.test"
+# The landing preview: the exam page cut to this box at 1280 × 800, then
+# scaled to the size the landing markup carries.
+PREVIEW_CLIP = (24, 1232, 548)
+PREVIEW_SIZE = (1200, 534)
 
 TITLE_A = "Mathematics, chapter 3"
 TITLE_B = "Geography check"
 TITLE_C = "Science quiz"
 TITLE_D = "History, term 1"
+TITLE_E = "Spelling check"
+# Exam E runs five minutes, the shortest length allowed, so an attempt can
+# time out while the set is taken.
+TIME_LIMIT = timedelta(minutes=5)
 
 EXAM_A = """# Mathematics, chapter 3
 shuffle: none
@@ -111,6 +125,21 @@ EXAM_D = """# History, term 1
 - Yogyakarta *
 - Bandung
 - Surabaya
+"""
+
+EXAM_E = """# Spelling check
+shuffle: none
+duration: 5
+
+1. Which word is spelled correctly?
+- necessary *
+- neccessary
+- necesary
+
+2. Which word is spelled correctly?
+- separate *
+- seperate
+- separete
 """
 
 # README pictures: (page name, theme, width) → file name.
@@ -226,13 +255,35 @@ def start_section(page: Page, exam_id: int, question: int, title: str, text: str
     expect(page).to_have_url(re.compile(rf"/admin/exams/{exam_id}/edit(#.*)?$"))
 
 
-def run(base_url: str, admin_email: str, oidc_url: str, out: Path, readme: Path | None) -> list[str]:
+def preview(page: Page, url: str, path: Path) -> None:
+    """The landing preview: the exam page at url from its head to below its
+    links, scaled to PREVIEW_SIZE and written as WebP to path."""
+    page.goto(url)
+    expect(page.locator("nav.exam-links")).to_be_visible()
+    head, links = page.evaluate(
+        """() => [".exam-head", "nav.exam-links"].map(s => {
+            const r = document.querySelector(s).getBoundingClientRect();
+            return [r.top + scrollY, r.bottom + scrollY];
+        })"""
+    )
+    x, width, height = PREVIEW_CLIP
+    y = max(0, head[0] - 16)
+    if links[1] > y + height:
+        raise AssertionError(f"nav.exam-links ends at y {links[1]:.1f}, below the picture's bottom {y + height:.1f}")
+    png = page.screenshot(clip={"x": x, "y": y, "width": width, "height": height}, full_page=True, animations="disabled")
+    image = Image.open(io.BytesIO(png)).convert("RGB").resize(PREVIEW_SIZE, Image.Resampling.LANCZOS)
+    image.save(path, "WEBP", quality=82, method=6)
+    print(f"  {path}: {image.width}×{image.height}, {path.stat().st_size} bytes", flush=True)
+
+
+def run(base_url: str, admin_email: str, oidc_url: str, out: Path, readme: Path | None, landing: Path | None) -> list[str]:
     """Builds the state, takes the pictures; returns the pages that overflow."""
     out.mkdir(parents=True, exist_ok=True)
-    if readme is not None:
-        readme.mkdir(parents=True, exist_ok=True)
+    for directory in (readme, landing):
+        if directory is not None:
+            directory.mkdir(parents=True, exist_ok=True)
     logs, overflows = [], []
-    missing_loads = 0
+    missing_loads = refused_resumes = 0
     with sync_playwright() as p, tempfile.TemporaryDirectory() as tmp:
         browser = p.chromium.launch(headless=True)
         tmp = Path(tmp)
@@ -310,6 +361,25 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path, readme: Path 
             budi_state = budi.context.storage_state()
             budi.context.close()
 
+        with step("4a exam E, five minutes long: Dewi submits, Eko starts and will run out of time"):
+            t.goto(f"{base_url}/admin/exams")
+            e_id = import_exam(t, write_text(tmp, "spelling.md", EXAM_E))
+            expect(t.locator(".exam-head h1")).to_have_text(TITLE_E)
+            code_e = t.locator("#exam-code").inner_text().strip()
+            open_exam(t, e_id)
+            dewi = new_context(viewport=VIEWPORTS[412]).new_page()
+            start(dewi, base_url, code_e, "Dewi Anggraini")
+            pick(dewi, 1, "necessary")
+            dewi.locator("#submit-open").click()
+            dewi.locator("#submit-confirm").click()
+            expect(dewi.locator("main#result")).to_be_visible()
+            dewi.context.close()
+            eko = new_context(viewport=VIEWPORTS[412]).new_page()
+            start(eko, base_url, code_e, "Eko Prasetyo")
+            eko_started = time.monotonic()
+            pick(eko, 1, "neccessary")
+            eko.context.close()
+
         with step("5 exam B written in the editor: two sections, a fill-in question; closed"):
             t.goto(f"{base_url}/admin/exams")
             t.locator("#new-exam").click()
@@ -359,8 +429,31 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path, readme: Path 
 
         with step("8 pictures of the student pages"):
             pictures("landing", "/", widths=CLASSROOM)
+
+            def scrolled_to(selector: str):
+                def scroll(page: Page) -> None:
+                    page.locator(selector).evaluate("el => el.scrollIntoView({block: 'start', behavior: 'instant'})")
+                    # The preview is a lazy, asynchronously decoded image: let
+                    # it load and decode before the picture.
+                    page.wait_for_function("() => [...document.images].every(img => img.complete)")
+                    page.evaluate("() => Promise.all([...document.images].map(img => img.decode()))")
+
+                return scroll
+
+            pictures("landing-why", "/", before=scrolled_to("#why"), full_page=False)
+            pictures("landing-developers", "/", before=scrolled_to("section.tech"), full_page=False)
             pictures("landing-code", f"/?code={code_a}", widths=CLASSROOM)
-            pictures("landing-refused", "/?code=ZZZZZZ")
+            pictures("landing-refused", "/?code=ZZZZZZ", widths=CLASSROOM)
+
+            def refuse_resume(page: Page) -> None:
+                nonlocal refused_resumes
+                page.locator("details.resume > summary").click()
+                page.locator("#resume-form input[name=code]").fill("ABCD-EFGH")
+                page.locator("#resume-form button[type=submit]").click()
+                refused_resumes += 1
+                expect(page.locator("details.resume [role=alert]")).to_be_visible()
+
+            pictures("landing-resume-refused", "/", widths=CLASSROOM, before=refuse_resume)
             pictures("not-found", MISSING)
             pictures("sign-in", "/admin/login")
             pictures("student-exam", "/exam", budi_state, CLASSROOM)
@@ -373,10 +466,10 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path, readme: Path 
                 page.locator("#submit-open").click()
                 expect(page.locator("#submit-dialog")).to_be_visible()
 
-            pictures("student-navigator", "/exam", budi_state, (412,), open_navigator)
+            pictures("student-navigator", "/exam", budi_state, (360, 412), open_navigator)
             # A full-page capture moves the modal dialog and its backdrop away
             # from the window the student sees; the dialog is pictured as shown.
-            pictures("student-submit", "/exam", budi_state, before=open_submit, full_page=False)
+            pictures("student-submit", "/exam", budi_state, CLASSROOM, open_submit, full_page=False)
             pictures("student-result", "/exam", ayu_state, CLASSROOM)
 
         teacher = t.context.storage_state()
@@ -384,6 +477,11 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path, readme: Path 
             pictures("exams", "/admin/exams", teacher, CLASSROOM)
             pictures("exams-archived", "/admin/exams?archived=1", teacher)
             pictures("exam-open", f"/admin/exams/{a_id}", teacher, CLASSROOM)
+            if landing is not None:
+                for theme in THEMES:
+                    context = new_context(viewport=VIEWPORTS[1280], storage_state=teacher, color_scheme=theme)
+                    preview(context.new_page(), f"{base_url}/admin/exams/{a_id}", landing / f"preview-exam-{theme}.webp")
+                    context.close()
             pictures("exam-scheduled", f"/admin/exams/{c_id}", teacher)
             pictures("exam-archived", f"/admin/exams/{d_id}", teacher)
             pictures("projector", f"/admin/exams/{a_id}/projector", teacher, CLASSROOM)
@@ -414,19 +512,37 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path, readme: Path 
             pictures("confirm-archive", f"/admin/exams/{a_id}/archive", teacher)
             pictures("teachers", "/admin/teachers", teacher)
 
-        with step("13 no console errors but the 404 page's, no page errors, no foreign requests"):
-            expected = f"{base_url}{MISSING}: Failed to load resource: the server responded with a status of 404 (Not Found)"
-            problems, missing_errors = [], 0
+        with step("12a exam E with an attempt in each status: Eko timed out, Dewi submitted, Fajar in progress"):
+            # Exam E's shortest allowed length; the pictures above overlap most of the wait.
+            time.sleep(max(0.0, eko_started + TIME_LIMIT.total_seconds() + 5 - time.monotonic()))
+            fajar = new_context(viewport=VIEWPORTS[412]).new_page()
+            start(fajar, base_url, code_e, "Fajar Nugroho")
+            fajar.context.close()
+            t.goto(f"{base_url}/admin/exams/{e_id}")
+            expect(t.locator("#attempt-counts")).to_contain_text("1 in progress")
+            expect(t.locator("#attempt-counts")).to_contain_text("1 submitted")
+            expect(t.locator("#attempt-counts")).to_contain_text("1 timed out")
+            pictures("exam-attempts", f"/admin/exams/{e_id}", teacher, CLASSROOM)
+            pictures("results-attempts", f"/admin/exams/{e_id}/attempts", teacher)
+
+        with step("13 no console errors but those of the 404 page and the refused resume code, no page errors, no foreign requests"):
+            # Each load of these answers with an error status, which Chromium logs once.
+            expected = {
+                f"{base_url}{MISSING}: Failed to load resource: the server responded with a status of 404 (Not Found)": missing_loads,
+                f"{base_url}/resume: Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)": refused_resumes,
+            }
+            problems, seen = [], dict.fromkeys(expected, 0)
             for log in logs:
                 for e in log["console_errors"]:
-                    if e == expected:
-                        missing_errors += 1
+                    if e in seen:
+                        seen[e] += 1
                     else:
                         problems.append(f"console error: {e}")
                 problems += [f"page error: {e}" for e in log["page_errors"]]
                 problems += [f"foreign request: {u}" for u in foreign_requests(log["requests"], base_url, oidc_url)]
-            if missing_errors != missing_loads:
-                problems.append(f"the 404 page logged {missing_errors} console errors in {missing_loads} loads, want one per load")
+            for e, loads in expected.items():
+                if seen[e] != loads:
+                    problems.append(f"{seen[e]} times {e!r} in {loads} loads, want one per load")
             if problems:
                 raise AssertionError("\n  ".join(["problems found:"] + problems))
 
@@ -440,11 +556,12 @@ def main() -> int:
     add_sign_in_args(parser)
     parser.add_argument("--out", type=Path, default=Path(__file__).parent / "out" / "screenshots")
     parser.add_argument("--readme", type=Path, help="also write the README pictures into this directory")
+    parser.add_argument("--landing", type=Path, help="also write the landing page's two exam-page previews (WebP) into this directory")
     args = parser.parse_args()
     base_url, oidc_url = args.base_url.rstrip("/"), args.oidc_url.rstrip("/")
     require_cross_site(base_url, oidc_url)
     try:
-        overflows = run(base_url, args.admin_email, oidc_url, args.out, args.readme)
+        overflows = run(base_url, args.admin_email, oidc_url, args.out, args.readme, args.landing)
     except StepFailed as err:
         print(err, file=sys.stderr)
         return 1

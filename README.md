@@ -2,7 +2,7 @@
 
 # Answerbox
 
-Answerbox is a small, self-hosted web app for classroom exams with multiple-choice and fill-in questions. It is for a teacher who wants to run a short test in class on the phones and laptops students already have, without accounts for the students: they type the exam's code and their name, or open a link that carries the code, and take that exam within its time limit. The teacher imports exams from text files or writes them in the browser, opens and closes them by hand or on a schedule, and reads the results as they come in. It is not a learning platform.
+Answerbox is a small, self-hosted web app for classroom exams with multiple-choice and fill-in questions. It is for a teacher who wants to run a short test in class on the phones and laptops students already have, without accounts for the students: they type the exam's code and their name, or open a link that carries the code, and take that exam within its time limit. The teacher imports exams from text files or writes them in the browser, opens and closes them by hand or on a schedule, and reads the results as they come in. It is not a learning platform. The start page `/` is where students enter the exam code, and below the entry it tells a visitor what Answerbox is.
 
 <p>
   <img src="docs/screenshots/student-exam-phone-light.png" width="180" alt="A student's exam on a phone in the light colour scheme: the timer, the save state and the first questions of a section">
@@ -148,12 +148,12 @@ Tested in Chromium on desktop and in Chrome on a real Android phone. Safari (iPh
 
 ### Look
 
-The pages follow the device's light or dark setting; there is no switch. Every teacher page and the start page work without scripts: a script only adds Copy link on the exam page and the updating results list.
+The pages follow the device's light or dark setting; there is no switch. Student pages and question text use Atkinson Hyperlegible Next, which ships inside the binary with its licence (`internal/web/static/fonts/OFL.txt`, SIL Open Font License 1.1); nothing is loaded from another site. Every teacher page and the start page work without scripts: a script only adds Copy link on the exam page and the updating results list.
 
 ### Exam codes
 
 - Every exam gets a 6-character code when it is imported: capital letters and digits without look-alikes (no I, L, O, U, 0, 1). The code never changes, also when the questions are replaced and across revisions, and no other exam ever gets it. A copy of an exam gets a new code.
-- The exam page shows the code and the student link `<ANSWERBOX_PUBLIC_URL>/?code=XXXXXX`; Copy link puts the link on the clipboard. Projector view shows the address and the code large, for the room. The exams list shows each exam's code.
+- The exam page shows the code as large tiles with Copy link and Projector view, and the student link `<ANSWERBOX_PUBLIC_URL>/?code=XXXXXX`; Copy link puts the link on the clipboard. Projector view shows the address and the code large, for the room. Beside Results the exam page shows how many attempts are in progress, submitted and timed out. The exams list shows each exam's code.
 - Students open the app and type the code and their name. Any case works, and spaces and a dash are ignored. With the link, the name is all they type.
 - A code works only while its exam is open. Otherwise the student reads "No open exam has that code. Check it with your teacher.", the same sentence for a mistyped code, for a closed exam and for an exam whose close time has passed.
 - A code of a scheduled exam that is not open yet shows the exam's title and when it opens, for example "This exam opens at 08:00." (with the date when that is not today), both through the student link and after pressing Start. The student starts once the open time has come.
@@ -370,8 +370,8 @@ uv run e2e/scheduled_exams.py --base-url http://localhost:8080 --admin-email adm
 # Every teacher page without scripts, the student exam and the teacher's controls by keyboard, a 360 px phone, both colour schemes:
 uv run e2e/walkthrough.py --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/walkthrough
 # Every page in both colour schemes at 412 and 1280 px (classroom pages also at 360), with a sideways-scroll check;
-# --readme rewrites the README pictures:
-uv run e2e/screenshots.py --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/screenshots --readme docs/screenshots
+# --readme rewrites the README pictures, --landing the two exam-page pictures the start page shows (takes about six minutes):
+uv run e2e/screenshots.py --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/screenshots --readme docs/screenshots --landing internal/web/static/landing
 
 # Check that every exam in a database copy can be given its revision 1 (read-only; use a copy taken with sqlite3 ".backup"):
 go run ./cmd/rebuildcheck -db /path/to/copy.db

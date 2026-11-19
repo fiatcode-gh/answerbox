@@ -5,7 +5,10 @@
 """Walk-through of Answerbox in real Chromium: every teacher page with scripts
 disabled, the student exam and the Open, Copy link and Close controls by
 keyboard only, the results list that stops refreshing by itself, a 360 px
-phone, and the dark and light colour schemes. Needs a fresh instance.
+phone, the dark and light colour schemes, desktop details (a long owner
+email, the results row actions, the save row and the focus, the attempt
+counts), and the font, the smooth scroll and the lazy landing preview.
+Needs a fresh instance.
 
 uv run e2e/walkthrough.py --base-url URL --admin-email EMAIL --oidc-url URL --out DIR
 """
@@ -46,7 +49,15 @@ IMPORTED = "Imported walk-through"
 STUDENT = "Sari Student"
 RENAMED = "Sari Renamed"
 ADDED_TEACHER = "walk@example.test"
+LONG_TEACHER = "a.very.long.teacher.name@sekolah-contoh.sch.id"
+# Names as long as Indonesian names get, to crowd the results table.
+LONG_STUDENTS = (
+    "Raden Ayu Siti Nurhaliza Kusumawardhani Prameswari Putri Wijayakusuma",
+    "Muhammad Rizky Pratama Adiwijaya Kusumanegara Setiabudi Hadiningrat",
+)
+FONT = "Atkinson Hyperlegible Next"
 TOUCH = 44
+OPTION = 64
 # Computed body colours of the two schemes: (background, text).
 SCHEMES = {"dark": ("rgb(17, 26, 21)", "rgb(232, 238, 232)"), "light": ("rgb(244, 245, 238)", "rgb(23, 37, 30)")}
 
@@ -120,6 +131,57 @@ def ends_inside(locator, width: float, what: str) -> None:
     b = box(locator)
     if b["x"] < 0 or b["x"] + b["width"] > width:
         raise AssertionError(f"{what} spans x {b['x']:.1f} to {b['x'] + b['width']:.1f}, want inside 0 to {width}")
+
+
+def one_line(locator, factor: float, what: str) -> None:
+    """The element's text is one line: the height of a range over its contents
+    is under factor times its computed line height (a table cell is as high as
+    its row, so the element's own box would not tell)."""
+    height, line = locator.evaluate(
+        """el => {
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            return [range.getBoundingClientRect().height, getComputedStyle(el).lineHeight];
+        }"""
+    )
+    if not line.endswith("px"):
+        raise AssertionError(f"{what} has line height {line!r}, want a length")
+    line = float(line.removesuffix("px"))
+    if height >= factor * line:
+        raise AssertionError(f"{what} is {height:.1f} px high, {height / line:.2f} times its line height {line:.1f} px: it wraps")
+
+
+def status_counts(text: str) -> list[int]:
+    """The in progress, submitted and timed out numbers of a counts text."""
+    counts = []
+    for word in ("in progress", "submitted", "timed out"):
+        m = re.search(rf"(\d+) {word}", text)
+        if m is None:
+            raise AssertionError(f"{text!r} has no number before {word!r}")
+        counts.append(int(m.group(1)))
+    return counts
+
+
+def track(page: Page, suffix: str) -> list:
+    """The requests of page whose path ends in suffix, recorded from now on."""
+    seen = []
+    page.on("request", lambda req: urlsplit(req.url).path.endswith(suffix) and seen.append(req))
+    return seen
+
+
+def font_loaded_once(page: Page, fonts: list) -> None:
+    """After document.fonts.ready the student font is usable, fetched by exactly one request that got 200."""
+    if not page.evaluate(f"() => document.fonts.ready.then(() => document.fonts.check('16px \"{FONT}\"'))"):
+        raise AssertionError(f"document.fonts.check says {FONT} is not loaded on {page.url}")
+    if len(fonts) != 1:
+        raise AssertionError(f"{page.url} made {len(fonts)} .woff2 requests, want 1: {[r.url for r in fonts]}")
+    response = fonts[0].response()
+    if response is None or response.status != 200:
+        raise AssertionError(f"{fonts[0].url} got {response and response.status}, want 200")
+
+
+def font_family(page: Page, selector: str) -> str:
+    return page.locator(selector).first.evaluate("el => getComputedStyle(el).fontFamily")
 
 
 def in_window(locator, viewport: dict, what: str) -> None:
@@ -542,19 +604,21 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
             ps.wait_for_function("() => document.activeElement && document.activeElement.id === 'name'")
             shot(ps, "d-landing-code-360.png")
 
-        with step("18 360 px student exam: timer and save state in the window, 44 px targets; the result"):
+        with step("18 360 px student exam: timer, save state and Questions in the window, the saved state on one line, 64 px options; the result"):
             ps.keyboard.type("Pia Phone")
             ps.keyboard.press("Enter")
             expect(ps.locator("main#exam")).to_be_visible()
             no_page_overflow(ps)
-            in_window(ps.locator("#timer"), PHONE["viewport"], "#timer")
-            in_window(ps.locator("#save-state"), PHONE["viewport"], "#save-state")
             options = ps.locator("label.option")
             for i in range(options.count()):
-                at_least(options.nth(i), TOUCH, f"label.option {i}")
+                at_least(options.nth(i), OPTION, f"label.option {i}")
             at_least(ps.locator("#submit-open"), TOUCH, "#submit-open")
-            shot(ps, "d-student-exam-360.png")
             answer_first(ps)
+            expect(ps.locator("#nav-toggle")).to_be_visible()
+            one_line(ps.locator("#save-state"), 1.5, "the saved #save-state")
+            for hook in ("#timer", "#save-state", "#nav-toggle"):
+                in_window(ps.locator(hook), PHONE["viewport"], hook)
+            shot(ps, "d-student-exam-360.png")
             submit(ps)
             no_page_overflow(ps)
             shot(ps, "d-result-360.png")
@@ -572,6 +636,19 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
             at_least(state_button(pt, phone_id, "close"), TOUCH, "Close exam")
             at_least(pt.locator("#projector-link"), TOUCH, "#projector-link")
             ends_inside(pt.locator("#exam-code"), 360, "#exam-code")
+            values = pt.locator("dl.settings dd")
+            for i in range(values.count()):
+                if (w := box(values.nth(i))["width"]) < 120:
+                    raise AssertionError(f"settings value {i} ({values.nth(i).inner_text()!r}) is {w:.1f} px wide, want at least 120")
+            tiles = pt.locator("#exam-code > span")
+            expect(tiles).to_have_count(6)
+            tops = [box(tiles.nth(i))["y"] for i in range(6)]
+            if max(tops) - min(tops) > 1:
+                raise AssertionError(f"the code tiles have tops {tops}, want one line")
+            for i in range(6):
+                ends_inside(tiles.nth(i), 360, f"code tile {i}")
+            if (shown := pt.locator("#exam-code").evaluate("el => el.innerText")) != phone_code:
+                raise AssertionError(f"#exam-code innerText is {shown!r}, want {phone_code!r}")
             shot(pt, "d-teacher-exam-360.png")
             pt.goto(f"{base_url}/admin/exams/{phone_id}/projector")
             no_page_overflow(pt)
@@ -598,7 +675,136 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
                         raise AssertionError(f"{scheme} {where}: body is {got}, want {[background, colour]}")
                     shot(page, f"e-{scheme}-{where.strip('/').replace('/', '-') or 'root'}.png")
 
-        with step("21 no console errors, page errors or foreign requests"):
+        # G. Desktop details at 1280 × 800, as the admin.
+        g = new_context(**DESKTOP).new_page()
+        with step("21 1280 px exams list: a long owner email stays on one line, no sideways scroll"):
+            teacher_login(g, base_url, admin_email, "Desk Admin")
+            g.locator("header").get_by_role("link", name="Teachers").click()
+            g.locator("#add-teacher-email").fill(LONG_TEACHER)
+            g.locator("#add-teacher-form button[type=submit]").click()
+            expect(g.locator("#teachers tbody tr").filter(has_text=LONG_TEACHER)).to_have_count(1)
+            lt = new_context(**DESKTOP).new_page()
+            teacher_login(lt, base_url, LONG_TEACHER, "Long Name")
+            long_id = import_exam(lt, fixture("Long owner check"))
+            long_code = lt.locator("#exam-code").inner_text().strip()
+            open_exam(lt, long_id)
+            lt.context.close()
+            g.goto(f"{base_url}/admin/exams")
+            owner = exam_row(g, long_id).locator("td.owner")
+            expect(owner).to_have_text(LONG_TEACHER)
+            one_line(owner, 1.6, "the owner cell")
+            no_page_overflow(g)
+            shot(g, "g-exams-long-owner.png")
+
+        with step("22 1280 px results: View and Delete share a top in every row, also beside long names"):
+            for name in LONG_STUDENTS:
+                ls = new_context(**DESKTOP).new_page()
+                start(ls, base_url, long_code, name)
+                answer_first(ls)
+                ls.context.close()
+            g.goto(f"{base_url}/admin/exams/{long_id}/attempts")
+            rows = g.locator("#attempts tbody tr")
+            expect(rows).to_have_count(2)
+            for i in range(2):
+                view = box(rows.nth(i).get_by_role("link", name="View", exact=True))["y"]
+                delete = box(rows.nth(i).get_by_role("link", name="Delete", exact=True))["y"]
+                if abs(view - delete) > 2:
+                    raise AssertionError(f"row {i}: View at y {view:.1f}, Delete at y {delete:.1f}, want the same top")
+            results_counts = status_counts(g.locator(".counts").inner_text())
+            shot(g, "g-results.png")
+
+        with step("23 1280 × 600 question form: Tab from the question text to Save; the save row never covers the focus"):
+            g.set_viewport_size({"width": 1280, "height": 600})
+            g.goto(f"{base_url}/admin/exams/{written_id}/questions/2")
+            expect(g.locator("#question-form textarea[name=option]")).to_have_count(5)
+            g.locator("#question-text").focus()
+            for presses in range(1, 101):
+                g.keyboard.press("Tab")
+                saved, inside, bottom, bar, what = g.evaluate(
+                    """() => {
+                        const el = document.activeElement, row = document.querySelector(".form-actions");
+                        return [el.matches("#save"), row.contains(el), el.getBoundingClientRect().bottom,
+                                row.getBoundingClientRect().top, el.outerHTML.slice(0, 80)];
+                    }"""
+                )
+                if not inside and bottom > bar:
+                    raise AssertionError(f"Tab {presses}: {what} ends at y {bottom:.1f}, below the save row's top {bar:.1f}")
+                if saved:
+                    break
+            else:
+                raise AssertionError("100 presses of Tab never reached #save")
+            g.set_viewport_size(DESKTOP["viewport"])
+
+        with step("24 1280 px exam page: the results link is named Results; the counts equal the results page's"):
+            g.goto(f"{base_url}/admin/exams/{long_id}")
+            expect(g.locator("nav.exam-links a[href$='/attempts']")).to_have_accessible_name("Results")
+            if (page_counts := status_counts(g.locator("#attempt-counts").inner_text())) != results_counts:
+                raise AssertionError(f"#attempt-counts shows {page_counts}, the results page {results_counts}")
+            shot(g, "g-exam.png")
+
+        # H. The student font, the smooth scroll and the lazy landing preview.
+        with step("25 font: / and the student exam page fetch Atkinson Hyperlegible Next once; question text uses it, the exams list title does not"):
+            fp = new_context(**DESKTOP).new_page()
+            fonts = track(fp, ".woff2")
+            fp.goto(base_url + "/")
+            font_loaded_once(fp, fonts)
+            student = new_context(**DESKTOP).new_page()
+            start(student, base_url, phone_code, "Fina Font")
+            fe = new_context(storage_state=student.context.storage_state(), **DESKTOP).new_page()
+            fonts = track(fe, ".woff2")
+            fe.goto(base_url + "/exam")
+            expect(fe.locator("main#exam")).to_be_visible()
+            font_loaded_once(fe, fonts)
+            for where, page in (("the student exam page", fe), ("the teacher's exam page", g)):
+                if not (family := font_family(page, ".question-body")).startswith(f'"{FONT}"'):
+                    raise AssertionError(f".question-body on {where} has font-family {family}, want {FONT} first")
+            g.goto(f"{base_url}/admin/exams")
+            if (family := font_family(g, "h1")).startswith(f'"{FONT}"'):
+                raise AssertionError(f"the exams list h1 has font-family {family}, want the UI font")
+
+        with step("26 motion: smooth scroll only without reduced motion; Learn more puts #why at the top"):
+            for motion, want in (("no-preference", "smooth"), ("reduce", "auto")):
+                m = new_context(reduced_motion=motion, **DESKTOP).new_page()
+                m.goto(base_url + "/")
+                if (got := m.evaluate("() => getComputedStyle(document.documentElement).scrollBehavior")) != want:
+                    raise AssertionError(f"reduced motion {motion}: html scroll-behavior is {got!r}, want {want!r}")
+                m.locator("section.about").get_by_role("link", name="Learn more").click()
+                m.wait_for_function("() => Math.abs(document.getElementById('why').getBoundingClientRect().top) <= 1", timeout=5_000)
+
+        with step("27 360 px on a 4G phone: the landing preview loads when it is scrolled into view, only the scheme's file"):
+            for scheme in ("light", "dark"):
+                lp = new_context(color_scheme=scheme, **PHONE).new_page()
+                # Headless Chromium on localhost reports no connection type, and
+                # then lazy images within about 3000 px of the window load with
+                # the page. A 4G connection (effectiveType "4g") brings that
+                # distance to 1250 px, below the preview's 1568 px at 360 × 640,
+                # so the check sees what a phone on a school network does.
+                cdp = lp.context.new_cdp_session(lp)
+                cdp.send("Network.enable")
+                cdp.send(
+                    "Network.emulateNetworkConditions",
+                    {"offline": False, "latency": 20, "downloadThroughput": 5_000_000, "uploadThroughput": 5_000_000, "connectionType": "wifi"},
+                )
+                previews = track(lp, ".webp")
+                lp.goto(base_url + "/", wait_until="load")
+                if (kind := lp.evaluate("() => navigator.connection.effectiveType")) != "4g":
+                    raise AssertionError(f"the emulated connection is {kind!r}, want '4g'")
+                lp.wait_for_timeout(500)
+                if previews:
+                    raise AssertionError(f"{scheme}: {[r.url for r in previews]} fetched before any scroll")
+                image = lp.locator(".preview-shot img")
+                image.scroll_into_view_if_needed()
+                lp.wait_for_function("img => img.complete && img.naturalWidth > 0", arg=image.element_handle())
+                lp.wait_for_timeout(500)
+                other = "dark" if scheme == "light" else "light"
+                paths = [urlsplit(r.url).path for r in previews]
+                if any(f"preview-exam-{other}" in p for p in paths):
+                    raise AssertionError(f"{scheme}: the {other} preview was fetched: {paths}")
+                if len(paths) != 1 or not paths[0].endswith(f"preview-exam-{scheme}.webp"):
+                    raise AssertionError(f"{scheme}: the preview fetched {paths}, want only preview-exam-{scheme}.webp")
+                shot(lp, f"h-landing-preview-{scheme}-360.png")
+
+        with step("28 no console errors, page errors or foreign requests"):
             problems = []
             for log in logs:
                 problems += [f"console error: {e}" for e in log["console_errors"]]
