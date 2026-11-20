@@ -294,6 +294,7 @@ A self-hosted web app for classroom exams with multiple-choice and fill-in quest
 - The tint of a picked option needs `:has()`; an older WebView shows the other three cues (filled bubble, check mark, bold text) without it.
 - On a keyboard that composes, an upper-case letter, a refused character or the resume code's dash settles only when the word ends (a space, a tap elsewhere, Enter).
 - Once `entry.js` has cleaned the text in the exam code or resume code box, Ctrl+Z does not undo inside that box.
+- An error page offers "Teacher pages" only when the address as sent starts with `/admin/` (or is `/admin`). A hand-typed address that writes "admin" with an escaped letter, such as `/%61dmin/exams/999`, reaches the teacher pages but its error page shows only the start-page link; reading the decoded address instead would show the link on `/admin%2Fexams`, which is a public page.
 - Without scripts a screen reader reads the code boxes' placeholders as underscores.
 - In the dark scheme the open tab and the closed one differ by shape, the join to the card and the green bar, not by lightness (1.8 : 1).
 - The alignment of the code mask with the typed text is proven in Chromium only.
