@@ -12,6 +12,7 @@
 <body>
 {{block "header" .Page}}{{end}}
 {{block "main" .Page}}{{end}}
+<details class="lang-switch" id="lang-switch"><summary title="{{t "lang.menu"}}" aria-label="{{t "lang.menu"}}"></summary><form method="post" action="/lang" aria-label="{{t "lang.label"}}"><input type="hidden" name="next" value="{{.Return}}"><button type="submit" class="quiet" name="lang" value="id" lang="id"{{if eq lang "id"}} aria-current="true"{{end}}>{{t "lang.id.name"}}</button><button type="submit" class="quiet" name="lang" value="en" lang="en"{{if eq lang "en"}} aria-current="true"{{end}}>{{t "lang.en.name"}}</button></form></details>
 {{block "scripts" .Page}}{{end}}
 </body>
 </html>

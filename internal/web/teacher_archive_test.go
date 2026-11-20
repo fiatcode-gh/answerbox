@@ -460,7 +460,7 @@ func TestStart_ArchivedCodeLooksUnknown(t *testing.T) {
 
 	archived := do(env.h, "GET", "/?code="+code, nil)
 	unknown := do(env.h, "GET", "/?code="+otherCode(code), nil)
-	if archived.Code != http.StatusOK || archived.Body.String() != unknown.Body.String() {
+	if archived.Code != http.StatusOK || withoutLangSwitch(t, archived.Body.String()) != withoutLangSwitch(t, unknown.Body.String()) {
 		t.Errorf("archived code landing (%d) differs from an unknown code's:\n%s\n---\n%s", archived.Code, archived.Body.String(), unknown.Body.String())
 	}
 	if strings.Contains(archived.Body.String(), "Algebra") {

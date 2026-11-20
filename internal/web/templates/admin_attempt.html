@@ -4,71 +4,71 @@
 
 {{define "main"}}
 <main class="container admin attempt-detail" data-exam-id="{{.Exam.ID}}" data-attempt-id="{{.Attempt.ID}}">
-  <p class="back"><a href="/admin/exams/{{.Exam.ID}}/attempts">← Results: {{.Exam.Title}}</a></p>
+  <p class="back"><a href="/admin/exams/{{.Exam.ID}}/attempts">← {{t "attempt.back" .Exam.Title}}</a></p>
   {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
   <div class="exam-head">
     <h1>{{.Attempt.StudentName}}</h1>
     <span class="badge {{.Status.Badge}}">{{.Status.Text}}</span>
   </div>
   <dl class="settings attempt-summary">
-    <dt>Score</dt>
+    <dt>{{t "attempt.score"}}</dt>
     <dd class="numeric">{{.Attempt.Score}} / {{.Attempt.Total}}</dd>
-    <dt>Started</dt>
+    <dt>{{t "attempt.started"}}</dt>
     <dd class="numeric">{{.Started}}</dd>
-    <dt>Finished</dt>
+    <dt>{{t "attempt.finished"}}</dt>
     <dd class="numeric">{{.Finished}}</dd>
-    <dt>Exam content</dt>
-    <dd id="attempt-revision">{{if .Attempt.Revision}}<a href="/admin/exams/{{.Exam.ID}}/revisions/{{.Attempt.Revision}}">Revision {{.Attempt.Revision}}</a>{{else}}—{{end}}</dd>
+    <dt>{{t "attempt.content"}}</dt>
+    <dd id="attempt-revision">{{if .Attempt.Revision}}<a href="/admin/exams/{{.Exam.ID}}/revisions/{{.Attempt.Revision}}">{{t "attempt.revision" .Attempt.Revision}}</a>{{else}}—{{end}}</dd>
   </dl>
-  <p class="zone-note">Times are shown in {{.Zone}}. Questions and options are in the order of the exam file.</p>
+  <p class="zone-note">{{t "common.times_zone" .Zone}} {{t "attempt.file_order"}}</p>
 
   <form id="rename-form" class="rename-form" method="post" action="/admin/exams/{{.Exam.ID}}/attempts/{{.Attempt.ID}}/rename">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <label for="rename-name">Student name</label>
+    <label for="rename-name">{{t "attempt.rename_label"}}</label>
     <input type="text" id="rename-name" name="name" value="{{.RenameName}}" maxlength="100" autocomplete="off" required>
-    <button type="submit" class="secondary">Rename</button>
+    <button type="submit" class="secondary">{{t "attempt.rename"}}</button>
   </form>
 
   <section id="flags" class="attempt-flags">
-    <h2>Flags</h2>
+    <h2>{{t "attempt.flags"}}</h2>
     {{if .Events}}
     <div class="overflow-auto">
       <table id="events">
         <thead>
-          <tr><th scope="col">Time</th><th scope="col">Event</th><th scope="col">Question</th></tr>
+          <tr><th scope="col">{{t "attempt.col.time"}}</th><th scope="col">{{t "attempt.col.event"}}</th><th scope="col">{{t "attempt.col.question"}}</th></tr>
         </thead>
         <tbody>
           {{range .Events}}
-          <tr class="event"><td class="numeric">{{.Time}}</td><td>{{.Text}}</td><td>{{if .Screen}}<a href="#q{{.Question}}">Question {{.Screen}} on screen (file question {{.Question}})</a>{{else if .Question}}<a href="#q{{.Question}}">Question {{.Question}}</a>{{else}}—{{end}}</td></tr>
+          <tr class="event"><td class="numeric">{{.Time}}</td><td>{{.Text}}</td><td>{{if .Screen}}<a href="#q{{.Question}}">{{t "attempt.flag_screen" .Screen .Question}}</a>{{else if .Question}}<a href="#q{{.Question}}">{{t "attempt.question" .Question}}</a>{{else}}—{{end}}</td></tr>
           {{end}}
         </tbody>
       </table>
     </div>
     {{else}}
-    <p class="empty">No flags.</p>
+    <p class="empty">{{t "attempt.no_flags"}}</p>
     {{end}}
   </section>
 
-  <h2 class="answers-heading">Answers</h2>
+  <h2 class="answers-heading">{{t "attempt.answers"}}</h2>
   {{range .Questions}}
   {{with .Section}}{{template "section_head" .}}{{end}}<section class="detail-question" id="q{{.Position}}">
-    <p class="eyebrow">Question {{.Position}}{{if not .Answered}} · <span class="no-answer">No answer</span>{{end}}</p>
+    <p class="eyebrow">{{t "attempt.question" .Position}}{{if not .Answered}} · <span class="no-answer">{{t "attempt.no_answer"}}</span>{{end}}</p>
     <div class="question-body">{{.BodyHTML}}</div>
     {{if .FillIn}}<div class="detail-fill-in" data-answered="{{.Answered}}" data-correct="{{.Right}}">
-      {{if .Answered}}<p class="typed-answer">Typed answer: <span class="typed-text">{{.Typed}}</span></p>{{end}}
-      <p class="accepted-label">Accepted answers</p><ul class="accepted-answers">{{range .Accepted}}<li>{{.}}</li>{{end}}</ul>
-      {{if .Answered}}<p class="auto-mark" data-auto="{{.Auto}}">Automatic mark: {{if .Auto}}✓ Right{{else}}✗ Wrong{{end}}</p>{{end}}
-      {{if .Override}}<p class="override-mark" data-override="{{.Override.Correct}}">Marked {{if .Override.Correct}}right{{else}}wrong{{end}} by {{.Override.TeacherEmail}} on <time>{{.OverrideAt}}</time></p>{{end}}
+      {{if .Answered}}<p class="typed-answer">{{t "attempt.typed"}} <span class="typed-text">{{.Typed}}</span></p>{{end}}
+      <p class="accepted-label">{{t "attempt.accepted"}}</p><ul class="accepted-answers">{{range .Accepted}}<li>{{.}}</li>{{end}}</ul>
+      {{if .Answered}}<p class="auto-mark" data-auto="{{.Auto}}">{{if .Auto}}{{t "attempt.auto_right"}}{{else}}{{t "attempt.auto_wrong"}}{{end}}</p>{{end}}
+      {{if .Override}}<p class="override-mark" data-override="{{.Override.Correct}}">{{if .Override.Correct}}{{th "attempt.marked_right_html" .Override.TeacherEmail .OverrideAt}}{{else}}{{th "attempt.marked_wrong_html" .Override.TeacherEmail .OverrideAt}}{{end}}</p>{{end}}
       {{if .CanOverride}}<form class="override-form" method="post" action="/admin/exams/{{$.Exam.ID}}/attempts/{{$.Attempt.ID}}/questions/{{.Position}}/override">
         <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-        <span class="override-label">Mark this answer:</span>
-        <button type="submit" name="mark" value="right" class="secondary">Mark right</button>
-        <button type="submit" name="mark" value="wrong" class="secondary">Mark wrong</button>
-        {{if .Override}}<button type="submit" name="mark" value="none" class="secondary">Remove override</button>{{end}}
+        <span class="override-label">{{t "attempt.mark_label"}}</span>
+        <button type="submit" name="mark" value="right" class="secondary">{{t "attempt.mark_right"}}</button>
+        <button type="submit" name="mark" value="wrong" class="secondary">{{t "attempt.mark_wrong"}}</button>
+        {{if .Override}}<button type="submit" name="mark" value="none" class="secondary">{{t "attempt.remove_override"}}</button>{{end}}
       </form>{{end}}
     </div>{{else}}<ol class="preview-options detail-options">
       {{range .Options}}
-      <li data-correct="{{.Correct}}" data-picked="{{.Picked}}"><div class="option-body">{{.BodyHTML}}</div>{{if or .Correct .Picked}}<p class="option-marks">{{if .Correct}}<span class="correct-mark">✓ Correct</span>{{end}}{{if .Picked}}<span class="pick-mark">{{if not .Correct}}✗ {{end}}Student's pick</span>{{end}}</p>{{end}}</li>
+      <li data-correct="{{.Correct}}" data-picked="{{.Picked}}"><div class="option-body">{{.BodyHTML}}</div>{{if or .Correct .Picked}}<p class="option-marks">{{if .Correct}}<span class="correct-mark">{{t "attempt.correct"}}</span>{{end}}{{if .Picked}}<span class="pick-mark">{{if not .Correct}}✗ {{end}}{{t "attempt.pick"}}</span>{{end}}</p>{{end}}</li>
       {{end}}
     </ol>{{end}}
   </section>

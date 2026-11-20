@@ -74,6 +74,7 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("GET /media/{key}/{name}", s.serveMedia)
 	s.mountAdmin(mux)
 	s.mountStudent(mux)
+	mux.HandleFunc("POST /lang", s.setLanguage)
 	mux.HandleFunc("/", s.notFound)
 
 	cop := http.NewCrossOriginProtection()

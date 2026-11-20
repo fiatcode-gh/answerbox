@@ -43,13 +43,9 @@ func (s *server) event(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// eventText is how the teacher reads each event kind.
-var eventText = map[attempt.EventKind]string{
-	attempt.LeftPage:   "Left the exam page",
-	attempt.Copy:       "Tried to copy",
-	attempt.Paste:      "Tried to paste",
-	attempt.RightClick: "Right-clicked",
-	attempt.Resize:     "Resized the window",
+// event is how the teacher reads an event kind, worded in l.
+func (l localizer) event(kind attempt.EventKind) string {
+	return l.T("event." + string(kind))
 }
 
 // eventRow is one line of the attempt detail's flags table.

@@ -71,10 +71,16 @@ const (
 
 type statusLabel struct{ Text, Badge string }
 
-var attemptStatus = map[attempt.Status]statusLabel{
-	attempt.InProgress: {"In progress", "badge-warn"},
-	attempt.Submitted:  {"Submitted", "badge-ok"},
-	attempt.TimedOut:   {"Timed out", "badge-muted"},
+// statusBadge is the badge class of each attempt status.
+var statusBadge = map[attempt.Status]string{
+	attempt.InProgress: "badge-warn",
+	attempt.Submitted:  "badge-ok",
+	attempt.TimedOut:   "badge-muted",
+}
+
+// status is the badge of an attempt status, worded in l.
+func (l localizer) status(st attempt.Status) statusLabel {
+	return statusLabel{l.T("status." + string(st)), statusBadge[st]}
 }
 
 // attemptSort is the list order: key started|name|score, desc reversing the
@@ -255,7 +261,8 @@ func (s *server) attemptList(w http.ResponseWriter, r *http.Request) {
 	rows = filterByName(rows, filter)
 	by := parseSort(r.URL.Query())
 	sortAttempts(rows, by)
-	lt := newListTimes(rows, s.deps.Location, loc(r))
+	l := loc(r)
+	lt := newListTimes(rows, s.deps.Location, l)
 
 	nameDir, scoreDir := "asc", "desc"
 	if by.key == "name" && !by.desc {
@@ -269,7 +276,7 @@ func (s *server) attemptList(w http.ResponseWriter, r *http.Request) {
 		Exam:      e,
 		Sections:  res.Sections,
 		Rows:      make([]attemptRow, len(rows)),
-		Counts:    countsLine(rows, total, filter != ""),
+		Counts:    countsLine(l, rows, total, filter != ""),
 		Total:     total,
 		Live:      inProgress || e.Open || e.Schedule.OpensAt.After(s.deps.Now()),
 		Filter:    filter,
@@ -291,7 +298,7 @@ func (s *server) attemptList(w http.ResponseWriter, r *http.Request) {
 			ID:      sum.ID,
 			Name:    sum.StudentName,
 			Started: lt.cell(sum.StartedAt),
-			Status:  attemptStatus[sum.Status],
+			Status:  l.status(sum.Status),
 			Score:   sum.Score,
 			Total:   sum.Total,
 			Flags:   sum.Flags,
@@ -324,27 +331,16 @@ func clock(d time.Duration) string {
 
 // countsLine is "23 attempts — 5 in progress, 17 submitted, 1 timed out" for
 // the shown rows; when filtered, "3 of 23 attempts — …" against total.
-func countsLine(rows []attempt.Summary, total int, filtered bool) string {
+func countsLine(l localizer, rows []attempt.Summary, total int, filtered bool) string {
 	n := map[attempt.Status]int{}
 	for _, sum := range rows {
 		n[sum.Status]++
 	}
-	noun := "attempts"
-	if total == 1 {
-		noun = "attempt"
-	}
-	count := fmt.Sprint(total)
+	count := l.N("results.count", total)
 	if filtered {
-		count = fmt.Sprintf("%d of %d", len(rows), total)
+		count = l.N("results.count_of", total, len(rows))
 	}
-	return fmt.Sprintf("%s %s — %d in progress, %d submitted, %d timed out",
-		count, noun, n[attempt.InProgress], n[attempt.Submitted], n[attempt.TimedOut])
-}
-
-var csvStatus = map[attempt.Status]string{
-	attempt.InProgress: "in progress",
-	attempt.Submitted:  "submitted",
-	attempt.TimedOut:   "timed out",
+	return l.T("results.counts_line", count, n[attempt.InProgress], n[attempt.Submitted], n[attempt.TimedOut])
 }
 
 // attemptsCSV exports every attempt of the exam in start order, with one
@@ -359,20 +355,21 @@ func (s *server) attemptsCSV(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	l := loc(r)
 	var buf bytes.Buffer
 	cw := csv.NewWriter(&buf)
-	header := []string{"name", "status", "score", "total"}
+	header := []string{l.T("csv.col.name"), l.T("csv.col.status"), l.T("csv.col.score"), l.T("csv.col.total")}
 	for _, sec := range res.Sections {
 		header = append(header, csvText(sec.Title))
 	}
-	cw.Write(append(header, "started", "finished", "flags"))
+	cw.Write(append(header, l.T("csv.col.started"), l.T("csv.col.finished"), l.T("csv.col.flags")))
 	for _, sum := range res.Attempts {
 		finished := ""
 		if sum.Status != attempt.InProgress {
 			finished = s.csvTime(sum.FinishedAt)
 		}
 		record := []string{
-			csvText(sum.StudentName), csvStatus[sum.Status],
+			csvText(sum.StudentName), l.T("csv.status." + string(sum.Status)),
 			strconv.Itoa(sum.Score), strconv.Itoa(sum.Total),
 		}
 		for _, score := range sum.SectionScores {
@@ -427,15 +424,6 @@ func (s *server) resultsAttempt(w http.ResponseWriter, r *http.Request) (exam.Ex
 	return e, d, true
 }
 
-// renameAlert reports a refused rename on the attempt page.
-const renameAlert = "Enter a name (1 to 100 characters)."
-
-// The alerts of a refused mark on the attempt page.
-const (
-	overrideInProgressAlert = "This attempt is still in progress. An answer can be marked once it has ended."
-	overrideRefusedAlert    = "Only an answered fill-in question can be marked right or wrong."
-)
-
 type attemptDetailData struct {
 	adminPage
 	Exam              exam.Exam
@@ -469,11 +457,12 @@ func (s *server) attemptDetail(w http.ResponseWriter, r *http.Request) {
 // field; a non-empty alert reports a refused rename or mark.
 func (s *server) renderAttemptDetail(w http.ResponseWriter, r *http.Request, status int,
 	e exam.Exam, d attempt.Detail, renameName, alert string) {
+	l := loc(r)
 	data := attemptDetailData{
 		adminPage:  adminPageFor(r),
 		Exam:       e,
 		Attempt:    d,
-		Status:     attemptStatus[d.Status],
+		Status:     l.status(d.Status),
 		Started:    s.fullTime(d.StartedAt),
 		Finished:   "—",
 		Zone:       s.deps.Location.String(),
@@ -492,7 +481,7 @@ func (s *server) renderAttemptDetail(w http.ResponseWriter, r *http.Request, sta
 	}
 	shuffled := e.Shuffle != examfile.ShuffleNone
 	for _, ev := range d.Events {
-		row := eventRow{Time: s.fullTime(ev.At), Text: eventText[ev.Kind], Question: ev.Question}
+		row := eventRow{Time: s.fullTime(ev.At), Text: l.event(ev.Kind), Question: ev.Question}
 		if shuffled {
 			row.Screen = ev.Screen
 		}
@@ -516,7 +505,7 @@ func (s *server) attemptRename(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, attempt.ErrInvalidName):
 		if e, d, ok := s.resultsAttempt(w, r); ok {
-			s.renderAttemptDetail(w, r, http.StatusUnprocessableEntity, e, d, name, renameAlert)
+			s.renderAttemptDetail(w, r, http.StatusUnprocessableEntity, e, d, name, loc(r).T("attempt.rename_refused"))
 		}
 	case errors.Is(err, attempt.ErrNotFound):
 		s.notFound(w, r)
@@ -554,9 +543,9 @@ func (s *server) attemptOverride(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, attempt.ErrNotFound):
 		s.notFound(w, r)
 	case errors.Is(err, attempt.ErrInProgress):
-		refused(http.StatusConflict, overrideInProgressAlert)
+		refused(http.StatusConflict, loc(r).T("attempt.override_in_progress"))
 	case errors.Is(err, attempt.ErrNotOverridable), errors.Is(err, attempt.ErrInvalidMark):
-		refused(http.StatusUnprocessableEntity, overrideRefusedAlert)
+		refused(http.StatusUnprocessableEntity, loc(r).T("attempt.override_refused"))
 	case err != nil:
 		s.serverError(w, r, err)
 	default:
@@ -569,13 +558,14 @@ func (s *server) attemptDeleteConfirm(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	l := loc(r)
 	s.confirmPage(w, r, confirmData{
 		adminPage: adminPageFor(r),
-		Heading:   "Delete attempt",
-		Question:  "Delete the attempt by ‘" + d.StudentName + "’? This cannot be undone.",
+		Heading:   l.T("attempt.confirm_delete.heading"),
+		Question:  l.T("attempt.confirm_delete.question", d.StudentName),
 		FormID:    "delete-attempt-form",
 		Action:    attemptPath(e.ID, d.ID) + "/delete",
-		Submit:    "Delete attempt",
+		Submit:    l.T("attempt.confirm_delete.submit"),
 		Danger:    true,
 		Cancel:    attemptsPath(e.ID),
 	})

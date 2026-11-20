@@ -145,7 +145,7 @@ func TestConfirm_RemoveLastQuestionRefused(t *testing.T) {
 	post := editorPost(env, detail, "/questions/1/remove", url.Values{"revision": {"1"}}, cookie, csrf)
 	requireAlert(t, post, http.StatusUnprocessableEntity, "Not saved: exam has no questions")
 	requireAlert(t, get, http.StatusUnprocessableEntity, "Not saved: exam has no questions")
-	if get.Body.String() != post.Body.String() {
+	if withoutLangSwitch(t, get.Body.String()) != withoutLangSwitch(t, post.Body.String()) {
 		t.Errorf("GET answers another page than the POST:\nGET:\n%s\nPOST:\n%s", get.Body.String(), post.Body.String())
 	}
 	if r, q := env.revisionCount(t, id), env.questionCount(t, id); r != 1 || q != 1 {
@@ -177,7 +177,7 @@ func TestConfirm_RemoveOnlyQuestionOfSectionRefused(t *testing.T) {
 			post := editorPost(env, detail, rest, url.Values{"revision": {"1"}}, cookie, csrf)
 			requireAlert(t, post, http.StatusUnprocessableEntity, alert)
 			requireAlert(t, get, http.StatusUnprocessableEntity, alert)
-			if get.Body.String() != post.Body.String() {
+			if withoutLangSwitch(t, get.Body.String()) != withoutLangSwitch(t, post.Body.String()) {
 				t.Errorf("GET answers another page than the POST:\nGET:\n%s\nPOST:\n%s", get.Body.String(), post.Body.String())
 			}
 			if r := env.revisionCount(t, id); r != 1 {

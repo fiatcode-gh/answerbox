@@ -663,7 +663,10 @@ func TestLogin_Page(t *testing.T) {
 				t.Errorf("%s: login page lacks %q:\n%s", c.query, want, body)
 			}
 		}
-		for _, absent := range []string{"<form", `name="password"`, testClientSecret, "<b>x</b>", "&lt;b&gt;"} {
+		if strings.Contains(pageMain(t, body), "<form") {
+			t.Errorf("%s: login page's <main> contains <form", c.query)
+		}
+		for _, absent := range []string{`name="password"`, testClientSecret, "<b>x</b>", "&lt;b&gt;"} {
 			if strings.Contains(body, absent) {
 				t.Errorf("%s: login page contains %q", c.query, absent)
 			}

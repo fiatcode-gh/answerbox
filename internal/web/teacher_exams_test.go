@@ -1332,10 +1332,11 @@ func TestProjector_Page(t *testing.T) {
 			t.Errorf("closed projector lacks %q:\n%s", want, body)
 		}
 	}
-	for _, absent := range []string{"<form", "<script"} {
-		if strings.Contains(body, absent) {
-			t.Errorf("projector has %s:\n%s", absent, body)
-		}
+	if strings.Contains(pageMain(t, body), "<form") {
+		t.Errorf("projector's <main> has <form:\n%s", body)
+	}
+	if strings.Contains(body, "<script") {
+		t.Errorf("projector has <script:\n%s", body)
 	}
 
 	if err := f.env.exams.Open(context.Background(), f.env.owner, f.id); err != nil {

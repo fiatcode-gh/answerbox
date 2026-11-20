@@ -869,7 +869,7 @@ func TestAttempts_RefreshRegion(t *testing.T) {
 	if !strings.Contains(body, status) {
 		t.Errorf("results status line is not %s:\n%s", status, body)
 	}
-	if !regexp.MustCompile(`</main>\s*<script src="/static/results\.js\?v=[0-9a-f]{8}" defer></script>\s*</body>\s*</html>\s*$`).MatchString(body) {
+	if !regexp.MustCompile(`</main>\s*<details class="lang-switch" id="lang-switch"><summary [^>]*></summary><form method="post" action="/lang" aria-label="[^"<]*"><input type="hidden" name="next" value="[^"]*"><button [^<]*>Indonesia</button><button [^<]*>English</button></form></details>\s*<script src="/static/results\.js\?v=[0-9a-f]{8}" defer></script>\s*</body>\s*</html>\s*$`).MatchString(body) {
 		t.Errorf("page does not end with the results.js script:\n%s", body)
 	}
 

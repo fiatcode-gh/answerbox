@@ -2,6 +2,7 @@ package web
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -96,4 +97,96 @@ func rangeQ(params string) (q float64, ok bool) {
 		q = v
 	}
 	return q, true
+}
+
+// langCookieMaxAge keeps the chosen language for a year.
+const langCookieMaxAge = 365 * 24 * 60 * 60
+
+// newLangCookie is the cookie the switch sets for l.
+func newLangCookie(l lang) *http.Cookie {
+	return &http.Cookie{
+		Name:     langCookieName,
+		Value:    string(l),
+		Path:     "/",
+		MaxAge:   langCookieMaxAge,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	}
+}
+
+// setLanguage is POST /lang: it sets the language cookie and sends the
+// visitor back to the page the switch was on. It reads nothing else of the
+// request and changes nothing else.
+func (s *server) setLanguage(w http.ResponseWriter, r *http.Request) {
+	if !s.parseStudentForm(w, r) {
+		return
+	}
+	l, ok := parseLang(r.PostFormValue("lang"))
+	if !ok {
+		s.errorPage(w, r, http.StatusBadRequest)
+		return
+	}
+	http.SetCookie(w, newLangCookie(l))
+	http.Redirect(w, r, safeReturn(r.PostFormValue("next")), http.StatusSeeOther)
+}
+
+// safeReturn returns next when it is a path on this site, else "/": it
+// starts with one "/" (not "//" or "/\"), holds no "\" and no control byte,
+// and parses without a scheme, host or user.
+func safeReturn(next string) string {
+	if next == "" || next[0] != '/' || (len(next) > 1 && (next[1] == '/' || next[1] == '\\')) {
+		return "/"
+	}
+	for i := range len(next) {
+		if c := next[i]; c == '\\' || c < 0x20 || c == 0x7f {
+			return "/"
+		}
+	}
+	u, err := url.Parse(next)
+	if err != nil || u.Scheme != "" || u.Host != "" || u.User != nil {
+		return "/"
+	}
+	return next
+}
+
+// returner is page data rendered by a POST on a path that has no GET page
+// of its own; returnPath is the GET page that shows the same thing.
+type returner interface {
+	returnPath() string
+}
+
+// pageReturn is where the switch on a page sends the visitor back to: the
+// page itself for GET and HEAD, else the data's return path, else the
+// request path.
+func pageReturn(r *http.Request, data any) string {
+	if r.Method == http.MethodGet || r.Method == http.MethodHead {
+		return safeReturn(r.URL.RequestURI())
+	}
+	if d, ok := data.(returner); ok {
+		if p := d.returnPath(); p != "" {
+			return safeReturn(p)
+		}
+	}
+	return safeReturn(r.URL.EscapedPath())
+}
+
+func (d examDetailData) returnPath() string { return examPath(d.Exam.ID) }
+
+func (d attemptDetailData) returnPath() string { return attemptPath(d.Exam.ID, d.Attempt.ID) }
+
+func (d editorData) returnPath() string { return editPath(d.Exam.ID) }
+
+func (d landingData) returnPath() string {
+	if d.ExamTitle != "" {
+		return "/?code=" + url.QueryEscape(d.Code)
+	}
+	return "/"
+}
+
+func (d errorData) returnPath() string {
+	if d.Teacher {
+		return "/admin/exams"
+	}
+	return "/"
 }

@@ -314,16 +314,18 @@ func TestCSS_FontFace(t *testing.T) {
 	}
 }
 
-// iconTokens are the icons of PLAN section 3.8, in table order.
+// iconTokens are the icons of PLAN section 3.8, in table order, then the
+// language switch's icon (PLAN section 7).
 var iconTokens = []string{
 	"arrow", "down", "check", "clock", "alert", "person", "resume", "play", "stop", "copy", "screen",
 	"chart", "pencil", "history", "download", "upload", "plus", "archive", "lock", "calendar", "eye", "table",
+	"languages",
 }
 
 func TestCSS_IconTokens(t *testing.T) {
 	light, darkOnly := cssTokens(t)
-	if len(iconTokens) != 22 {
-		t.Fatalf("icon list has %d names, want 22", len(iconTokens))
+	if len(iconTokens) != 23 {
+		t.Fatalf("icon list has %d names, want 23", len(iconTokens))
 	}
 	for _, name := range iconTokens {
 		v, ok := light["i-"+name]

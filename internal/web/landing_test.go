@@ -124,7 +124,13 @@ func requireTabs(t *testing.T, label, body string, resumeOpen bool) {
 		!regexp.MustCompile(`<label for="tab-resume-r" class="tab tab-resume"[^>]*>Resume</label>`).MatchString(body) {
 		t.Errorf("%s: the tab labels are not Join and Resume", label)
 	}
-	for _, unwanted := range []string{"<details", `role="tab"`, "Join exam", "Continue an interrupted exam"} {
+	if strings.Contains(pageMain(t, body), "<details") {
+		t.Errorf("%s: <main> holds <details", label)
+	}
+	if strings.Count(body, "<details") != 1 || !strings.Contains(body, `<details class="lang-switch"`) {
+		t.Errorf("%s: want exactly one <details, the language switch", label)
+	}
+	for _, unwanted := range []string{`role="tab"`, "Join exam", "Continue an interrupted exam"} {
 		if strings.Contains(body, unwanted) {
 			t.Errorf("%s: holds %q", label, unwanted)
 		}
@@ -391,7 +397,7 @@ func TestLandingV3_UnknownAndClosedStayEqual(t *testing.T) {
 	}
 	unknown := do(env.h, "GET", "/?code="+otherCode(openCode), nil).Body.String()
 	closed := do(env.h, "GET", "/?code="+env.examCode(t, closedID), nil).Body.String()
-	if unknown != closed {
+	if withoutLangSwitch(t, unknown) != withoutLangSwitch(t, closed) {
 		t.Errorf("unknown and closed codes differ:\n%s\n---\n%s", unknown, closed)
 	}
 	if !invalid(inputTag(closed, "start-code")) {

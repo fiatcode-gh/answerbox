@@ -1372,7 +1372,7 @@ func TestLanding_AboutOnlyOnPlainPage(t *testing.T) {
 
 	unknown := do(env.h, "GET", "/?code="+otherCode(openCode), nil).Body.String()
 	closed := do(env.h, "GET", "/?code="+closedCode, nil).Body.String()
-	if unknown != closed {
+	if withoutLangSwitch(t, unknown) != withoutLangSwitch(t, closed) {
 		t.Errorf("unknown and closed codes differ:\n%s\n---\n%s", unknown, closed)
 	}
 	if strings.Contains(unknown, aboutHTML) {

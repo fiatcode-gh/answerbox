@@ -23,8 +23,6 @@ import (
 // pendingTemplates are skipped by TestTemplates_NoLiteralText until the task
 // that moves their text into the catalogue deletes their name here.
 var pendingTemplates = []string{
-	"admin_attempt.html",
-	"admin_attempts.html",
 	"admin_editor_fields.html",
 	"admin_exam_edit.html",
 	"admin_exam_new.html",
@@ -46,8 +44,9 @@ var literalAllowed = []string{
 
 // computedKeyFuncs may call T or N with a key built at run time; each has
 // its own table test: errorPageMessage TestErrorPage_Texts, Date and Day
-// TestDates, setExamSchedule TestTeacherPages_SameRefusals.
-var computedKeyFuncs = []string{"errorPageMessage", "Date", "Day", "setExamSchedule"}
+// TestDates, setExamSchedule TestTeacherPages_SameRefusals, status and
+// event TestLocalizer_StatusEvent, attemptsCSV TestCSV_Language.
+var computedKeyFuncs = []string{"errorPageMessage", "Date", "Day", "setExamSchedule", "status", "event", "attemptsCSV"}
 
 // enText is the English catalogue text of key; the test fails on an unknown
 // key.

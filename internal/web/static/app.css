@@ -85,6 +85,7 @@
   --ge-r-pill: 999px;
   --ge-touch: 44px;
   --ge-bar: 64px;
+  --ge-lang-room: 52px;
   --ge-transition: 120ms ease;
 
   --ge-i-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14M13 6l6 6-6 6'/%3E%3C/svg%3E");
@@ -109,6 +110,8 @@
   --ge-i-calendar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='5' width='16' height='15' rx='2'/%3E%3Cpath d='M4 10h16M9 3v4M15 3v4M9 14.5l2 2 4-4'/%3E%3C/svg%3E");
   --ge-i-eye: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
   --ge-i-table: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='4' width='16' height='16' rx='2'/%3E%3Cpath d='M4 10h16M4 15h16M10 10v10'/%3E%3C/svg%3E");
+  /* languages: the "languages" icon of Lucide (ISC licence), in the stroke of the others. */
+  --ge-i-languages: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 8l6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6'/%3E%3C/svg%3E");
 }
 
 @media (prefers-color-scheme: dark) {
@@ -1378,6 +1381,154 @@ dl.settings {
   }
 }
 
+/* The language switch, top right of every page (it scrolls away with it):
+   an icon button on the header row that opens a small menu. The headers
+   keep --ge-lang-room free for the button. */
+.lang-switch {
+  position: absolute;
+  top: 12px;
+  right: max(var(--ge-space-4), calc((100% - 1280px) / 2 + var(--ge-space-5)));
+  z-index: 20;
+  margin: 0;
+}
+
+.lang-switch > summary {
+  justify-content: center;
+  width: var(--ge-touch);
+  min-height: var(--ge-touch);
+  border-radius: var(--ge-r-md);
+  color: var(--ge-muted);
+}
+
+.lang-switch > summary::before {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 0;
+  background: currentColor;
+  -webkit-mask: var(--ge-i-languages) center / contain no-repeat;
+  mask: var(--ge-i-languages) center / contain no-repeat;
+}
+
+/* Not the fold's chevron: the icon never turns. */
+.lang-switch > summary::before,
+.lang-switch[open] > summary::before {
+  transform: none;
+}
+
+.lang-switch > summary:hover,
+.lang-switch[open] > summary {
+  background: var(--ge-sunken);
+  color: var(--ge-ink);
+}
+
+/* The menu: a card below the button, right-aligned. */
+.lang-switch form {
+  position: absolute;
+  top: calc(100% + var(--ge-space-1));
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 168px;
+  margin: 0;
+  padding: var(--ge-space-1);
+  border: 1px solid var(--ge-line);
+  border-radius: var(--ge-r-md);
+  background: var(--ge-surface);
+  box-shadow: var(--ge-shadow);
+}
+
+.lang-switch form button.quiet {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: var(--ge-touch);
+  font-family: var(--ge-font-ui);
+  font-size: var(--ge-text-base);
+}
+
+.lang-switch form button[aria-current="true"] {
+  color: var(--ge-ink);
+  font-weight: 800;
+  text-decoration: underline;
+  text-decoration-color: var(--ge-gold);
+  text-decoration-thickness: 3px;
+  text-underline-offset: 5px;
+}
+
+.admin-header nav {
+  padding-inline-end: calc(var(--ge-space-5) + var(--ge-lang-room));
+}
+
+.brand-header {
+  padding-inline-end: calc(max(var(--ge-space-5), calc((100% - 1280px) / 2 + var(--ge-space-5))) + var(--ge-lang-room));
+}
+
+/* Phones: the teacher header wraps, so only its first row (the brand and
+   the account) keeps the room. */
+@media (max-width: 640px) {
+  .lang-switch {
+    top: 6px;
+  }
+
+  .admin-header nav {
+    padding-inline-end: var(--ge-space-4);
+  }
+
+  .account {
+    margin-inline-end: var(--ge-lang-room);
+  }
+
+  .brand-header {
+    padding-inline-end: calc(var(--ge-space-4) + var(--ge-lang-room));
+  }
+}
+
+/* Narrow phones: the brand and the email on the first row, the page links
+   and Log out on the second. */
+@media (max-width: 480px) {
+  .account {
+    display: contents;
+  }
+
+  .signed-in-as {
+    flex: 1 1 0;
+    margin-inline-end: var(--ge-lang-room);
+    text-align: end;
+  }
+
+  .admin-header nav::after {
+    content: "";
+    flex-basis: 100%;
+    order: 2;
+  }
+
+  .nav-links {
+    flex: 1 1 auto;
+  }
+
+  .logout-form {
+    order: 4;
+  }
+}
+
+/* On plain / below 761 px the top of the page is the chalkboard. */
+@media (max-width: 760px) {
+  :is(.landing-split, .landing-more) ~ .lang-switch > summary {
+    color: var(--ge-chalk);
+  }
+
+  :is(.landing-split, .landing-more) ~ .lang-switch > summary:hover,
+  :is(.landing-split, .landing-more) ~ .lang-switch[open] > summary {
+    background: var(--ge-chalk-wash);
+    color: var(--ge-chalk);
+  }
+
+  :is(.landing-split, .landing-more) ~ .lang-switch > summary:focus-visible {
+    outline-color: var(--ge-gold);
+  }
+}
+
 /* 10. Student: landing, sign-in, error */
 
 /* The whole of / in every state uses the student font. */
@@ -2530,6 +2681,8 @@ main.error-page,
   gap: 2px var(--ge-space-3);
   align-items: center;
   padding: 14px var(--ge-space-4) var(--ge-space-3);
+  /* Room for the language switch. */
+  padding-inline-end: calc(var(--ge-space-4) + var(--ge-lang-room));
 }
 
 .exam-header-inner .mark {
@@ -3043,7 +3196,7 @@ main[data-monitor="on"] .exam-questions .answer-text {
 
   /* The mark, the timer and the navigator share one left edge. */
   .exam-header-inner {
-    padding-inline: 0;
+    padding-inline: 0 var(--ge-lang-room);
   }
 
   .exam-bar {

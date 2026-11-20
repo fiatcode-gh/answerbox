@@ -32,6 +32,8 @@ type renderer struct {
 // page's templates.
 type layoutData struct {
 	Page any
+	// Return is where the language switch sends the visitor back to.
+	Return string
 }
 
 func newRenderer(a assets) (*renderer, error) {
@@ -102,7 +104,7 @@ func (r *renderer) render(w http.ResponseWriter, status int, l lang, page string
 // page renders a page in the request's language, falling back to a plain
 // 500 when rendering fails.
 func (s *server) page(w http.ResponseWriter, r *http.Request, status int, page string, data any) {
-	if err := s.pages.render(w, status, requestLang(r), page, layoutData{Page: data}); err != nil {
+	if err := s.pages.render(w, status, requestLang(r), page, layoutData{Page: data, Return: pageReturn(r, data)}); err != nil {
 		s.log.Error("render failed", "path", r.URL.Path, "err", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}

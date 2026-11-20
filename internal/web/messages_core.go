@@ -5,6 +5,11 @@ package web
 var coreMessages = bundle{
 	en: map[string]string{
 		"lang.label": "Language",
+		// The switch's button names both languages and its items are
+		// endonyms: the same text in every bundle.
+		"lang.menu":    "Bahasa / Language",
+		"lang.id.name": "Indonesia",
+		"lang.en.name": "English",
 
 		"error.400.title":     "Bad Request",
 		"error.400.message":   "The request could not be completed.",
@@ -43,7 +48,10 @@ var coreMessages = bundle{
 		"date.month.12":  "Dec",
 	},
 	id: map[string]string{
-		"lang.label": "Bahasa",
+		"lang.label":   "Bahasa",
+		"lang.menu":    "Bahasa / Language",
+		"lang.id.name": "Indonesia",
+		"lang.en.name": "English",
 
 		"error.400.title":     "Permintaan tidak sesuai",
 		"error.400.message":   "Permintaan ini tidak bisa diselesaikan.",
