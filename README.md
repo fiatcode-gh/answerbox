@@ -32,7 +32,7 @@ For teachers:
 
 | | |
 | --- | --- |
-| <img src="docs/screenshots/landing-phone-light.png" width="300" alt="The start page on a phone: the exam code and name boxes and the Start exam button"> | <img src="docs/screenshots/student-result-phone-light.png" width="300" alt="A student's result on a phone: the score 2 / 4 and the review of the answers"> |
+| <img src="docs/screenshots/landing-phone-light.png" width="300" alt="The start page on a phone: the Join and Resume tabs, the exam code and name boxes and the Start exam button"> | <img src="docs/screenshots/student-result-phone-light.png" width="300" alt="A student's result on a phone: the score 2 / 4 and the review of the answers"> |
 | The start page | A student's result with the review |
 | <img src="docs/screenshots/exams-desktop-light.png" width="400" alt="The exams list: each exam's title, code, owner, status with Open or Close, and a Results link"> | <img src="docs/screenshots/results-desktop-light.png" width="400" alt="The results of an exam: a name filter, Export CSV and a table of attempts with score, a column per section, resume code and flags"> |
 | The exams list | Results, updated while students work |
@@ -148,7 +148,7 @@ Tested in Chromium on desktop and in Chrome on a real Android phone. Safari (iPh
 
 ### Look
 
-The pages follow the device's light or dark setting; there is no switch. Student pages and question text use Atkinson Hyperlegible Next, which ships inside the binary with its licence (`internal/web/static/fonts/OFL.txt`, SIL Open Font License 1.1); nothing is loaded from another site. Every teacher page and the start page work without scripts: a script only adds Copy link on the exam page and the updating results list.
+The pages follow the device's light or dark setting; there is no switch. Student pages and question text use Atkinson Hyperlegible Next, which ships inside the binary with its licence (`internal/web/static/fonts/OFL.txt`, SIL Open Font License 1.1); nothing is loaded from another site. Every teacher page and the start page work without scripts: a script only adds Copy link on the exam page, the updating results list and, on the start page, the code boxes' mask and the tabs' arrow keys.
 
 ### Exam codes
 
@@ -370,8 +370,8 @@ uv run e2e/scheduled_exams.py --base-url http://localhost:8080 --admin-email adm
 # Every teacher page without scripts, the student exam and the teacher's controls by keyboard, a 360 px phone, both colour schemes:
 uv run e2e/walkthrough.py --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/walkthrough
 # Every page in both colour schemes at 412 and 1280 px (classroom pages also at 360), with a sideways-scroll check;
-# --readme rewrites the README pictures, --landing the two exam-page pictures the start page shows (takes about six minutes):
-uv run e2e/screenshots.py --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/screenshots --readme docs/screenshots --landing internal/web/static/landing
+# --readme rewrites the README pictures (takes about six minutes):
+uv run e2e/screenshots.py --base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096 --out e2e/out/screenshots --readme docs/screenshots
 
 # Check that every exam in a database copy can be given its revision 1 (read-only; use a copy taken with sqlite3 ".backup"):
 go run ./cmd/rebuildcheck -db /path/to/copy.db

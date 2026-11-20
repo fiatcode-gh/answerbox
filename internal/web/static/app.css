@@ -1410,7 +1410,26 @@ main.landing.on-board {
   padding: 64px var(--ge-space-7) 56px;
 }
 
+/* On a desktop the first view fills the window. The entry starts at a
+   fixed share of the window height instead of being centred, so it does
+   not jump when the other tab, a shorter panel, is picked. Phones keep
+   their natural height. */
+@media (min-width: 761px) {
+  .landing-split {
+    min-height: 100vh;
+    min-height: 100svh;
+  }
+
+  main.landing.on-board {
+    padding-top: clamp(32px, 11vh, 120px);
+    padding-bottom: 40px;
+  }
+}
+
+/* As wide as it may be, so the column keeps its place whichever tab is
+   open. */
 .entry-col {
+  width: 100%;
   max-width: 500px;
   margin: 0 auto;
 }
@@ -1481,7 +1500,7 @@ main.landing.on-board {
 .landing-code {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--ge-space-1) var(--ge-space-3);
+  gap: var(--ge-space-1) var(--ge-space-4);
   align-items: center;
   margin: 14px 0 0;
 }
@@ -1504,6 +1523,10 @@ main.landing.on-board {
   min-height: var(--ge-touch);
 }
 
+.landing-code + .entry-modes {
+  margin-top: 22px;
+}
+
 /* The entry card: a light card on the board and on the page alike. */
 .entry {
   margin-top: 22px;
@@ -1524,7 +1547,153 @@ main.landing.on-board {
   outline-color: var(--ge-focus);
 }
 
-#start-form {
+/* Join and Resume: two tabs over the entry card. */
+.entry-modes .landing-lead {
+  margin-bottom: 20px;
+}
+
+.tablist {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  align-items: end;
+}
+
+.tab {
+  position: relative;
+  display: flex;
+  gap: var(--ge-space-2);
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  margin: 0 0 -1px;
+  padding: 0 var(--ge-space-3);
+  border: 1px solid var(--ge-line);
+  border-bottom: 0;
+  border-radius: 16px 16px 0 0;
+  background: var(--ge-sunken);
+  color: var(--ge-ink);
+  font: inherit;
+  font-size: var(--ge-text-md);
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tab::before {
+  content: "";
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  background: currentColor;
+}
+
+.tab-join::before {
+  -webkit-mask: var(--ge-i-arrow) center / contain no-repeat;
+  mask: var(--ge-i-arrow) center / contain no-repeat;
+}
+
+.tab-resume::before {
+  -webkit-mask: var(--ge-i-resume) center / contain no-repeat;
+  mask: var(--ge-i-resume) center / contain no-repeat;
+}
+
+.tab:not([aria-selected="true"]):hover {
+  background: var(--ge-line);
+  color: var(--ge-ink);
+}
+
+/* The open tab is the card's own colour and runs into it, with a brand
+   bar along its top. */
+#tab-join-r:checked ~ .tablist .tab-join,
+#tab-resume-r:checked ~ .tablist .tab-resume,
+.tab[aria-selected="true"] {
+  z-index: 1;
+  min-height: 58px;
+  background: var(--ge-surface);
+  box-shadow: inset 0 4px 0 var(--ge-brand);
+  cursor: default;
+}
+
+#tab-join-r:checked ~ .tablist .tab-join::before,
+#tab-resume-r:checked ~ .tablist .tab-resume::before,
+.tab[aria-selected="true"]::before {
+  background: var(--ge-brand);
+}
+
+/* The ring sits inside the tab, so it is drawn on the tab's own colour. */
+#tab-join-r:focus-visible ~ .tablist .tab-join,
+#tab-resume-r:focus-visible ~ .tablist .tab-resume,
+.tab:focus-visible {
+  outline: 3px solid var(--ge-focus);
+  outline-offset: -7px;
+}
+
+.entry-modes .entry {
+  margin-top: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+/* On the board: the closed tab is a chalk wash, the open one is the card. */
+.on-board .tab {
+  border: 0;
+  background: var(--ge-chalk-wash);
+  color: var(--ge-chalk);
+}
+
+.on-board .tab:not([aria-selected="true"]):hover {
+  background: var(--ge-chalk-line);
+  color: var(--ge-chalk);
+}
+
+.on-board #tab-join-r:checked ~ .tablist .tab-join,
+.on-board #tab-resume-r:checked ~ .tablist .tab-resume,
+.on-board .tab[aria-selected="true"] {
+  background: var(--ge-surface);
+  color: var(--ge-ink);
+}
+
+.on-board .tab:not([aria-selected="true"]):focus-visible,
+.on-board #tab-join-r:not(:checked):focus-visible ~ .tablist .tab-join,
+.on-board #tab-resume-r:not(:checked):focus-visible ~ .tablist .tab-resume {
+  outline-color: var(--ge-gold);
+}
+
+/* Without scripts the checked radio shows its panel and its lead line. */
+.tab-panel,
+#lead-resume {
+  display: none;
+}
+
+#tab-join-r:checked ~ .entry #panel-join,
+#tab-resume-r:checked ~ .entry #panel-resume,
+#tab-resume-r:checked ~ #lead-resume {
+  display: block;
+}
+
+#tab-resume-r:checked ~ #lead-join {
+  display: none;
+}
+
+/* With entry.js the radios are gone and [hidden] does the same. */
+.entry-modes.is-live .tab-panel,
+.entry-modes.is-live #lead-resume {
+  display: block;
+}
+
+.panel-text {
+  margin: 0 0 var(--ge-space-4);
+  color: var(--ge-muted);
+}
+
+#panel-resume .alert {
+  margin: 0 0 var(--ge-space-4);
+}
+
+#start-form,
+#resume-form {
   margin: 0;
 }
 
@@ -1545,13 +1714,103 @@ main.landing.on-board {
   font-weight: 600;
 }
 
-/* The code box looks like the tiles on the teacher's board. */
-#start-code[type="text"] {
-  min-height: 64px;
-  font-size: 1.75rem;
-  font-weight: 800;
-  letter-spacing: 0.22em;
+/* The code boxes: one normal input with a mask drawn behind its text.
+   The input keeps the size, border and radius of every other input; its
+   background moves to the wrapper so the mask shows through. Mask and
+   input share font, size and letter-spacing, and the mask repeats the
+   typed text invisibly, so the rest of the mask lands right after it in
+   any font. */
+.mask-field {
+  position: relative;
+  border-radius: var(--ge-r-md);
+  background: var(--ge-surface);
+}
+
+#landing .mask-input,
+.mask-field .mask {
+  font-family: var(--ge-font-mono);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.42em;
+}
+
+#landing .mask-input {
+  position: relative;
+  z-index: 1;
+  min-height: 56px;
+  padding: 0 var(--ge-space-4);
+  background: transparent;
+  line-height: 1.5;
   text-transform: uppercase;
+}
+
+#landing .mask-input::placeholder {
+  font-weight: 400;
+}
+
+.mask-field .mask {
+  position: absolute;
+  inset: 2px;
+  display: none;
+  align-items: center;
+  padding: 0 0 0 var(--ge-space-4);
+  overflow: hidden;
+  color: var(--ge-muted);
+  font-weight: 400;
+  line-height: 1.5;
+  white-space: pre;
+  pointer-events: none;
+}
+
+/* Only entry.js fills the mask; without it the placeholder shows. */
+.mask-field.is-live .mask {
+  display: flex;
+}
+
+.mask .typed {
+  color: transparent;
+  font-weight: 700;
+}
+
+/* The fixed dash of the resume code, and the slot the next character
+   goes into while the box has focus. */
+.mask .fixed {
+  color: var(--ge-ink);
+  font-weight: 700;
+}
+
+.mask .next {
+  color: var(--ge-brand);
+  font-weight: 700;
+}
+
+/* The refusal hint from entry.js: polite, gold, gone when empty. */
+.code-msg {
+  margin: 0;
+}
+
+.code-msg:not(:empty) {
+  display: flex;
+  gap: var(--ge-space-2);
+  align-items: flex-start;
+  margin-top: var(--ge-space-2);
+  padding: var(--ge-space-2) var(--ge-space-3);
+  border-radius: var(--ge-r-sm);
+  background: var(--ge-gold-soft);
+  color: var(--ge-gold-ink);
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.code-msg:not(:empty)::before {
+  content: "";
+  flex: none;
+  width: 1.2em;
+  height: 1.2em;
+  margin-top: 1px;
+  background: currentColor;
+  -webkit-mask: var(--ge-i-alert) center / contain no-repeat;
+  mask: var(--ge-i-alert) center / contain no-repeat;
 }
 
 .landing-hint {
@@ -1560,13 +1819,14 @@ main.landing.on-board {
   font-size: 0.9375rem;
 }
 
-/* Start exam: the page's one primary, also on the board. */
-#start-form button,
-#start-form button:hover {
+/* Start exam and Continue exam: each the one primary of its panel, also
+   on the board. */
+:is(#start-form, #resume-form) button,
+:is(#start-form, #resume-form) button:hover {
   color: var(--ge-on-brand);
 }
 
-#start-form button {
+:is(#start-form, #resume-form) button {
   gap: 10px;
   width: 100%;
   min-height: 60px;
@@ -1576,11 +1836,11 @@ main.landing.on-board {
   font-size: var(--ge-text-xl);
 }
 
-#start-form button:hover {
+:is(#start-form, #resume-form) button:hover {
   background: var(--ge-brand-strong);
 }
 
-#start-form button::after,
+:is(#start-form, #resume-form) button::after,
 .tech-source::after {
   content: "";
   flex: none;
@@ -1619,83 +1879,6 @@ main.landing.on-board {
   display: inline-flex;
   align-items: center;
   min-height: var(--ge-touch);
-}
-
-/* The resume fold: a row between two rules, its icon first, the chevron
-   at the end. */
-details.resume {
-  margin: var(--ge-space-4) 0 0;
-  border-block: 1px solid var(--ge-line);
-}
-
-.on-board details.resume {
-  border-color: var(--ge-chalk-line);
-}
-
-details.resume > summary {
-  gap: var(--ge-space-3);
-  padding: 0 var(--ge-space-1);
-}
-
-details.resume > summary::before {
-  width: 1.2em;
-  height: 1.2em;
-  margin: 0;
-  border: 0;
-  background: var(--ge-brand);
-  transform: none;
-  -webkit-mask: var(--ge-i-resume) center / contain no-repeat;
-  mask: var(--ge-i-resume) center / contain no-repeat;
-}
-
-.on-board details.resume > summary::before {
-  background: var(--ge-gold);
-}
-
-details.resume > summary::after {
-  content: "";
-  flex: none;
-  width: 9px;
-  height: 9px;
-  margin: 0 var(--ge-space-2) 0 auto;
-  border-right: 2.5px solid currentColor;
-  border-bottom: 2.5px solid currentColor;
-  transform: rotate(45deg) translate(-2px, -2px);
-}
-
-details.resume[open] > summary::after {
-  transform: rotate(-135deg) translate(-2px, -2px);
-}
-
-.resume-body {
-  padding: var(--ge-space-1) var(--ge-space-1) var(--ge-space-4);
-}
-
-.resume-body p {
-  margin: 0 0 14px;
-  color: var(--ge-muted);
-}
-
-.on-board .resume-body p {
-  color: var(--ge-chalk-muted);
-}
-
-#resume-form {
-  margin: 0;
-}
-
-#resume-form label {
-  margin-bottom: 6px;
-  font-weight: 700;
-}
-
-#resume-form input {
-  margin: 0;
-}
-
-#resume-form button {
-  width: 100%;
-  margin-top: 14px;
 }
 
 /* The teacher block beside the board: type only. */
@@ -1860,49 +2043,27 @@ section.about .hl {
   background: var(--ge-surface);
 }
 
-.features-grid {
+/* "How it works": the three groups share the width, each in its own soft
+   card. */
+.feature-groups {
   display: grid;
-  grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
-  gap: 56px;
-  align-items: start;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--ge-space-5);
   margin-top: 40px;
 }
 
-.preview-frame {
-  margin: 0;
-}
-
-.preview-shot {
-  overflow: hidden;
+.feature-group {
+  padding: var(--ge-space-5) var(--ge-space-5) 10px;
   border: 1px solid var(--ge-line);
-  border-radius: 18px;
+  border-radius: var(--ge-r-lg);
   background: var(--ge-bg);
-  box-shadow: var(--ge-shadow);
-}
-
-.preview-shot img {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.preview-frame figcaption {
-  margin-top: var(--ge-space-3);
-  color: var(--ge-muted);
-  font-size: 0.9375rem;
-}
-
-.feature-groups {
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
 }
 
 .feature-group h3 {
-  margin: 0 0 10px;
+  margin: 0 0 var(--ge-space-4);
   padding-left: var(--ge-space-3);
   border-left: 5px solid var(--ge-gold);
-  font-size: var(--ge-text-base);
+  font-size: var(--ge-text-lg);
   line-height: 1.3;
 }
 
@@ -2213,10 +2374,24 @@ section.about .hl {
     padding: 52px 0 56px;
   }
 
-  .features-grid {
+  .feature-groups {
     grid-template-columns: minmax(0, 1fr);
-    gap: 36px;
+    gap: var(--ge-space-4);
     margin-top: 28px;
+  }
+
+  .feature-group {
+    padding: 20px 20px 6px;
+  }
+
+  .entry-modes .landing-lead {
+    margin-bottom: var(--ge-space-4);
+  }
+
+  .tab {
+    gap: 6px;
+    padding: 0 6px;
+    font-size: var(--ge-text-base);
   }
 
   .tech {

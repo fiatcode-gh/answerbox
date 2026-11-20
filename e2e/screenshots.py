@@ -1,20 +1,17 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["playwright==1.63.0", "pillow==13.0.0"]
+# dependencies = ["playwright==1.63.0"]
 # ///
 """Screenshot set of Answerbox in real Chromium: every page in the light and
 dark colour schemes at 412 and 1280 px wide, and the classroom pages at 360 px,
 each checked for sideways page scroll. With --readme, also the ten viewport-sized
-pictures the README shows; with --landing, the two pictures of the exam page
-that the landing page shows (preview-exam-light.webp, preview-exam-dark.webp).
-Needs a fresh instance; takes about six minutes, because one attempt has to
-run out of time.
+pictures the README shows. Needs a fresh instance; takes about six minutes,
+because one attempt has to run out of time.
 
-uv run e2e/screenshots.py --base-url URL --admin-email EMAIL --oidc-url URL --out DIR [--readme DIR] [--landing DIR]
+uv run e2e/screenshots.py --base-url URL --admin-email EMAIL --oidc-url URL --out DIR [--readme DIR]
 """
 
 import argparse
-import io
 import re
 import sys
 import tempfile
@@ -25,7 +22,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from PIL import Image
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeout, expect, sync_playwright
 
 from common import (
@@ -35,6 +31,7 @@ from common import (
     import_exam,
     open_exam,
     require_cross_site,
+    show_resume,
     start,
     teacher_login,
     watch,
@@ -52,10 +49,6 @@ CLASSROOM = (360, 412, 1280)
 INPUT_LAYOUT = "%Y-%m-%dT%H:%M"
 MISSING = "/no-such-page"
 SECOND_TEACHER = "teacher@example.test"
-# The landing preview: the exam page cut to this box at 1280 × 800, then
-# scaled to the size the landing markup carries.
-PREVIEW_CLIP = (24, 1232, 548)
-PREVIEW_SIZE = (1200, 534)
 
 TITLE_A = "Mathematics, chapter 3"
 TITLE_B = "Geography check"
@@ -255,33 +248,11 @@ def start_section(page: Page, exam_id: int, question: int, title: str, text: str
     expect(page).to_have_url(re.compile(rf"/admin/exams/{exam_id}/edit(#.*)?$"))
 
 
-def preview(page: Page, url: str, path: Path) -> None:
-    """The landing preview: the exam page at url from its head to below its
-    links, scaled to PREVIEW_SIZE and written as WebP to path."""
-    page.goto(url)
-    expect(page.locator("nav.exam-links")).to_be_visible()
-    head, links = page.evaluate(
-        """() => [".exam-head", "nav.exam-links"].map(s => {
-            const r = document.querySelector(s).getBoundingClientRect();
-            return [r.top + scrollY, r.bottom + scrollY];
-        })"""
-    )
-    x, width, height = PREVIEW_CLIP
-    y = max(0, head[0] - 16)
-    if links[1] > y + height:
-        raise AssertionError(f"nav.exam-links ends at y {links[1]:.1f}, below the picture's bottom {y + height:.1f}")
-    png = page.screenshot(clip={"x": x, "y": y, "width": width, "height": height}, full_page=True, animations="disabled")
-    image = Image.open(io.BytesIO(png)).convert("RGB").resize(PREVIEW_SIZE, Image.Resampling.LANCZOS)
-    image.save(path, "WEBP", quality=82, method=6)
-    print(f"  {path}: {image.width}×{image.height}, {path.stat().st_size} bytes", flush=True)
-
-
-def run(base_url: str, admin_email: str, oidc_url: str, out: Path, readme: Path | None, landing: Path | None) -> list[str]:
+def run(base_url: str, admin_email: str, oidc_url: str, out: Path, readme: Path | None) -> list[str]:
     """Builds the state, takes the pictures; returns the pages that overflow."""
     out.mkdir(parents=True, exist_ok=True)
-    for directory in (readme, landing):
-        if directory is not None:
-            directory.mkdir(parents=True, exist_ok=True)
+    if readme is not None:
+        readme.mkdir(parents=True, exist_ok=True)
     logs, overflows = [], []
     missing_loads = refused_resumes = 0
     with sync_playwright() as p, tempfile.TemporaryDirectory() as tmp:
@@ -429,14 +400,11 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path, readme: Path 
 
         with step("8 pictures of the student pages"):
             pictures("landing", "/", widths=CLASSROOM)
+            pictures("landing-resume", "/", widths=CLASSROOM, before=show_resume)
 
             def scrolled_to(selector: str):
                 def scroll(page: Page) -> None:
                     page.locator(selector).evaluate("el => el.scrollIntoView({block: 'start', behavior: 'instant'})")
-                    # The preview is a lazy, asynchronously decoded image: let
-                    # it load and decode before the picture.
-                    page.wait_for_function("() => [...document.images].every(img => img.complete)")
-                    page.evaluate("() => Promise.all([...document.images].map(img => img.decode()))")
 
                 return scroll
 
@@ -447,11 +415,11 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path, readme: Path 
 
             def refuse_resume(page: Page) -> None:
                 nonlocal refused_resumes
-                page.locator("details.resume > summary").click()
+                show_resume(page)
                 page.locator("#resume-form input[name=code]").fill("ABCD-EFGH")
                 page.locator("#resume-form button[type=submit]").click()
                 refused_resumes += 1
-                expect(page.locator("details.resume [role=alert]")).to_be_visible()
+                expect(page.locator("#panel-resume [role=alert]")).to_be_visible()
 
             pictures("landing-resume-refused", "/", widths=CLASSROOM, before=refuse_resume)
             pictures("not-found", MISSING)
@@ -477,11 +445,6 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path, readme: Path 
             pictures("exams", "/admin/exams", teacher, CLASSROOM)
             pictures("exams-archived", "/admin/exams?archived=1", teacher)
             pictures("exam-open", f"/admin/exams/{a_id}", teacher, CLASSROOM)
-            if landing is not None:
-                for theme in THEMES:
-                    context = new_context(viewport=VIEWPORTS[1280], storage_state=teacher, color_scheme=theme)
-                    preview(context.new_page(), f"{base_url}/admin/exams/{a_id}", landing / f"preview-exam-{theme}.webp")
-                    context.close()
             pictures("exam-scheduled", f"/admin/exams/{c_id}", teacher)
             pictures("exam-archived", f"/admin/exams/{d_id}", teacher)
             pictures("projector", f"/admin/exams/{a_id}/projector", teacher, CLASSROOM)
@@ -556,12 +519,11 @@ def main() -> int:
     add_sign_in_args(parser)
     parser.add_argument("--out", type=Path, default=Path(__file__).parent / "out" / "screenshots")
     parser.add_argument("--readme", type=Path, help="also write the README pictures into this directory")
-    parser.add_argument("--landing", type=Path, help="also write the landing page's two exam-page previews (WebP) into this directory")
     args = parser.parse_args()
     base_url, oidc_url = args.base_url.rstrip("/"), args.oidc_url.rstrip("/")
     require_cross_site(base_url, oidc_url)
     try:
-        overflows = run(base_url, args.admin_email, oidc_url, args.out, args.readme, args.landing)
+        overflows = run(base_url, args.admin_email, oidc_url, args.out, args.readme)
     except StepFailed as err:
         print(err, file=sys.stderr)
         return 1

@@ -929,7 +929,7 @@ func TestResume_OldCookieLosesAccess(t *testing.T) {
 	}
 	body := rec.Body.String()
 	if !regexp.MustCompile(`role="alert"[^>]*>That code is not valid\.<`).MatchString(body) ||
-		!strings.Contains(body, `<details class="resume" open>`) || attemptSetCookie(t, rec) != nil {
+		!strings.Contains(inputTag(body, "tab-resume-r"), " checked") || attemptSetCookie(t, rec) != nil {
 		t.Errorf("bad code: want the alert, an open resume form and no cookie:\n%s", body)
 	}
 }

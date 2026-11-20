@@ -7,7 +7,8 @@ disabled, the student exam and the Open, Copy link and Close controls by
 keyboard only, the results list that stops refreshing by itself, a 360 px
 phone, the dark and light colour schemes, desktop details (a long owner
 email, the results row actions, the save row and the focus, the attempt
-counts), and the font, the smooth scroll and the lazy landing preview.
+counts), and the font, the smooth scroll, the full-window hero and the entry
+card of /.
 Needs a fresh instance.
 
 uv run e2e/walkthrough.py --base-url URL --admin-email EMAIL --oidc-url URL --out DIR
@@ -222,6 +223,94 @@ def attempt_row(page: Page, name: str):
     return page.locator("#attempts tbody tr").filter(has_text=name)
 
 
+# The resume code refused on purpose; Chromium logs its 422 once per load.
+REFUSED_RESUME = "That code is not valid."
+
+# Composites the element's background over its ancestors' (a translucent
+# chalk wash shows the board through it) and returns the WCAG contrast of its
+# text against that.
+CONTRAST_JS = """el => {
+    const parse = c => {
+        const p = c.match(/rgba?\\(([^)]*)\\)/)[1].split(/[\\s,\\/]+/).filter(Boolean).map(Number);
+        return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1];
+    };
+    const over = (top, bottom) => [0, 1, 2].map(i => top[i] * top[3] + bottom[i] * (1 - top[3])).concat(1);
+    const layers = [];
+    for (let n = el; n; n = n.parentElement) {
+        const c = parse(getComputedStyle(n).backgroundColor);
+        if (c[3] > 0) layers.push(c);
+        if (c[3] >= 1) break;
+    }
+    let bg = [255, 255, 255, 1];
+    for (let i = layers.length - 1; i >= 0; i--) bg = over(layers[i], bg);
+    const fg = over(parse(getComputedStyle(el).color), bg);
+    const lum = c => c.slice(0, 3).map(v => {
+        v /= 255;
+        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    }).reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+    const [hi, lo] = [lum(fg), lum(bg)].sort((a, b) => b - a);
+    return (hi + 0.05) / (lo + 0.05);
+}"""
+
+
+def contrast(locator) -> float:
+    """The contrast of the element's text once its colour transitions have ended."""
+    locator.evaluate("el => Promise.all(el.getAnimations().map(a => a.finished))")
+    return locator.evaluate(CONTRAST_JS)
+
+
+# The code box with id: its value, caret and hint, and its mask measured
+# against the input.
+MASK_JS = """id => {
+    const input = document.getElementById(id), mask = input.closest(".mask-field").querySelector(".mask");
+    const typed = mask.querySelector(".typed"), s = getComputedStyle(input), t = getComputedStyle(typed);
+    const ib = input.getBoundingClientRect(), tb = typed.getBoundingClientRect();
+    const msg = (input.getAttribute("aria-describedby") || "").split(" ").map(i => document.getElementById(i)).find(e => e && e.classList.contains("code-msg"));
+    return {
+        value: input.value, caret: input.selectionStart, text: mask.textContent, typed: typed.textContent,
+        next: mask.querySelectorAll(".next").length, msg: msg ? msg.textContent : null,
+        edge: ib.left + parseFloat(s.borderLeftWidth) + parseFloat(s.paddingLeft), left: tb.left,
+        middle: ib.top + ib.height / 2, typedMiddle: tb.top + tb.height / 2,
+        inputFont: [s.fontFamily, s.fontSize, s.fontWeight, s.letterSpacing],
+        typedFont: [t.fontFamily, t.fontSize, t.fontWeight, t.letterSpacing],
+    };
+}"""
+
+
+def mask_state(page: Page, id: str) -> dict:
+    return page.evaluate(MASK_JS, id)
+
+
+def entry_words(page: Page) -> dict:
+    """The hints the entry card hands to entry.js."""
+    card = page.locator(".entry-modes")
+    return {k: card.get_attribute(f"data-refuse-{k}") for k in ("letters", "digits", "other")}
+
+
+def retype(page: Page, selector: str, text: str) -> None:
+    """Empty the box, then type text into it key by key."""
+    page.locator(selector).fill("")
+    page.keyboard.type(text)
+
+
+def paste(page: Page, selector: str, text: str) -> None:
+    """Put text on the real clipboard and press Control+V in the box."""
+    page.evaluate("t => navigator.clipboard.writeText(t)", text)
+    page.locator(selector).focus()
+    page.keyboard.press("Control+V")
+
+
+def bottom_of(locator) -> float:
+    b = box(locator)
+    return b["y"] + b["height"]
+
+
+def closeup(page: Page, locator, path: Path) -> None:
+    """A picture of the element with 8 px around it, so the focus ring shows whole."""
+    b = box(locator)
+    page.screenshot(path=path, clip={"x": b["x"] - 8, "y": b["y"] - 8, "width": b["width"] + 16, "height": b["height"] + 16}, animations="disabled")
+
+
 def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
     logs = []
@@ -247,6 +336,8 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
             expect(t.locator("#start-form")).to_be_visible()
             expect(t.locator("section.about h2")).to_contain_text("Skip the marking.")
             expect(t.locator("#why")).to_have_count(1)
+            expect(t.locator(".features .feature-group")).to_have_count(3)
+            expect(t.locator("main#landing img, .features img")).to_have_count(0)
             shot(t, "a-landing-noscript.png")
             t.locator("section.about").get_by_role("link", name="Teacher sign-in").click()
             expect(t).to_have_url(re.compile(r"/admin/login$"))
@@ -591,17 +682,34 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
 
         # D. A 360 × 640 phone.
         ps = new_context(**PHONE).new_page()
-        with step("17 360 px /: Start above the fold; /?code= focuses the name box"):
+        with step("17 360 px /: Start above the fold, two tabs in the window, equal 56 px boxes; /?code= focuses the name box"):
             ps.goto(base_url + "/")
             no_page_overflow(ps)
-            b = box(ps.locator("#start-form button[type=submit]"))
-            if b["y"] + b["height"] > PHONE["viewport"]["height"]:
-                raise AssertionError(f"Start ends at {b['y'] + b['height']:.1f} px, want at most 640")
+            start_bottom = bottom_of(ps.locator("#start-form button[type=submit]"))
+            if start_bottom > PHONE["viewport"]["height"]:
+                raise AssertionError(f"Start ends at {start_bottom:.1f} px, want at most 640")
+            tabs = ps.locator(".entry-modes .tab")
+            expect(tabs).to_have_count(2)
+            # The open tab is 6 px taller and runs into the card: one row shares a bottom.
+            if abs(bottom_of(tabs.nth(0)) - bottom_of(tabs.nth(1))) > 1:
+                raise AssertionError(f"the tabs end at {bottom_of(tabs.nth(0)):.1f} and {bottom_of(tabs.nth(1)):.1f}, want one row")
+            for i in range(2):
+                ends_inside(tabs.nth(i), 360, f"tab {i}")
+            code_box, name_box = box(ps.locator("#start-code")), box(ps.locator("#name"))
+            if abs(code_box["width"] - name_box["width"]) > 0.5 or {round(code_box["height"]), round(name_box["height"])} != {56}:
+                raise AssertionError(f"#start-code is {code_box['width']:.1f} × {code_box['height']:.1f}, #name {name_box['width']:.1f} × {name_box['height']:.1f}; want equal widths, 56 px high")
+            print(f"  Start ends at {start_bottom:.1f} px; boxes {code_box['width']:.1f} × {code_box['height']:.1f}", flush=True)
             shot(ps, "d-landing-360.png")
             ps.goto(f"{base_url}/?code={phone_code}")
             no_page_overflow(ps)
             expect(ps.locator("input#start-code[type=text]")).to_have_count(0)
             ps.wait_for_function("() => document.activeElement && document.activeElement.id === 'name'")
+            if "·" in ps.locator(".landing-code").inner_text():
+                raise AssertionError(f".landing-code reads {ps.locator('.landing-code').inner_text()!r}, want no dot")
+            for name in ("Join", "Resume"):
+                expect(ps.get_by_role("tab", name=name, exact=True)).to_be_visible()
+            if (code_start := bottom_of(ps.locator("#start-form button[type=submit]"))) > PHONE["viewport"]["height"]:
+                raise AssertionError(f"on /?code= Start ends at {code_start:.1f} px, want at most 640")
             shot(ps, "d-landing-code-360.png")
 
         with step("18 360 px student exam: timer, save state and Questions in the window, the saved state on one line, 64 px options; the result"):
@@ -742,7 +850,7 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
                 raise AssertionError(f"#attempt-counts shows {page_counts}, the results page {results_counts}")
             shot(g, "g-exam.png")
 
-        # H. The student font, the smooth scroll and the lazy landing preview.
+        # H. The student font, the smooth scroll and the full-window hero.
         with step("25 font: / and the student exam page fetch Atkinson Hyperlegible Next once; question text uses it, the exams list title does not"):
             fp = new_context(**DESKTOP).new_page()
             fonts = track(fp, ".woff2")
@@ -771,45 +879,295 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
                 m.locator("section.about").get_by_role("link", name="Learn more").click()
                 m.wait_for_function("() => Math.abs(document.getElementById('why').getBoundingClientRect().top) <= 1", timeout=5_000)
 
-        with step("27 360 px on a 4G phone: the landing preview loads when it is scrolled into view, only the scheme's file"):
-            for scheme in ("light", "dark"):
-                lp = new_context(color_scheme=scheme, **PHONE).new_page()
-                # Headless Chromium on localhost reports no connection type, and
-                # then lazy images within about 3000 px of the window load with
-                # the page. A 4G connection (effectiveType "4g") brings that
-                # distance to 1250 px, below the preview's 1568 px at 360 × 640,
-                # so the check sees what a phone on a school network does.
-                cdp = lp.context.new_cdp_session(lp)
-                cdp.send("Network.enable")
-                cdp.send(
-                    "Network.emulateNetworkConditions",
-                    {"offline": False, "latency": 20, "downloadThroughput": 5_000_000, "uploadThroughput": 5_000_000, "connectionType": "wifi"},
-                )
-                previews = track(lp, ".webp")
-                lp.goto(base_url + "/", wait_until="load")
-                if (kind := lp.evaluate("() => navigator.connection.effectiveType")) != "4g":
-                    raise AssertionError(f"the emulated connection is {kind!r}, want '4g'")
-                lp.wait_for_timeout(500)
-                if previews:
-                    raise AssertionError(f"{scheme}: {[r.url for r in previews]} fetched before any scroll")
-                image = lp.locator(".preview-shot img")
-                image.scroll_into_view_if_needed()
-                lp.wait_for_function("img => img.complete && img.naturalWidth > 0", arg=image.element_handle())
-                lp.wait_for_timeout(500)
-                other = "dark" if scheme == "light" else "light"
-                paths = [urlsplit(r.url).path for r in previews]
-                if any(f"preview-exam-{other}" in p for p in paths):
-                    raise AssertionError(f"{scheme}: the {other} preview was fetched: {paths}")
-                if len(paths) != 1 or not paths[0].endswith(f"preview-exam-{scheme}.webp"):
-                    raise AssertionError(f"{scheme}: the preview fetched {paths}, want only preview-exam-{scheme}.webp")
-                shot(lp, f"h-landing-preview-{scheme}-360.png")
+        with step("27 hero: on a desktop the first view is the window's height with either tab, the entry does not move; a phone keeps its natural height"):
+            for viewport in ({"width": 1280, "height": 800}, {"width": 1440, "height": 900}):
+                hp = new_context(viewport=viewport).new_page()
+                hp.goto(base_url + "/")
+                tops = []
+                for tab in ("Join", "Resume"):
+                    hp.get_by_role("tab", name=tab, exact=True).click()
+                    expect(hp.get_by_role("tab", name=tab, exact=True)).to_have_attribute("aria-selected", "true")
+                    height = box(hp.locator(".landing-split"))["height"]
+                    if abs(height - viewport["height"]) > 1:
+                        raise AssertionError(f"{viewport['width']} × {viewport['height']}, {tab}: .landing-split is {height:.1f} px high, want the window's {viewport['height']}")
+                    tops.append(box(hp.locator(".entry-modes"))["y"])
+                    print(f"  {viewport['width']} × {viewport['height']} {tab}: hero {height:.1f} px, entry at y {tops[-1]:.1f}", flush=True)
+                if abs(tops[0] - tops[1]) > 1:
+                    raise AssertionError(f"{viewport['width']} px: .entry-modes starts at y {tops[0]:.1f} with Join, {tops[1]:.1f} with Resume")
+                shot(hp, f"h-hero-{viewport['width']}-resume.png")
+                hp.context.close()
+            hp = new_context(**PHONE).new_page()
+            hp.goto(base_url + "/")
+            if (minimum := hp.locator(".landing-split").evaluate("el => getComputedStyle(el).minHeight")) not in ("0px", "auto"):
+                raise AssertionError(f"360 px: .landing-split has min-height {minimum}, want none")
+            hp.context.close()
 
-        with step("28 no console errors, page errors or foreign requests"):
-            problems = []
+        # I. The entry card of /: the tabs, the two code boxes, without scripts too.
+        with step("28 tabs by keyboard: Shift+Tab from the code box to Join, arrows, Home and End; closed tabs readable in both schemes"):
+            et = new_context(**DESKTOP).new_page()
+            et.goto(base_url + "/")
+            tablist = et.locator(".entry-modes .tablist")
+            expect(tablist).to_have_attribute("role", "tablist")
+            expect(tablist).to_have_accessible_name(tablist.get_attribute("data-label"))
+            expect(et.get_by_role("tab")).to_have_count(2)
+            join, resume = et.get_by_role("tab", name="Join", exact=True), et.get_by_role("tab", name="Resume", exact=True)
+            expect(et.locator(".entry-modes input[type=radio]")).to_have_count(0)
+            et.wait_for_function("() => document.activeElement && document.activeElement.id === 'start-code'")
+            et.keyboard.press("Shift+Tab")
+            et.wait_for_function("() => document.activeElement && document.activeElement.id === 'tab-join'")
+            expect(join).to_have_attribute("aria-selected", "true")
+            expect(join).to_have_attribute("tabindex", "0")
+            expect(resume).to_have_attribute("tabindex", "-1")
+            ring(et)
+
+            def opened(tab, shown: str, gone: str) -> None:
+                expect(tab).to_have_attribute("aria-selected", "true")
+                expect(tab).to_be_focused()
+                expect(tab).to_have_attribute("tabindex", "0")
+                for part in ("panel", "lead"):
+                    expect(et.locator(f"#{part}-{shown}")).to_be_visible()
+                    expect(et.locator(f"#{part}-{gone}")).to_be_hidden()
+
+            for key, tab, shown, gone in (
+                ("ArrowRight", resume, "resume", "join"),
+                ("ArrowRight", join, "join", "resume"),
+                ("End", resume, "resume", "join"),
+                ("Home", join, "join", "resume"),
+                ("ArrowLeft", resume, "resume", "join"),
+            ):
+                et.keyboard.press(key)
+                opened(tab, shown, gone)
+            shot(et, "i-tabs-keyboard.png")
+            et.keyboard.press("Tab")
+            expect(et.locator("#code")).to_be_focused()
+            et.context.close()
+            for scheme in ("light", "dark"):
+                cp = new_context(color_scheme=scheme, **DESKTOP).new_page()
+                cp.goto(base_url + "/")
+                closed = cp.get_by_role("tab", name="Resume", exact=True)
+                expect(closed).to_have_attribute("aria-selected", "false")
+                cp.mouse.move(0, 0)
+                rest = contrast(closed)
+                closed.hover()
+                hovered = contrast(closed)
+                print(f"  {scheme}: closed tab {rest:.2f} : 1, hovered {hovered:.2f} : 1", flush=True)
+                if rest < 4.5 or hovered < 4.5:
+                    raise AssertionError(f"{scheme}: the closed tab's text has {rest:.2f} : 1, hovered {hovered:.2f} : 1, want at least 4.5")
+                cp.context.close()
+
+        ic = new_context(permissions=["clipboard-read", "clipboard-write"], device_scale_factor=3, **PHONE).new_page()
+        with step("29 exam code box: the mask lines up with the text, letters go upper-case, refused characters get a hint"):
+            ic.goto(base_url + "/")
+            words = entry_words(ic)
+            code_input = ic.locator("#start-code")
+            if code_input.get_attribute("placeholder") is not None:
+                raise AssertionError("#start-code keeps its placeholder with the script")
+            expect(ic.locator("#start-code").locator("xpath=..")).to_have_class(re.compile(r"\bmask-field\b.*\bis-live\b"))
+            for value in ("", "F", "FG2", "FG2J62"):
+                retype(ic, "#start-code", value)
+                m = mask_state(ic, "start-code")
+                want = value + "_" * (6 - len(value))
+                if m["value"] != value or m["text"] != want:
+                    raise AssertionError(f"typed {value!r}: value {m['value']!r}, mask {m['text']!r}, want {want!r}")
+                if abs(m["left"] - m["edge"]) > 0.5 or abs(m["typedMiddle"] - m["middle"]) > 1:
+                    raise AssertionError(f"typed {value!r}: the mask's text starts at x {m['left']:.2f}, middle {m['typedMiddle']:.2f}; the input's at {m['edge']:.2f}, {m['middle']:.2f}")
+                if m["typedFont"] != m["inputFont"]:
+                    raise AssertionError(f"typed {value!r}: mask font {m['typedFont']}, input font {m['inputFont']}")
+                if m["next"] != (1 if len(value) < 6 else 0):
+                    raise AssertionError(f"typed {value!r}: {m['next']} .next slots while focused")
+                code_input.blur()
+                if (n := mask_state(ic, "start-code")["next"]) != 0:
+                    raise AssertionError(f"typed {value!r}: {n} .next slots after blur, want none")
+                code_input.focus()
+                code_input.press("End")
+                name = {"": "empty", "FG2": "fg2", "FG2J62": "full"}.get(value)
+                if name:
+                    closeup(ic, ic.locator("#start-form .field").first, out / f"i-code-{name}.png")
+            msg = ic.locator("#code-msg")
+            retype(ic, "#start-code", "fg2")
+            expect(code_input).to_have_value("FG2")
+            for key, hint in (("o", words["letters"]), ("0", words["digits"]), ("!", words["other"])):
+                ic.keyboard.type(key)
+                expect(code_input).to_have_value("FG2")
+                expect(msg).to_have_text(hint)
+            ic.keyboard.type("j")
+            expect(code_input).to_have_value("FG2J")
+            expect(msg).to_have_text("")
+            for key in ("-", " "):
+                ic.keyboard.type(key)
+                expect(code_input).to_have_value("FG2J")
+                expect(msg).to_have_text("")
+            ic.keyboard.type("62x9")
+            expect(code_input).to_have_value("FG2J62")
+
+        with step("30 paste from the clipboard: a code in any shape, a link with ?code=, a link without one"):
+            for text in ("fg2j62", "FG2-J62", " f g 2 j 6 2 ", "https://exam.school.id/?code=fg2j62"):
+                ic.locator("#start-code").fill("")
+                paste(ic, "#start-code", text)
+                expect(ic.locator("#start-code")).to_have_value("FG2J62")
+            retype(ic, "#start-code", "fg2")
+            paste(ic, "#start-code", "J62")
+            expect(ic.locator("#start-code")).to_have_value("FG2J62")
+            for link in ("https://exam.school.id/", "https://exam.school.id/?code=%"):
+                retype(ic, "#start-code", "fg2")
+                paste(ic, "#start-code", link)
+                expect(ic.locator("#start-code")).to_have_value("FG2")
+                expect(ic.locator("#code-msg")).to_have_text(ic.locator("#start-code").get_attribute("data-refuse-link"))
+            ic.get_by_role("tab", name="Resume", exact=True).click()
+            for text in ("abcd efgh", "ABCD-EFGH"):
+                ic.locator("#code").fill("")
+                paste(ic, "#code", text)
+                expect(ic.locator("#code")).to_have_value("ABCD-EFGH")
+            paste(ic, "#code", "https://exam.school.id/?code=abcdefgh")
+            expect(ic.locator("#code")).to_have_value("ABCD-EFGH")
+            expect(ic.locator("#resume-msg")).to_have_text(ic.locator("#code").get_attribute("data-refuse-link"))
+
+        with step("31 resume box: the dash comes and goes by itself; a refused code comes back focused, invalid and described"):
+            resume_input = ic.locator("#code")
+            retype(ic, "#code", "abcd")
+            expect(resume_input).to_have_value("ABCD")
+            if (text := mask_state(ic, "code")["text"]) != "ABCD-____":
+                raise AssertionError(f"the resume mask reads {text!r}, want 'ABCD-____'")
+            closeup(ic, ic.locator("#resume-form .mask-field"), out / "i-resume-abcd.png")
+            ic.keyboard.type("e")
+            expect(resume_input).to_have_value("ABCD-E")
+            ic.keyboard.press("Backspace")
+            expect(resume_input).to_have_value("ABCD")
+            ic.keyboard.type("efgh")
+            expect(resume_input).to_have_value("ABCD-EFGH")
+            resume_input.evaluate("el => el.setSelectionRange(5, 5)")
+            ic.keyboard.press("Backspace")
+            expect(resume_input).to_have_value("ABCE-FGH")
+            retype(ic, "#code", "zzzzzzzz")
+            expect(resume_input).to_have_value("ZZZZ-ZZZZ")
+            ic.locator("#resume-form button[type=submit]").click()
+            refused_resumes = 1
+            expect(ic.get_by_role("tab", name="Resume", exact=True)).to_have_attribute("aria-selected", "true")
+            expect(ic.locator("#panel-resume [role=alert]")).to_have_text(REFUSED_RESUME)
+            expect(resume_input).to_be_focused()
+            expect(resume_input).to_have_value("ZZZZ-ZZZZ")
+            if (caret := resume_input.evaluate("el => el.selectionStart")) != 9:
+                raise AssertionError(f"the refused code's caret is at {caret}, want 9")
+            expect(resume_input).to_have_attribute("aria-invalid", "true")
+            expect(resume_input).to_have_accessible_description(re.compile(re.escape(REFUSED_RESUME)))
+            shot(ic, "i-resume-refused-360.png")
+
+        with step("32 composition (a keyboard that sends a word in progress): the value is the keyboard's until it commits"):
+            ic.goto(base_url + "/")
+            ic.evaluate(
+                """() => { window.__composition = {start: 0, end: 0};
+                    document.addEventListener("compositionstart", () => window.__composition.start++, true);
+                    document.addEventListener("compositionend", () => window.__composition.end++, true); }"""
+            )
+            cdp = ic.context.new_cdp_session(ic)
+            words = entry_words(ic)
+
+            def compose(text: str) -> None:
+                cdp.send("Input.imeSetComposition", {"text": text, "selectionStart": len(text), "selectionEnd": len(text)})
+
+            ic.locator("#start-code").focus()
+            for prefix in ("f", "fg", "fg2", "fg2o"):
+                compose(prefix)
+                m = mask_state(ic, "start-code")
+                if m["value"] != prefix or m["typed"] != prefix:
+                    raise AssertionError(f"composing {prefix!r}: value {m['value']!r}, mask text {m['typed']!r}")
+            expect(ic.locator("#code-msg")).to_have_text(words["letters"])
+            cdp.send("Input.insertText", {"text": "fg2oj62"})
+            m = mask_state(ic, "start-code")
+            if (m["value"], m["caret"], m["msg"]) != ("FG2J62", 6, words["letters"]):
+                raise AssertionError(f"committed 'fg2oj62': value {m['value']!r}, caret {m['caret']}, hint {m['msg']!r}")
+            ic.get_by_role("tab", name="Resume", exact=True).click()
+            ic.locator("#code").focus()
+            for prefix in ("a", "ab", "abc", "abcd", "abcde"):
+                compose(prefix)
+            m = mask_state(ic, "code")
+            if (m["value"], m["text"]) != ("abcde", "abcde___"):
+                raise AssertionError(f"composing 'abcde': value {m['value']!r}, mask {m['text']!r}")
+            cdp.send("Input.insertText", {"text": "abcdefgh"})
+            m = mask_state(ic, "code")
+            if (m["value"], m["caret"]) != ("ABCD-EFGH", 9):
+                raise AssertionError(f"committed 'abcdefgh': value {m['value']!r}, caret {m['caret']}")
+            ic.locator("#code").fill("")
+            compose("ab")
+            compose("")
+            m = mask_state(ic, "code")
+            if (m["value"], m["text"]) != ("", "____-____"):
+                raise AssertionError(f"cancelled composition: value {m['value']!r}, mask {m['text']!r}")
+            counts = ic.evaluate("() => window.__composition")
+            if counts["start"] < 3 or counts["end"] < 3:
+                raise AssertionError(f"compositions seen {counts}, want at least 3 started and ended")
+            cdp.detach()
+            ic.context.close()
+
+        with step("33 without scripts: the tabs are radios, the boxes plain inputs that hold a code with separators"):
+            nj = new_context(java_script_enabled=False, **PHONE).new_page()
+            nj.goto(base_url + "/")
+            expect(nj.locator("[role=tab]")).to_have_count(0)
+            radios = nj.locator(".entry-modes input[type=radio]")
+            expect(radios).to_have_count(2)
+            expect(nj.locator("#tab-join-r")).to_be_checked()
+
+            def showing(shown: str, gone: str) -> None:
+                for part in ("panel", "lead"):
+                    expect(nj.locator(f"#{part}-{shown}")).to_be_visible()
+                    expect(nj.locator(f"#{part}-{gone}")).to_be_hidden()
+
+            showing("join", "resume")
+            expect(nj.locator("#start-code")).to_have_attribute("placeholder", "______")
+            expect(nj.locator("#start-form .mask")).to_be_hidden()
+            if (start_bottom := bottom_of(nj.locator("#start-form button[type=submit]"))) > PHONE["viewport"]["height"]:
+                raise AssertionError(f"without scripts Start ends at {start_bottom:.1f} px, want at most 640")
+            shot(nj, "i-noscript-360.png")
+            nj.locator(".entry-modes .tab-resume").click()
+            expect(nj.locator("#tab-resume-r")).to_be_checked()
+            showing("resume", "join")
+            expect(nj.locator("#code")).to_have_attribute("placeholder", "____-____")
+            nj.keyboard.press("ArrowLeft")
+            expect(nj.locator("#tab-join-r")).to_be_checked()
+            showing("join", "resume")
+            style, width = nj.locator(".entry-modes .tab-join").evaluate("el => [getComputedStyle(el).outlineStyle, parseFloat(getComputedStyle(el).outlineWidth)]")
+            if style == "none" or width < 2:
+                raise AssertionError(f"the focused Join radio's label has outline {style} {width}px")
+            typed = f" {phone_code[:3].lower()}-{phone_code[3:].lower()} "
+            nj.locator("#start-code").click()
+            nj.keyboard.type(typed)
+            expect(nj.locator("#start-code")).to_have_value(typed)
+            nj.locator("#name").fill("Nia Noscript")
+            nj.keyboard.press("Enter")
+            expect(nj.locator("main#exam")).to_be_visible()
+            nj.context.close()
+            nr = new_context(java_script_enabled=False, **PHONE).new_page()
+            nr.goto(base_url + "/")
+            nr.locator(".entry-modes .tab-resume").click()
+            nr.locator("#code").click()
+            nr.keyboard.type("zzzz zzzz")
+            nr.keyboard.press("Enter")
+            refused_resumes += 1
+            expect(nr.locator("#tab-resume-r")).to_be_checked()
+            expect(nr.locator("#panel-resume [role=alert]")).to_have_text(REFUSED_RESUME)
+            expect(nr.locator("#code")).to_be_focused()
+            expect(nr.locator("#code")).to_have_value("zzzz zzzz")
+            shot(nr, "i-noscript-resume-refused-360.png")
+            nr.goto(f"{base_url}/?code={phone_code}")
+            expect(nr.locator("h1")).to_have_text("Phone check")
+            for label in (".tab-join", ".tab-resume"):
+                expect(nr.locator(f".entry-modes {label}")).to_be_visible()
+            expect(nr.locator("#name")).to_be_focused()
+            nr.context.close()
+
+        with step("34 no console errors but the refused resume codes', no page errors or foreign requests"):
+            refused = f"{base_url}/resume: Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)"
+            problems, seen = [], 0
             for log in logs:
-                problems += [f"console error: {e}" for e in log["console_errors"]]
+                for e in log["console_errors"]:
+                    if e == refused:
+                        seen += 1
+                    else:
+                        problems.append(f"console error: {e}")
                 problems += [f"page error: {e}" for e in log["page_errors"]]
                 problems += [f"foreign request: {u}" for u in foreign_requests(log["requests"], base_url, oidc_url)]
+            if seen != refused_resumes:
+                problems.append(f"{seen} times {refused!r} for {refused_resumes} refused resume codes, want one each")
             if problems:
                 raise AssertionError("\n  ".join(["problems found:"] + problems))
 

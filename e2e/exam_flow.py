@@ -30,6 +30,7 @@ from common import (
     open_exam,
     refused_login,
     require_cross_site,
+    show_resume,
     start,
     teacher_login,
     watch,
@@ -94,7 +95,7 @@ def submit(page: Page, summary: str | re.Pattern) -> None:
 
 def resume(page: Page, base_url: str, code: str) -> None:
     page.goto(base_url + "/")
-    page.locator("details.resume summary").click()
+    show_resume(page)
     form = page.locator("#resume-form")
     form.locator("input[name=code]").fill(code)
     form.locator("button[type=submit]").click()

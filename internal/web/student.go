@@ -11,6 +11,7 @@ import (
 	"github.com/fiatcode-gh/answerbox/internal/attempt"
 	"github.com/fiatcode-gh/answerbox/internal/exam"
 	"github.com/fiatcode-gh/answerbox/internal/examfile"
+	"github.com/fiatcode-gh/answerbox/internal/shortcode"
 )
 
 const (
@@ -126,12 +127,15 @@ type landingData struct {
 	Code       string
 	Name       string
 	Alert      string
-	Invalid    string // the field the alert is about: "code", "name", "resume" or ""
-	ResumeOpen bool
+	Invalid    string // the field the alert is about: "code", "name", "resume" or ""; "resume" also opens the Resume tab
+	ResumeCode string // the resume code as typed, after it was refused
 	LastResult bool
 	Minutes    int  // the exam's length; 0 when the page shows no exam
 	About      bool // show the teacher block and the product sections: only GET / without a code
 }
+
+// Alphabet is the symbols of both codes; the template hands it to entry.js.
+func (landingData) Alphabet() string { return shortcode.Alphabet }
 
 func (s *server) landing(w http.ResponseWriter, r *http.Request) {
 	state, err := s.cookieAttempt(w, r)
@@ -234,13 +238,14 @@ func (s *server) resume(w http.ResponseWriter, r *http.Request) {
 	if !s.parseStudentForm(w, r) {
 		return
 	}
-	token, err := s.deps.Attempts.Redeem(r.Context(), r.PostFormValue("code"))
+	code := r.PostFormValue("code")
+	token, err := s.deps.Attempts.Redeem(r.Context(), code)
 	switch {
 	case err == nil:
 		http.SetCookie(w, newAttemptCookie(token))
 		http.Redirect(w, r, "/exam", http.StatusSeeOther)
 	case errors.Is(err, attempt.ErrBadCode):
-		s.page(w, r, http.StatusUnprocessableEntity, "landing.html", landingData{Alert: badCodeAlert, Invalid: "resume", ResumeOpen: true})
+		s.page(w, r, http.StatusUnprocessableEntity, "landing.html", landingData{Alert: badCodeAlert, Invalid: "resume", ResumeCode: code})
 	default:
 		s.serverError(w, r, err)
 	}

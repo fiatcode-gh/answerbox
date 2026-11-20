@@ -187,6 +187,12 @@ def start(page: Page, base_url: str, code: str, name: str) -> None:
     expect(page.locator("main#exam")).to_be_visible()
 
 
+def show_resume(page: Page) -> None:
+    """Open the Resume tab of the entry card (the label without scripts, the tab with them)."""
+    page.locator(".entry-modes .tab-resume").click()
+    expect(page.locator("#resume-form")).to_be_visible()
+
+
 def watch(context: BrowserContext, base_url: str) -> dict:
     """Record every request URL, console error and page error in context."""
     log = {"requests": [], "console_errors": [], "page_errors": []}

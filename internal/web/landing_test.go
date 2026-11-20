@@ -5,11 +5,13 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/fiatcode-gh/answerbox/internal/exam"
+	"github.com/fiatcode-gh/answerbox/internal/shortcode"
 )
 
 // requireInOrder fails unless each of parts occurs in body after the one
@@ -72,35 +74,210 @@ func TestLandingV3_PlainPage(t *testing.T) {
 	}
 }
 
-func TestLandingV3_Preview(t *testing.T) {
+func TestLanding_NoPicture(t *testing.T) {
 	env := newTestEnv(t)
 	body := do(env.h, "GET", "/", nil).Body.String()
 
-	requireCount(t, "GET /", body, "<img", 1)
-	img := regexp.MustCompile(`<img [^>]*>`).FindString(body)
-	if want := `width="1200" height="534" loading="lazy" decoding="async"`; !strings.Contains(img, want) {
-		t.Errorf("preview <img> lacks %q: %s", want, img)
+	for _, unwanted := range []string{"<img", "<picture", ".webp", "features-grid"} {
+		if strings.Contains(body, unwanted) {
+			t.Errorf("GET / holds %q", unwanted)
+		}
 	}
-	alt := regexp.MustCompile(`\balt="([^"]*)"`).FindStringSubmatch(img)
-	if alt == nil || strings.TrimSpace(alt[1]) == "" {
-		t.Errorf("preview <img> has no alternative text: %s", img)
-	} else if code := regexp.MustCompile(`\b[A-Z0-9]{6}\b`).FindString(alt[1]); code != "" {
-		t.Errorf("preview alternative text names a code %q: %s", code, alt[1])
+	requireCount(t, "GET /", body, `class="feature-group"`, 3)
+	if rec := do(env.h, "GET", "/static/landing/preview-exam-light.webp", nil); rec.Code != http.StatusNotFound {
+		t.Errorf("GET the old preview = %d, want 404", rec.Code)
+	}
+}
+
+// attrValue returns the value of the attribute name in tag, and whether the
+// tag has it.
+func attrValue(tag, name string) (string, bool) {
+	m := regexp.MustCompile(`\s` + regexp.QuoteMeta(name) + `(?:="([^"]*)")?[\s>]`).FindStringSubmatch(tag)
+	if m == nil {
+		return "", false
+	}
+	return m[1], true
+}
+
+// entryModesTag returns the opening tag of the tabbed entry card.
+func entryModesTag(body string) string {
+	return regexp.MustCompile(`<div class="entry-modes"[^>]*>`).FindString(body)
+}
+
+// requireTabs checks the tab markup without scripts: two radios, the tab row
+// and both panels, Join open unless resumeOpen.
+func requireTabs(t *testing.T, label, body string, resumeOpen bool) {
+	t.Helper()
+	join, resume := inputTag(body, "tab-join-r"), inputTag(body, "tab-resume-r")
+	for _, tag := range []string{join, resume} {
+		if !strings.Contains(tag, `type="radio"`) || !strings.Contains(tag, `name="entry-tab"`) {
+			t.Errorf("%s: tab radio %q", label, tag)
+		}
+	}
+	if _, on := attrValue(join, "checked"); on == resumeOpen {
+		t.Errorf("%s: Join radio %q, want checked %v", label, join, !resumeOpen)
+	}
+	if _, on := attrValue(resume, "checked"); on != resumeOpen {
+		t.Errorf("%s: Resume radio %q, want checked %v", label, resume, resumeOpen)
+	}
+	if !regexp.MustCompile(`<label for="tab-join-r" class="tab tab-join"[^>]*>Join</label>`).MatchString(body) ||
+		!regexp.MustCompile(`<label for="tab-resume-r" class="tab tab-resume"[^>]*>Resume</label>`).MatchString(body) {
+		t.Errorf("%s: the tab labels are not Join and Resume", label)
+	}
+	for _, unwanted := range []string{"<details", `role="tab"`, "Join exam", "Continue an interrupted exam"} {
+		if strings.Contains(body, unwanted) {
+			t.Errorf("%s: holds %q", label, unwanted)
+		}
+	}
+}
+
+func TestEntry_Tabs(t *testing.T) {
+	env := newTestEnv(t)
+	body := do(env.h, "GET", "/", nil).Body.String()
+	requireTabs(t, "GET /", body, false)
+	requireInOrder(t, "GET /", body, `id="tab-join-r"`, `id="tab-resume-r"`, `id="lead-join"`, `id="lead-resume"`,
+		`class="tablist"`, `<div class="entry">`, `id="panel-join"`, `<form id="start-form"`, `id="panel-resume"`, `<form id="resume-form"`)
+
+	code := env.examCode(t, env.openExam(t, simpleExam("score")))
+	page := do(env.h, "GET", "/?code="+code, nil).Body.String()
+	requireTabs(t, "code page", page, false)
+	requireInOrder(t, "code page", page, `id="tab-join-r"`, `id="tab-resume-r"`,
+		`class="tablist"`, `<div class="entry">`, `id="panel-join"`, `<form id="start-form"`, `id="panel-resume"`, `<form id="resume-form"`)
+	if strings.Contains(page, `id="lead-`) {
+		t.Error("code page holds a lead line")
+	}
+}
+
+func TestEntry_CodeBoxes(t *testing.T) {
+	env := newTestEnv(t)
+	body := do(env.h, "GET", "/", nil).Body.String()
+
+	check := func(id string, want map[string]string, unwanted ...string) {
+		t.Helper()
+		tag := inputTag(body, id)
+		for name, value := range want {
+			if got, ok := attrValue(tag, name); !ok || got != value {
+				t.Errorf("%s: %s = %q (present %v), want %q: %s", id, name, got, ok, value, tag)
+			}
+		}
+		for _, name := range unwanted {
+			if _, ok := attrValue(tag, name); ok {
+				t.Errorf("%s has %s: %s", id, name, tag)
+			}
+		}
+	}
+	check("start-code", map[string]string{
+		"class": "mask-input", "maxlength": "16", "placeholder": "______", "data-symbols": "6", "data-link": "",
+		"autocapitalize": "characters", "aria-describedby": "code-hint code-msg",
+	})
+	check("code", map[string]string{
+		"class": "mask-input", "maxlength": "16", "placeholder": "____-____", "data-symbols": "8", "data-group": "4",
+		"value": "", "aria-describedby": "resume-hint resume-msg",
+	}, "data-link")
+
+	modes := entryModesTag(body)
+	if got, _ := attrValue(modes, "data-alphabet"); got != shortcode.Alphabet {
+		t.Errorf("data-alphabet = %q, want %q", got, shortcode.Alphabet)
+	}
+	missing := func(from string) string {
+		var b strings.Builder
+		for _, r := range from {
+			if !strings.ContainsRune(shortcode.Alphabet, r) {
+				b.WriteRune(r)
+			}
+		}
+		return b.String()
+	}
+	words := func(attr, class string) string {
+		text, _ := attrValue(modes, attr)
+		return strings.Join(regexp.MustCompile(`\b[`+class+`]\b`).FindAllString(text, -1), "")
+	}
+	letters := []rune(words("data-refuse-letters", "A-Z"))
+	slices.Sort(letters)
+	if got, want := string(letters), missing("ABCDEFGHIJKLMNOPQRSTUVWXYZ"); got != want {
+		t.Errorf("data-refuse-letters names %q, want %q", got, want)
+	}
+	if got, want := words("data-refuse-digits", "0-9"), missing("0123456789"); got != want {
+		t.Errorf("data-refuse-digits names %q, want %q", got, want)
+	}
+	if text, _ := attrValue(modes, "data-refuse-other"); text == "" {
+		t.Errorf("entry card lacks data-refuse-other: %s", modes)
+	}
+}
+
+// autofocusIDs returns the id of each tag in body that has autofocus.
+func autofocusIDs(body string) []string {
+	var ids []string
+	for _, tag := range regexp.MustCompile(`<[a-z]+\s[^>]*\sautofocus[^>]*>`).FindAllString(body, -1) {
+		id, _ := attrValue(tag, "id")
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+func TestEntry_OneAutofocus(t *testing.T) {
+	env := newTestEnv(t)
+	code := env.examCode(t, env.openExam(t, simpleExam("score")))
+	jakarta := newJakartaEnv(t)
+	early := jakarta.examCode(t, jakarta.scheduledExam(t, geometryExam, exam.Schedule{OpensAt: time.Date(2026, 11, 14, 17, 0, 0, 0, jakarta.deps.Location)}))
+
+	for _, c := range []struct {
+		label, body, want string
+	}{
+		{"GET /", do(env.h, "GET", "/", nil).Body.String(), "start-code"},
+		{"code page", do(env.h, "GET", "/?code="+code, nil).Body.String(), "name"},
+		{"refused start", postForm(env.h, "/start", url.Values{"code": {otherCode(code)}, "name": {"Ada"}}, nil).Body.String(), "start-code"},
+		{"refused resume", postForm(env.h, "/resume", url.Values{"code": {"ZZZZ-ZZZZ"}}, nil).Body.String(), "code"},
+		{"early start", postForm(jakarta.h, "/start", url.Values{"code": {early}, "name": {"Ada"}}, nil).Body.String(), "name"},
+	} {
+		requireCount(t, c.label, c.body, " autofocus", 1)
+		if got := autofocusIDs(c.body); len(got) != 1 || got[0] != c.want {
+			t.Errorf("%s: autofocus on %q, want %q", c.label, got, c.want)
+		}
+	}
+}
+
+func TestEntry_RefusedResume(t *testing.T) {
+	env := newTestEnv(t)
+	rec := postForm(env.h, "/resume", url.Values{"code": {" zz zz-zzzz "}}, nil)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("POST /resume = %d, want 422", rec.Code)
+	}
+	body := rec.Body.String()
+	requireTabs(t, "refused resume", body, true)
+	requireCount(t, "refused resume", body, `role="alert"`, 1)
+	requireInOrder(t, "refused resume", body, `id="panel-resume"`, `role="alert" class="alert" id="resume-alert"`, `<form id="resume-form"`)
+	_, join, _ := strings.Cut(body, `id="panel-join"`)
+	if join, _, _ = strings.Cut(join, `id="panel-resume"`); strings.Contains(join, `role="alert"`) {
+		t.Error("refused resume: the Join panel holds an alert")
+	}
+	tag := inputTag(body, "code")
+	for _, want := range []string{`value=" zz zz-zzzz "`, `aria-invalid="true"`, " autofocus", `aria-describedby="resume-alert resume-hint resume-msg"`} {
+		if !strings.Contains(tag, want) {
+			t.Errorf("refused resume: code box lacks %q: %s", want, tag)
+		}
 	}
 
-	for name, re := range map[string]*regexp.Regexp{
-		"light": regexp.MustCompile(`<img [^>]*\bsrc="(/static/landing/preview-exam-light\.webp\?v=[0-9a-f]{8})"`),
-		"dark":  regexp.MustCompile(`<source [^>]*\bsrcset="(/static/landing/preview-exam-dark\.webp\?v=[0-9a-f]{8})"`),
-	} {
-		m := re.FindStringSubmatch(body)
-		if m == nil {
-			t.Errorf("no %s preview URL in GET /", name)
-			continue
-		}
-		rec := do(env.h, "GET", m[1], nil)
-		if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "image/webp" {
-			t.Errorf("GET %s = %d %q, want 200 image/webp", m[1], rec.Code, rec.Header().Get("Content-Type"))
-		}
+	if body := postForm(env.h, "/resume", url.Values{"code": {`"><b>x`}}, nil).Body.String(); strings.Contains(body, "<b>x") {
+		t.Errorf("refused resume echoes markup:\n%s", inputTag(body, "code"))
+	}
+}
+
+func TestEntry_StartAlertTied(t *testing.T) {
+	env := newTestEnv(t)
+	code := env.examCode(t, env.openExam(t, simpleExam("score")))
+
+	body := postForm(env.h, "/start", url.Values{"code": {otherCode(code)}, "name": {"Ada"}}, nil).Body.String()
+	if got, _ := attrValue(inputTag(body, "start-code"), "aria-describedby"); got != "start-alert code-hint code-msg" {
+		t.Errorf("unknown code: start-code aria-describedby = %q", got)
+	}
+	if !strings.Contains(body, `role="alert" class="alert" id="start-alert"`) {
+		t.Error("unknown code: the alert has no id start-alert")
+	}
+
+	body = postForm(env.h, "/start", url.Values{"code": {code}, "name": {" "}}, nil).Body.String()
+	if got, _ := attrValue(inputTag(body, "name"), "aria-describedby"); got != "start-alert" {
+		t.Errorf("bad name: name aria-describedby = %q", got)
 	}
 }
 
@@ -118,6 +295,7 @@ func TestLandingV3_OnlyEntryWithACode(t *testing.T) {
 		t.Error("code page lacks the brand link to /")
 	}
 	requireCount(t, "code page", body, "<h1", 1)
+	requireCount(t, "code page", body, "·", 1)
 }
 
 // requireRefusedLayout checks what every refused page shares: the centred
@@ -183,10 +361,10 @@ func TestLandingV3_Refusals(t *testing.T) {
 		body := postForm(env.h, "/resume", url.Values{"code": {"ZZZZ-ZZZZ"}}, nil).Body.String()
 		requireRefusedLayout(t, "refused resume", body)
 		requireCount(t, "refused resume", body, `role="alert"`, 1)
-		requireInOrder(t, "refused resume", body, `<details class="resume" open>`, `<div class="resume-body">`, `role="alert"`, `<form id="resume-form"`)
-		card, _, _ := strings.Cut(body, `<details class="resume"`)
-		if _, card, _ = strings.Cut(card, `<div class="entry">`); strings.Contains(card, `role="alert"`) {
-			t.Error("refused resume: the entry card holds an alert")
+		requireInOrder(t, "refused resume", body, `id="panel-resume"`, `role="alert"`, `<form id="resume-form"`)
+		_, join, _ := strings.Cut(body, `id="panel-join"`)
+		if join, _, _ = strings.Cut(join, `id="panel-resume"`); strings.Contains(join, `role="alert"`) {
+			t.Error("refused resume: the Join panel holds an alert")
 		}
 		if !invalid(inputTag(body, "code")) || invalid(inputTag(body, "start-code")) || invalid(inputTag(body, "name")) {
 			t.Errorf("want only the resume box invalid: %q", inputTag(body, "code"))
@@ -221,10 +399,31 @@ func TestLandingV3_UnknownAndClosedStayEqual(t *testing.T) {
 	}
 }
 
-func TestPublicPages_NoScript(t *testing.T) {
+var entryScript = regexp.MustCompile(`<script src="(/static/entry\.js\?v=[0-9a-f]{8})" defer></script>`)
+
+func TestEntry_Script(t *testing.T) {
 	env := newTestEnv(t)
 	code := env.examCode(t, env.openExam(t, simpleExam("score")))
-	for _, path := range []string{"/", "/?code=" + code, "/admin/login", "/no/such/page"} {
+	for label, body := range map[string]string{
+		"GET /":          do(env.h, "GET", "/", nil).Body.String(),
+		"code page":      do(env.h, "GET", "/?code="+code, nil).Body.String(),
+		"refused start":  postForm(env.h, "/start", url.Values{"code": {otherCode(code)}, "name": {"Ada"}}, nil).Body.String(),
+		"refused resume": postForm(env.h, "/resume", url.Values{"code": {"ZZZZ-ZZZZ"}}, nil).Body.String(),
+	} {
+		requireCount(t, label, body, "<script", 1)
+		m := entryScript.FindStringSubmatch(body)
+		if m == nil {
+			t.Errorf("%s does not load entry.js", label)
+			continue
+		}
+		rec := do(env.h, "GET", m[1], nil)
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Header().Get("Content-Type"), "javascript") ||
+			rec.Header().Get("Cache-Control") != "public, max-age=31536000, immutable" {
+			t.Errorf("GET %s = %d %q %q, want 200 JavaScript immutable", m[1], rec.Code,
+				rec.Header().Get("Content-Type"), rec.Header().Get("Cache-Control"))
+		}
+	}
+	for _, path := range []string{"/admin/login", "/no/such/page"} {
 		if body := do(env.h, "GET", path, nil).Body.String(); strings.Contains(body, "<script") {
 			t.Errorf("GET %s holds a <script", path)
 		}
