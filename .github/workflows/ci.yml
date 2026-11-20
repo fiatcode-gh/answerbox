@@ -24,6 +24,8 @@ jobs:
 
   image:
     needs: test
+    concurrency:
+      group: answerbox-image
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -46,3 +48,11 @@ jobs:
           tags: |
             ghcr.io/fiatcode-gh/answerbox:latest
             ghcr.io/fiatcode-gh/answerbox:sha-${{ github.sha }}
+      # Keep `latest` and the 5 newest builds before it (each with its platform
+      # images and attestations); older and untagged images are deleted.
+      - uses: dataaxiom/ghcr-cleanup-action@d52806a0dc70b430571a37da1fde39733ffd640f # v1.2.2
+        with:
+          package: answerbox
+          keep-n-tagged: 5
+          exclude-tags: latest
+          delete-untagged: true
