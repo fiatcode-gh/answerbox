@@ -1438,6 +1438,8 @@ func TestErrorPage_TeacherLinkOnlyUnderAdmin(t *testing.T) {
 	}{
 		{"student POST /start too large", postForm(env.h, "/start", url.Values{"name": {strings.Repeat("x", studentBodyLimit)}}, nil), http.StatusRequestEntityTooLarge, false},
 		{"public GET /no/such/page", do(env.h, "GET", "/no/such/page", nil), http.StatusNotFound, false},
+		{"public GET /adminx", do(env.h, "GET", "/adminx", nil), http.StatusNotFound, false},
+		{"public GET /admin%2Fexams", do(env.h, "GET", "/admin%2Fexams", nil), http.StatusNotFound, false},
 		{"admin GET /admin/exams/999", do(env.h, "GET", "/admin/exams/999", cookie), http.StatusNotFound, true},
 	} {
 		body := c.rec.Body.String()

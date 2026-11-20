@@ -118,6 +118,7 @@ func (s *server) errorPageMessage(w http.ResponseWriter, r *http.Request, status
 		data.Message = message
 	}
 	data.Status = status
-	data.Teacher = r.URL.Path == "/admin" || strings.HasPrefix(r.URL.Path, "/admin/")
+	path := r.URL.EscapedPath()
+	data.Teacher = path == "/admin" || strings.HasPrefix(path, "/admin/")
 	s.page(w, r, status, "error.html", data)
 }
