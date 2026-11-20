@@ -28,8 +28,6 @@ var pendingTemplates = []string{
 	"admin_exam_new.html",
 	"admin_exam_settings.html",
 	"admin_question.html",
-	"admin_revision.html",
-	"admin_revisions.html",
 	"admin_section.html",
 }
 
@@ -45,8 +43,9 @@ var literalAllowed = []string{
 // computedKeyFuncs may call T or N with a key built at run time; each has
 // its own table test: errorPageMessage TestErrorPage_Texts, Date and Day
 // TestDates, setExamSchedule TestTeacherPages_SameRefusals, status and
-// event TestLocalizer_StatusEvent, attemptsCSV TestCSV_Language.
-var computedKeyFuncs = []string{"errorPageMessage", "Date", "Day", "setExamSchedule", "status", "event", "attemptsCSV"}
+// event TestLocalizer_StatusEvent, attemptsCSV TestCSV_Language, summary
+// TestLocalizer_Summary.
+var computedKeyFuncs = []string{"errorPageMessage", "Date", "Day", "setExamSchedule", "status", "event", "attemptsCSV", "summary"}
 
 // enText is the English catalogue text of key; the test fails on an unknown
 // key.

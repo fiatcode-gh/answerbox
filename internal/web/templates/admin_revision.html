@@ -1,29 +1,29 @@
-{{define "title"}}Revision {{.Revision.Number}}: {{.Exam.Title}} · Answerbox{{end}}
+{{define "title"}}{{t "revision.title" .Revision.Number .Exam.Title}} · Answerbox{{end}}
 
 {{define "header"}}{{template "admin_header" .}}{{end}}
 
 {{define "main"}}
 <main class="container admin revision-page" data-exam-id="{{.Exam.ID}}" data-revision="{{.Revision.Number}}">
-  <p class="back"><a href="/admin/exams/{{.Exam.ID}}/revisions">← History</a></p>
-  <h1>Revision {{.Revision.Number}}</h1>
-  <p class="zone-note">Saved {{.Saved}} ({{.Zone}}) by {{.Revision.TeacherEmail}}: {{.Revision.Summary}}</p>
+  <p class="back"><a href="/admin/exams/{{.Exam.ID}}/revisions">{{t "revision.back"}}</a></p>
+  <h1>{{t "revision.heading" .Revision.Number}}</h1>
+  <p class="zone-note">{{t "revision.saved" .Saved .Zone .Revision.TeacherEmail .Summary}}</p>
 
   <dl class="settings">
-    <dt>Title</dt>
+    <dt>{{t "revision.title_label"}}</dt>
     <dd>{{.Revision.Title}}</dd>
-    <dt>Length</dt>
-    <dd>{{.Revision.DurationMinutes}} minutes</dd>
-    <dt>Shuffle</dt>
+    <dt>{{t "setting.length"}}</dt>
+    <dd>{{t "setting.minutes" .Revision.DurationMinutes}}</dd>
+    <dt>{{t "setting.shuffle"}}</dt>
     <dd>{{.ShuffleText}}</dd>
-    <dt>Result shown to students</dt>
+    <dt>{{t "setting.result_shown"}}</dt>
     <dd>{{.ShowResultText}}</dd>
-    <dt>Monitor</dt>
-    <dd>{{if .Revision.Monitor}}On{{else}}Off{{end}}</dd>
-    <dt>Questions</dt>
+    <dt>{{t "setting.monitor"}}</dt>
+    <dd>{{if .Revision.Monitor}}{{t "setting.monitor_on"}}{{else}}{{t "setting.monitor_off"}}{{end}}</dd>
+    <dt>{{t "setting.questions"}}</dt>
     <dd>{{len .Revision.Questions}}</dd>
   </dl>
 
-  <h2>Questions</h2>
+  <h2>{{t "revision.questions"}}</h2>
   {{template "preview_questions" .Revision.Questions}}
 </main>
 {{end}}

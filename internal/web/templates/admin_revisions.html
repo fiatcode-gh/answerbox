@@ -1,31 +1,31 @@
-{{define "title"}}History: {{.Exam.Title}} · Answerbox{{end}}
+{{define "title"}}{{t "history.title" .Exam.Title}} · Answerbox{{end}}
 
 {{define "header"}}{{template "admin_header" .}}{{end}}
 
 {{define "main"}}
 <main class="container admin revisions-page" data-exam-id="{{.Exam.ID}}">
   <p class="back"><a href="/admin/exams/{{.Exam.ID}}">← {{.Exam.Title}}</a></p>
-  <h1>History</h1>
+  <h1>{{t "history.heading"}}</h1>
   {{if .Rows}}
   <div class="overflow-auto">
     <table id="revisions">
       <thead>
         <tr>
-          <th scope="col">Revision</th>
-          <th scope="col">Saved</th>
-          <th scope="col">Teacher</th>
-          <th scope="col">Summary</th>
-          <th scope="col"><span class="visually-hidden">Actions</span></th>
+          <th scope="col">{{t "history.col.revision"}}</th>
+          <th scope="col">{{t "history.col.saved"}}</th>
+          <th scope="col">{{t "history.col.teacher"}}</th>
+          <th scope="col">{{t "history.col.summary"}}</th>
+          <th scope="col"><span class="visually-hidden">{{t "history.col.actions"}}</span></th>
         </tr>
       </thead>
       <tbody>
         {{range .Rows}}
-        <tr data-revision="{{.Number}}"><td class="numeric">{{.Number}}</td><td class="numeric">{{.Saved}}</td><td>{{.Teacher}}</td><td>{{.Summary}}</td><td><a href="/admin/exams/{{$.Exam.ID}}/revisions/{{.Number}}">View</a></td></tr>
+        <tr data-revision="{{.Number}}"><td class="numeric">{{.Number}}</td><td class="numeric">{{.Saved}}</td><td>{{.Teacher}}</td><td>{{.Summary}}</td><td><a href="/admin/exams/{{$.Exam.ID}}/revisions/{{.Number}}">{{t "history.view"}}</a></td></tr>
         {{end}}
       </tbody>
     </table>
   </div>
-  <p class="zone-note">Times are shown in {{.Zone}}.</p>
+  <p class="zone-note">{{t "common.times_zone" .Zone}}</p>
   {{else}}
   <p id="no-revision" class="empty">{{.NoRevisionNotice}}</p>
   {{end}}
