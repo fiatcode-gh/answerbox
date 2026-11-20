@@ -12,20 +12,20 @@
       {{if .ExamTitle}}
       <p class="landing-brand"><a class="brandline" href="/">{{template "mark"}}<span class="wordmark">Answerbox</span></a></p>
       <h1 class="landing-title">{{.ExamTitle}}</h1>
-      <p class="landing-code">Exam code <strong class="code">{{.Code}}</strong> <a href="/">Use another code</a></p>
+      <p class="landing-code">{{t "landing.exam_code"}} <strong class="code">{{.Code}}</strong> <a href="/">{{t "landing.use_another_code"}}</a></p>
       {{else}}
       <div class="brandline">{{template "mark"}}<h1 class="landing-title">Answerbox</h1></div>
       {{end}}
-      <div class="entry-modes" data-alphabet="{{.Alphabet}}" data-refuse-letters="Codes don't use O, I, L or U." data-refuse-digits="Codes don't use 0 or 1." data-refuse-other="Codes use only letters and numbers.">
+      <div class="entry-modes" data-alphabet="{{.Alphabet}}" data-refuse-letters="{{t "landing.refuse_letters"}}" data-refuse-digits="{{t "landing.refuse_digits"}}" data-refuse-other="{{t "landing.refuse_other"}}">
         <input type="radio" name="entry-tab" id="tab-join-r" class="visually-hidden" autocomplete="off"{{if not $resume}} checked{{end}}>
         <input type="radio" name="entry-tab" id="tab-resume-r" class="visually-hidden" autocomplete="off"{{if $resume}} checked{{end}}>
         {{if not .ExamTitle}}
-        <p class="landing-lead" id="lead-join">Enter the exam code your teacher gave you.</p>
-        <p class="landing-lead" id="lead-resume">Started already? Carry on where you stopped.</p>
+        <p class="landing-lead" id="lead-join">{{t "landing.lead_join"}}</p>
+        <p class="landing-lead" id="lead-resume">{{t "landing.lead_resume"}}</p>
         {{end}}
-        <div class="tablist" data-label="Join or resume an exam">
-          <label for="tab-join-r" class="tab tab-join" data-panel="panel-join" data-lead="lead-join">Join</label>
-          <label for="tab-resume-r" class="tab tab-resume" data-panel="panel-resume" data-lead="lead-resume">Resume</label>
+        <div class="tablist" data-label="{{t "landing.tabs_label"}}">
+          <label for="tab-join-r" class="tab tab-join" data-panel="panel-join" data-lead="lead-join">{{t "landing.tab_join"}}</label>
+          <label for="tab-resume-r" class="tab tab-resume" data-panel="panel-resume" data-lead="lead-resume">{{t "landing.tab_resume"}}</label>
         </div>
         <div class="entry">
           <div class="tab-panel" id="panel-join">
@@ -35,48 +35,48 @@
               <input type="hidden" id="start-code" name="code" value="{{.Code}}">
               {{else}}
               <div class="field">
-                <label for="start-code">Exam code</label>
+                <label for="start-code">{{t "landing.exam_code"}}</label>
                 <div class="mask-field">
-                  <input type="text" id="start-code" class="mask-input" name="code" value="{{.Code}}" maxlength="16" inputmode="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" required{{if not $resume}} autofocus{{end}} placeholder="______" data-symbols="6" data-link data-refuse-link="That link has no exam code in it." aria-describedby="{{if eq .Invalid "code"}}start-alert {{end}}code-hint code-msg"{{if eq .Invalid "code"}} aria-invalid="true"{{end}}>
+                  <input type="text" id="start-code" class="mask-input" name="code" value="{{.Code}}" maxlength="16" inputmode="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" required{{if not $resume}} autofocus{{end}} placeholder="______" data-symbols="6" data-link data-refuse-link="{{t "landing.refuse_link"}}" aria-describedby="{{if eq .Invalid "code"}}start-alert {{end}}code-hint code-msg"{{if eq .Invalid "code"}} aria-invalid="true"{{end}}>
                   <span class="mask" aria-hidden="true"></span>
                 </div>
-                <p class="landing-hint" id="code-hint">No code? Ask your teacher for it.</p>
+                <p class="landing-hint" id="code-hint">{{t "landing.code_hint"}}</p>
                 <p class="code-msg" id="code-msg" aria-live="polite"></p>
               </div>
               {{end}}
               <div class="field">
-                <label for="name">Your name</label>
+                <label for="name">{{t "landing.your_name"}}</label>
                 <input type="text" id="name" name="name" value="{{.Name}}" maxlength="100" autocomplete="name" required{{if and .ExamTitle (not $resume)}} autofocus{{end}}{{if eq .Invalid "name"}} aria-describedby="start-alert" aria-invalid="true"{{end}}>
               </div>
-              <button type="submit">Start exam</button>
+              <button type="submit">{{t "landing.start_exam"}}</button>
             </form>
-            <p class="landing-note">{{if .Minutes}}You have {{.Minutes}} minutes. {{end}}The timer starts when you press Start and does not pause.</p>
+            <p class="landing-note">{{if .Minutes}}{{t "landing.minutes" .Minutes}} {{end}}{{t "landing.timer_note"}}</p>
           </div>
           <div class="tab-panel" id="panel-resume">
             {{if $resume}}{{with .Alert}}<div role="alert" class="alert" id="resume-alert">{{.}}</div>{{end}}{{end}}
-            <p class="panel-text" id="resume-hint">Browser closed, or a new phone? Ask your teacher for your resume code.</p>
+            <p class="panel-text" id="resume-hint">{{t "landing.resume_hint"}}</p>
             <form id="resume-form" method="post" action="/resume">
-              <label for="code">Resume code</label>
+              <label for="code">{{t "landing.resume_code"}}</label>
               <div class="mask-field">
-                <input type="text" id="code" class="mask-input" name="code" value="{{.ResumeCode}}" maxlength="16" inputmode="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" required{{if $resume}} autofocus{{end}} placeholder="____-____" data-symbols="8" data-group="4" data-refuse-link="Paste the resume code, not a link." aria-describedby="{{if $resume}}resume-alert {{end}}resume-hint resume-msg"{{if $resume}} aria-invalid="true"{{end}}>
+                <input type="text" id="code" class="mask-input" name="code" value="{{.ResumeCode}}" maxlength="16" inputmode="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" required{{if $resume}} autofocus{{end}} placeholder="____-____" data-symbols="8" data-group="4" data-refuse-link="{{t "landing.resume_refuse_link"}}" aria-describedby="{{if $resume}}resume-alert {{end}}resume-hint resume-msg"{{if $resume}} aria-invalid="true"{{end}}>
                 <span class="mask" aria-hidden="true"></span>
               </div>
               <p class="code-msg" id="resume-msg" aria-live="polite"></p>
-              <button type="submit">Continue exam</button>
+              <button type="submit">{{t "landing.continue_exam"}}</button>
             </form>
           </div>
         </div>
       </div>
-      {{if .LastResult}}<p class="last-result"><a href="/exam">See your last result</a></p>{{end}}
+      {{if .LastResult}}<p class="last-result"><a href="/exam">{{t "landing.last_result"}}</a></p>{{end}}
     </div>
   </main>
   {{if .About}}
   <section class="about" aria-labelledby="hero-h">
     <div class="teacher-block">
-      <p class="kicker">For teachers</p>
-      <h2 id="hero-h"><span class="hero-line">Run the exam.</span> <span class="hl">Skip the marking.</span></h2>
-      <p class="hero-sub">Write the questions, share a 6-character code in class, and watch the results come in while students work.</p>
-      <p class="hero-cta"><a class="button secondary" href="/admin/login">Teacher sign-in</a> <a class="learn-more" href="#why">Learn more</a></p>
+      <p class="kicker">{{t "landing.for_teachers"}}</p>
+      <h2 id="hero-h">{{th "landing.hero_html"}}</h2>
+      <p class="hero-sub">{{t "landing.hero_sub"}}</p>
+      <p class="hero-cta"><a class="button secondary" href="/admin/login">{{t "landing.teacher_signin"}}</a> <a class="learn-more" href="#why">{{t "landing.learn_more"}}</a></p>
     </div>
   </section>
   {{end}}
@@ -85,41 +85,41 @@
 <div class="landing-page landing-more">
   <section class="why" id="why" aria-labelledby="why-h">
     <div class="landing-wrap">
-      <p class="kicker">Why Answerbox</p>
-      <h2 id="why-h">Less paper, less marking, <span class="hl">more teaching.</span></h2>
-      <p class="section-intro">Made for a real classroom: one teacher, a room of students and the phones they already have.</p>
+      <p class="kicker">{{t "landing.why_kicker"}}</p>
+      <h2 id="why-h">{{th "landing.why_title_html"}}</h2>
+      <p class="section-intro">{{t "landing.why_intro"}}</p>
       <ol class="pros">
-        <li class="pro"><span class="bubble" aria-hidden="true">A</span><h3>Marking is done for you</h3><p>Every answer is scored the moment a student submits. Fill-in answers understand Indonesian numbers, so <span class="figure">1.003</span> and <span class="figure">0,5</span> are read the way your class writes them.</p></li>
-        <li class="pro"><span class="bubble" aria-hidden="true">B</span><h3>Works on the phones they already have</h3><p>Students open a link or type a 6-character code. Nothing to install, and no student accounts to create.</p></li>
-        <li class="pro"><span class="bubble" aria-hidden="true">C</span><h3>See who is still working</h3><p>Results fill in live while the exam runs, so you know who has finished and who has not.</p></li>
-        <li class="pro"><span class="bubble" aria-hidden="true">D</span><h3>Your data stays on your server</h3><p>Answerbox runs on a server you control, with no third-party scripts and no trackers.</p></li>
+        <li class="pro"><span class="bubble" aria-hidden="true">A</span><h3>{{t "landing.pro_marking"}}</h3><p>{{th "landing.pro_marking_html"}}</p></li>
+        <li class="pro"><span class="bubble" aria-hidden="true">B</span><h3>{{t "landing.pro_phones"}}</h3><p>{{t "landing.pro_phones_text"}}</p></li>
+        <li class="pro"><span class="bubble" aria-hidden="true">C</span><h3>{{t "landing.pro_live"}}</h3><p>{{t "landing.pro_live_text"}}</p></li>
+        <li class="pro"><span class="bubble" aria-hidden="true">D</span><h3>{{t "landing.pro_data"}}</h3><p>{{t "landing.pro_data_text"}}</p></li>
       </ol>
     </div>
   </section>
   <section class="features" aria-labelledby="feat-h">
     <div class="landing-wrap">
-      <p class="kicker">How it works</p>
-      <h2 id="feat-h">From the first question to the grade book</h2>
+      <p class="kicker">{{t "landing.how_kicker"}}</p>
+      <h2 id="feat-h">{{t "landing.how_title"}}</h2>
       <div class="feature-groups">
         <div class="feature-group">
-          <h3>Before class</h3>
+          <h3>{{t "landing.before_class"}}</h3>
           <ul class="feature-list">
-            <li><span class="feature-icon icon-pencil" aria-hidden="true"></span><p class="feature-text"><strong>Write or import</strong><span>Type questions in the browser or import a text file. Multiple choice, fill-in and sections.</span></p></li>
-            <li><span class="feature-icon icon-calendar" aria-hidden="true"></span><p class="feature-text"><strong>Schedules</strong><span>Set the times and the exam opens and closes by itself.</span></p></li>
+            <li><span class="feature-icon icon-pencil" aria-hidden="true"></span><p class="feature-text"><strong>{{t "landing.write_import"}}</strong><span>{{t "landing.write_import_text"}}</span></p></li>
+            <li><span class="feature-icon icon-calendar" aria-hidden="true"></span><p class="feature-text"><strong>{{t "landing.schedules"}}</strong><span>{{t "landing.schedules_text"}}</span></p></li>
           </ul>
         </div>
         <div class="feature-group">
-          <h3>During the exam</h3>
+          <h3>{{t "landing.during_exam"}}</h3>
           <ul class="feature-list">
-            <li><span class="feature-icon icon-screen" aria-hidden="true"></span><p class="feature-text"><strong>Projector view</strong><span>Show the code large on the classroom screen.</span></p></li>
-            <li><span class="feature-icon icon-eye" aria-hidden="true"></span><p class="feature-text"><strong>Optional monitor</strong><span>Flags students who leave the page, copy or paste.</span></p></li>
+            <li><span class="feature-icon icon-screen" aria-hidden="true"></span><p class="feature-text"><strong>{{t "landing.projector"}}</strong><span>{{t "landing.projector_text"}}</span></p></li>
+            <li><span class="feature-icon icon-eye" aria-hidden="true"></span><p class="feature-text"><strong>{{t "landing.monitor"}}</strong><span>{{t "landing.monitor_text"}}</span></p></li>
           </ul>
         </div>
         <div class="feature-group">
-          <h3>Afterwards</h3>
+          <h3>{{t "landing.afterwards"}}</h3>
           <ul class="feature-list">
-            <li><span class="feature-icon icon-table" aria-hidden="true"></span><p class="feature-text"><strong>CSV export</strong><span>Download the results for your grade book.</span></p></li>
-            <li><span class="feature-icon icon-history" aria-hidden="true"></span><p class="feature-text"><strong>Revision history</strong><span>Every change to an exam is kept.</span></p></li>
+            <li><span class="feature-icon icon-table" aria-hidden="true"></span><p class="feature-text"><strong>{{t "landing.csv"}}</strong><span>{{t "landing.csv_text"}}</span></p></li>
+            <li><span class="feature-icon icon-history" aria-hidden="true"></span><p class="feature-text"><strong>{{t "landing.history"}}</strong><span>{{t "landing.history_text"}}</span></p></li>
           </ul>
         </div>
       </div>
@@ -127,55 +127,55 @@
   </section>
   <section class="tech" aria-labelledby="tech-h">
     <div class="landing-wrap">
-      <p class="kicker">// for developers and self-hosters</p>
-      <h2 id="tech-h">Small enough to run yourself</h2>
-      <p class="section-intro">One Go program and one SQLite file, packaged as a container image.</p>
+      <p class="kicker">// {{t "landing.tech_kicker"}}</p>
+      <h2 id="tech-h">{{t "landing.tech_title"}}</h2>
+      <p class="section-intro">{{t "landing.tech_intro"}}</p>
       <div class="tech-cols">
         <div>
-          <h3>stack</h3>
+          <h3>{{t "landing.stack"}}</h3>
           <ul>
-            <li>A single Go binary</li>
-            <li>Server-rendered HTML</li>
-            <li>SQLite: the whole database is one file</li>
-            <li>Tiny same-origin scripts, only for the student pages and a few teacher conveniences</li>
+            <li>{{t "landing.stack_binary"}}</li>
+            <li>{{t "landing.stack_rendered"}}</li>
+            <li>{{t "landing.stack_sqlite"}}</li>
+            <li>{{t "landing.stack_scripts"}}</li>
           </ul>
         </div>
         <div>
-          <h3>deploy</h3>
+          <h3>{{t "landing.deploy"}}</h3>
           <ul>
-            <li>Container image <code>ghcr.io/fiatcode-gh/answerbox</code>, running as non-root</li>
-            <li>Health check at <code>/healthz</code></li>
-            <li>Configured with environment variables</li>
-            <li>Teachers sign in with Google (OpenID Connect)</li>
+            <li>{{th "landing.deploy_image_html"}}</li>
+            <li>{{th "landing.deploy_health_html"}}</li>
+            <li>{{t "landing.deploy_env"}}</li>
+            <li>{{t "landing.deploy_signin"}}</li>
           </ul>
         </div>
         <div>
-          <h3>privacy &amp; security</h3>
+          <h3>{{t "landing.privacy"}}</h3>
           <ul>
-            <li>No third-party scripts or trackers</li>
-            <li>A strict Content-Security-Policy</li>
-            <li>No student accounts: students join with a code and their name</li>
+            <li>{{t "landing.privacy_scripts"}}</li>
+            <li>{{t "landing.privacy_csp"}}</li>
+            <li>{{t "landing.privacy_accounts"}}</li>
           </ul>
         </div>
       </div>
       <div class="tech-run">
         <div>
-          <p class="tech-label">Run the container:</p>
+          <p class="tech-label">{{t "landing.run_container"}}</p>
 <pre><code>podman run -d -p 8080:8080 \
   --env-file .env \
   -v answerbox-data:/data \
   ghcr.io/fiatcode-gh/answerbox:latest</code></pre>
         </div>
-        <a class="tech-source" href="https://github.com/fiatcode-gh/answerbox">Source and setup guide on GitHub</a>
+        <a class="tech-source" href="https://github.com/fiatcode-gh/answerbox">{{t "landing.source"}}</a>
       </div>
     </div>
   </section>
   <footer class="site-foot">
     <div class="landing-wrap">
-      <p class="foot-brand">{{template "mark"}}Answerbox <span>Classroom exams for phones and laptops.</span></p>
-      <nav aria-label="Footer">
-        <a href="/admin/login">Teacher sign-in</a>
-        <a href="https://github.com/fiatcode-gh/answerbox">Source and setup guide on GitHub</a>
+      <p class="foot-brand">{{template "mark"}}Answerbox <span>{{t "landing.tagline"}}</span></p>
+      <nav aria-label="{{t "landing.footer_label"}}">
+        <a href="/admin/login">{{t "landing.teacher_signin"}}</a>
+        <a href="https://github.com/fiatcode-gh/answerbox">{{t "landing.source"}}</a>
       </nav>
     </div>
   </footer>

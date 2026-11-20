@@ -25,10 +25,6 @@ const (
 	tokenLength = 43
 
 	studentBodyLimit = 4 << 10
-
-	invalidNameAlert = "Enter your name (1 to 100 characters)."
-	noOpenExamAlert  = "No open exam has that code. Check it with your teacher."
-	badCodeAlert     = "That code is not valid."
 )
 
 // mountStudent registers the student routes. Identity is the attempt cookie
@@ -159,10 +155,10 @@ func (s *server) landing(w http.ResponseWriter, r *http.Request) {
 		case found:
 			d.ExamTitle, d.Code, d.Minutes = e.Title, e.Code, e.DurationMinutes
 			if e.Availability == exam.NotYetOpen {
-				d.Alert = s.opensAtAlert(r, e.OpensAt)
+				d.Alert = s.opensAtAlert(loc(r), e.OpensAt)
 			}
 		default:
-			d.Alert, d.Invalid = noOpenExamAlert, "code"
+			d.Alert, d.Invalid = loc(r).T("landing.alert.no_open_exam"), "code"
 		}
 	}
 	s.page(w, r, http.StatusOK, "landing.html", d)
@@ -210,14 +206,14 @@ func (s *server) start(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, newAttemptCookie(token))
 		http.Redirect(w, r, "/exam", http.StatusSeeOther)
 	case errors.Is(err, attempt.ErrInvalidName):
-		refused(landingData{Alert: invalidNameAlert, Invalid: "name"})
+		refused(landingData{Alert: loc(r).T("landing.alert.name"), Invalid: "name"})
 	case errors.Is(err, attempt.ErrNoOpenExam):
-		refused(landingData{Alert: noOpenExamAlert, Invalid: "code"})
+		refused(landingData{Alert: loc(r).T("landing.alert.no_open_exam"), Invalid: "code"})
 	case errors.As(err, &early):
 		refused(landingData{
 			ExamTitle: early.Entry.Title,
 			Minutes:   early.Entry.DurationMinutes,
-			Alert:     s.opensAtAlert(r, early.Entry.OpensAt),
+			Alert:     s.opensAtAlert(loc(r), early.Entry.OpensAt),
 		})
 	default:
 		s.serverError(w, r, err)
@@ -226,12 +222,13 @@ func (s *server) start(w http.ResponseWriter, r *http.Request) {
 
 // opensAtAlert tells a student when an exam opens, in Deps.Location: the
 // clock alone when that is today there, else the clock and the date.
-func (s *server) opensAtAlert(r *http.Request, opensAt time.Time) string {
+func (s *server) opensAtAlert(l localizer, opensAt time.Time) string {
 	local := opensAt.In(s.deps.Location)
+	clock := local.Format(clockLayout)
 	if sameDay(opensAt, s.deps.Now(), s.deps.Location) {
-		return "This exam opens at " + local.Format(clockLayout) + "."
+		return l.T("landing.alert.opens_at", clock)
 	}
-	return "This exam opens at " + local.Format(clockLayout) + " on " + loc(r).Date(local) + "."
+	return l.T("landing.alert.opens_at_on", clock, l.Date(local))
 }
 
 func (s *server) resume(w http.ResponseWriter, r *http.Request) {
@@ -245,7 +242,7 @@ func (s *server) resume(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, newAttemptCookie(token))
 		http.Redirect(w, r, "/exam", http.StatusSeeOther)
 	case errors.Is(err, attempt.ErrBadCode):
-		s.page(w, r, http.StatusUnprocessableEntity, "landing.html", landingData{Alert: badCodeAlert, Invalid: "resume", ResumeCode: code})
+		s.page(w, r, http.StatusUnprocessableEntity, "landing.html", landingData{Alert: loc(r).T("landing.alert.bad_code"), Invalid: "resume", ResumeCode: code})
 	default:
 		s.serverError(w, r, err)
 	}

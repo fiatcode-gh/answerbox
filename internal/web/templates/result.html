@@ -6,33 +6,33 @@
 
 {{define "main"}}
 <main id="result" class="container result" data-show="{{.Show}}" data-status="{{.Status}}">
-  <h1>{{if .TimedOut}}Time is up{{else}}Exam submitted{{end}}</h1>
+  <h1>{{if .TimedOut}}{{t "result.time_up"}}{{else}}{{t "result.submitted"}}{{end}}</h1>
   <p class="result-meta">{{.ExamTitle}} · {{.StudentName}}</p>
   {{if .ShowScore}}
   <div class="score-block">
     <p id="score">{{.Score}} / {{.Total}}</p>
-    <p class="score-caption">correct answers</p>
+    <p class="score-caption">{{t "result.correct_answers"}}</p>
   </div>
   {{else}}
-  <p class="result-recorded">Your answers are recorded.</p>
+  <p class="result-recorded">{{t "result.recorded"}}</p>
   {{end}}
   {{if .Review}}
   <div class="review">
-    <h2 class="review-heading">Your answers</h2>
+    <h2 class="review-heading">{{t "result.your_answers"}}</h2>
     {{$total := len .Review}}
     {{range .Review}}
     {{with .Section}}{{template "section_head" .}}{{end}}<section class="review-question">
-      <p class="eyebrow">Question {{.Number}} of {{$total}}</p>
+      <p class="eyebrow">{{t "result.question_of" .Number $total}}</p>
       <div class="question-body">{{.BodyHTML}}</div>
-      {{if not .Answered}}<p class="no-answer">No answer</p>{{end}}
-      {{if .FillIn}}<div class="review-fill-in" data-answered="{{.Answered}}" data-correct="{{.Right}}">{{if .Answered}}<p class="review-typed">Your answer: <span class="typed-text">{{.Typed}}</span> <span class="review-mark">{{if .Right}}✓ Correct{{else}}✗ Not correct{{end}}</span></p>{{end}}<p class="accepted-label">Accepted answers</p><ul class="accepted-answers">{{range .Accepted}}<li>{{.}}</li>{{end}}</ul></div>{{else}}<ul class="review-options">
+      {{if not .Answered}}<p class="no-answer">{{t "result.no_answer"}}</p>{{end}}
+      {{if .FillIn}}<div class="review-fill-in" data-answered="{{.Answered}}" data-correct="{{.Right}}">{{if .Answered}}<p class="review-typed">{{t "result.your_answer_typed"}} <span class="typed-text">{{.Typed}}</span> <span class="review-mark">{{if .Right}}{{t "result.right"}}{{else}}{{t "result.wrong"}}{{end}}</span></p>{{end}}<p class="accepted-label">{{t "result.accepted_answers"}}</p><ul class="accepted-answers">{{range .Accepted}}<li>{{.}}</li>{{end}}</ul></div>{{else}}<ul class="review-options">
         {{range .Options}}
         <li class="review-option" data-picked="{{.Picked}}" data-correct="{{.Correct}}">
           <span class="bubble">{{.Letter}}</span>
           <span class="option-body">{{.BodyHTML}}</span>
-          {{if and .Picked .Correct}}<span class="review-mark">✓ Your answer — correct</span>
-          {{else if .Correct}}<span class="review-mark">✓ Correct answer</span>
-          {{else if .Picked}}<span class="review-mark">✗ Your answer</span>{{end}}
+          {{if and .Picked .Correct}}<span class="review-mark">{{t "result.picked_correct"}}</span>
+          {{else if .Correct}}<span class="review-mark">{{t "result.correct_answer"}}</span>
+          {{else if .Picked}}<span class="review-mark">{{t "result.picked"}}</span>{{end}}
         </li>
         {{end}}
       </ul>{{end}}
@@ -40,6 +40,6 @@
     {{end}}
   </div>
   {{end}}
-  <p class="result-home"><a class="button secondary" href="/">Back to the start page</a></p>
+  <p class="result-home"><a class="button secondary" href="/">{{t "result.back"}}</a></p>
 </main>
 {{end}}

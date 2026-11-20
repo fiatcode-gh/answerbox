@@ -401,9 +401,9 @@ func TestStart_Refusals(t *testing.T) {
 	refused("missing code", url.Values{"name": {"Ada"}}, noOpenExamText)
 	refused("closed exam's code", url.Values{"code": {env.examCode(t, closed)}, "name": {"Ada"}}, noOpenExamText)
 	for _, name := range []string{"", "   ", strings.Repeat("x", 101)} {
-		refused(fmt.Sprintf("name %q", name), url.Values{"code": {code}, "name": {name}}, invalidNameAlert)
+		refused(fmt.Sprintf("name %q", name), url.Values{"code": {code}, "name": {name}}, enText(t, "landing.alert.name"))
 	}
-	refused("malformed code, empty name", url.Values{"code": {"abc"}, "name": {""}}, invalidNameAlert)
+	refused("malformed code, empty name", url.Values{"code": {"abc"}, "name": {""}}, enText(t, "landing.alert.name"))
 
 	cookie := env.start(t, "Ada")
 	rec := postForm(env.h, "/start", url.Values{"code": {code}, "name": {"Bob"}}, cookie)
@@ -573,8 +573,8 @@ func TestStart_EarlyRefusedWithOpensAt(t *testing.T) {
 	}
 
 	rec = postForm(env.h, "/start", url.Values{"code": {code}, "name": {""}}, nil)
-	if got := alertText(rec.Body.String()); rec.Code != http.StatusUnprocessableEntity || got != invalidNameAlert {
-		t.Errorf("early POST without a name: %d, alert %q; want 422, %q", rec.Code, got, invalidNameAlert)
+	if got := alertText(rec.Body.String()); rec.Code != http.StatusUnprocessableEntity || got != enText(t, "landing.alert.name") {
+		t.Errorf("early POST without a name: %d, alert %q; want 422, %q", rec.Code, got, enText(t, "landing.alert.name"))
 	}
 
 	env.clock = opensAt

@@ -42,9 +42,6 @@ var pendingTemplates = []string{
 	"admin_section.html",
 	"admin_signed_in.html",
 	"admin_teachers.html",
-	"exam.html",
-	"landing.html",
-	"result.html",
 }
 
 // literalAllowed are the only words a template may hold outside an action,

@@ -4,9 +4,12 @@
   "use strict";
 
   var main = document.getElementById("exam");
-  if (!main) {
+  var words = document.getElementById("exam-text");
+  if (!main || !words) {
     return;
   }
+  // Every word the script writes comes from the page, in the page's language.
+  var text = words.dataset;
 
   var REQUEST_TIMEOUT_MS = 10000;
   var RETRY_FIRST_MS = 1000;
@@ -15,10 +18,17 @@
   var TYPE_PAUSE_MS = 800; // a typed answer is sent once typing pauses this long
   var NARROW = window.matchMedia("(max-width: 991.98px)");
   var ANNOUNCEMENTS = [
-    { seconds: 600, text: "10 minutes left" },
-    { seconds: 300, text: "5 minutes left" },
-    { seconds: 60, text: "1 minute left" },
+    { seconds: 600, text: text["announce-600"] },
+    { seconds: 300, text: text["announce-300"] },
+    { seconds: 60, text: text["announce-60"] },
   ];
+
+  // fill replaces each {name} in template by values[name].
+  function fill(template, values) {
+    return template.replace(/\{(\w+)\}/g, function (hole, name) {
+      return Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : hole;
+    });
+  }
 
   var timer = document.getElementById("timer");
   var announce = document.getElementById("timer-announce");
@@ -140,23 +150,23 @@
   function render() {
     questions.forEach(function (q) {
       var state;
-      var text;
+      var label;
       if (q.rejected) {
         state = "error";
-        text = "Not saved";
+        label = text.notSaved;
       } else if (!unsaved(q)) {
         state = q.want === null ? "idle" : "saved";
-        text = q.want === null ? "" : "Saved";
+        label = q.want === null ? "" : text.saved;
       } else if (q.failed) {
         state = "error";
-        text = "Not saved";
+        label = text.notSaved;
       } else {
         state = "saving";
-        text = "Saving…";
+        label = text.saving;
       }
       if (q.state.dataset.state !== state) {
         q.state.dataset.state = state;
-        q.state.textContent = text;
+        q.state.textContent = label;
       }
     });
 
@@ -168,28 +178,28 @@
     });
     if (retrying) {
       saveState.dataset.state = "error";
-      saveState.textContent = "✗ Not saved — retrying";
+      saveState.textContent = text.retrying;
     } else if (anyUnsaved()) {
       saveState.dataset.state = "saving";
-      saveState.textContent = "Saving…";
+      saveState.textContent = text.saving;
     } else if (rejected) {
       saveState.dataset.state = "error";
-      saveState.textContent = rejected.input ? "✗ Not saved — check your answer" : "✗ Not saved — choose again";
+      saveState.textContent = rejected.input ? text.checkAnswer : text.chooseAgain;
     } else {
       saveState.dataset.state = "saved";
-      saveState.textContent = "✓ All answers saved";
+      saveState.textContent = text.allSaved;
     }
 
     var waiting = anyUnsaved();
     confirmButton.disabled = waiting;
-    confirmButton.textContent = waiting ? "Waiting for answers to save…" : "Submit";
+    confirmButton.textContent = waiting ? text.waiting : text.submit;
   }
 
   function renderAnswered() {
-    var text = "Answered " + answered() + " of " + questions.length;
-    answeredCount.textContent = text;
+    var line = fill(text.answered, { done: answered(), total: questions.length });
+    answeredCount.textContent = line;
     if (answeredSummary) {
-      answeredSummary.textContent = text;
+      answeredSummary.textContent = line;
     }
   }
 
@@ -740,13 +750,12 @@
   submitOpen.addEventListener("click", function () {
     var done = answered();
     var missing = questions.length - done;
-    var text = "You answered " + done + " of " + questions.length + " questions.";
-    if (missing === 1) {
-      text += " 1 question has no answer.";
-    } else if (missing > 1) {
-      text += " " + missing + " questions have no answer.";
+    var parts = [fill(text.summary, { done: done, total: questions.length })];
+    if (missing > 0) {
+      parts.push(fill(missing === 1 ? text.missingOne : text.missingOther, { n: missing }));
     }
-    summary.textContent = text + " You can't change answers after submitting.";
+    parts.push(text.summaryEnd);
+    summary.textContent = parts.join(" ");
     render();
     dialog.showModal();
   });

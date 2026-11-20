@@ -6,7 +6,7 @@
 <header class="exam-header">
   <div class="exam-header-inner">{{template "mark"}}
     <h1 class="exam-title">{{.ExamTitle}}</h1>
-    <p class="student-name"><span class="visually-hidden">Student: </span>{{.StudentName}}</p>
+    <p class="student-name"><span class="visually-hidden">{{t "exam.student"}} </span>{{.StudentName}}</p>
   </div>
 </header>
 {{end}}
@@ -14,20 +14,20 @@
 {{define "main"}}
 <main id="exam" data-remaining-ms="{{.RemainingMS}}" data-answer-url="/exam/answer" data-status-url="/exam/status" data-event-url="/exam/event" data-monitor="{{if .Monitor}}on{{else}}off{{end}}">
   <div class="exam-bar on-board">
-    <p class="timer-box"><span class="visually-hidden">Time remaining</span><span id="timer" role="timer" data-level="{{.Level}}">{{.Timer}}</span></p>
-    <span id="save-state" role="status" data-state="saved">✓ All answers saved</span>
-    <button type="button" id="nav-toggle" aria-expanded="false" aria-controls="question-nav" hidden class="secondary">Questions</button>
-    <div id="monitor-banner" class="banner banner-warn" role="alert" hidden>Your teacher has been notified.</div>
+    <p class="timer-box"><span class="visually-hidden">{{t "exam.time_remaining"}}</span><span id="timer" role="timer" data-level="{{.Level}}">{{.Timer}}</span></p>
+    <span id="save-state" role="status" data-state="saved">{{t "exam.all_saved"}}</span>
+    <button type="button" id="nav-toggle" aria-expanded="false" aria-controls="question-nav" hidden class="secondary">{{t "exam.questions"}}</button>
+    <div id="monitor-banner" class="banner banner-warn" role="alert" hidden>{{t "exam.notified"}}</div>
   </div>
   <p id="timer-announce" class="visually-hidden" aria-live="polite"></p>
 
-  <noscript><p class="banner banner-danger">This exam needs JavaScript to save your answers.</p></noscript>
-  <div id="time-up" class="banner banner-danger" role="alert" hidden>Time is up. Finishing your exam…</div>
-  <div id="moved" class="banner banner-warn" role="alert" hidden>This attempt is no longer active on this device. <a href="/">Go to the start page</a></div>
+  <noscript><p class="banner banner-danger">{{t "exam.needs_js"}}</p></noscript>
+  <div id="time-up" class="banner banner-danger" role="alert" hidden>{{t "exam.time_up"}}</div>
+  <div id="moved" class="banner banner-warn" role="alert" hidden>{{t "exam.moved"}} <a href="/">{{t "error.start_page"}}</a></div>
 
   <div class="exam-layout">
-    <nav id="question-nav" data-open="false" aria-label="Questions">
-      <p id="answered-count">Answered {{.Answered}} of {{.Total}}</p>
+    <nav id="question-nav" data-open="false" aria-label="{{t "exam.questions"}}">
+      <p id="answered-count">{{t "exam.answered" .Answered .Total}}</p>
       <ol class="nav-grid">
         {{range .Questions}}<li><a class="bubble" href="#q{{.Number}}" data-answered="{{.Answered}}">{{.Number}}</a></li>
         {{end}}
@@ -39,12 +39,12 @@
       {{range $q := .Questions}}
       {{with $q.Section}}{{template "section_head" .}}{{end}}<section class="question" id="q{{$q.Number}}" data-question-id="{{$q.ID}}">
         <div class="question-head">
-          <p class="eyebrow">Question {{$q.Number}} of {{$total}}</p>
-          {{if $q.Answered}}<span class="q-state" data-state="saved">Saved</span>{{else}}<span class="q-state" data-state="idle"></span>{{end}}
+          <p class="eyebrow">{{t "exam.question_of" $q.Number $total}}</p>
+          {{if $q.Answered}}<span class="q-state" data-state="saved">{{t "exam.saved"}}</span>{{else}}<span class="q-state" data-state="idle"></span>{{end}}
         </div>
         <div class="question-body">{{$q.BodyHTML}}</div>
-        {{if $q.FillIn}}<div class="answer-box"><label class="answer-label" for="t{{$q.ID}}">Type your answer<span class="visually-hidden"> for question {{$q.Number}}</span></label><input type="text" class="answer-text" id="t{{$q.ID}}" name="t{{$q.ID}}" value="{{$q.Typed}}" maxlength="200" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done"></div>{{else}}<fieldset class="options">
-          <legend class="visually-hidden">Answer for question {{$q.Number}}</legend>
+        {{if $q.FillIn}}<div class="answer-box"><label class="answer-label" for="t{{$q.ID}}">{{t "exam.type_answer"}}<span class="visually-hidden"> {{t "exam.for_question" $q.Number}}</span></label><input type="text" class="answer-text" id="t{{$q.ID}}" name="t{{$q.ID}}" value="{{$q.Typed}}" maxlength="200" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done"></div>{{else}}<fieldset class="options">
+          <legend class="visually-hidden">{{t "exam.answer_for_question" $q.Number}}</legend>
           {{range $q.Options}}
           <label class="option" for="o{{.ID}}">
             <input type="radio" name="q{{$q.ID}}" value="{{.ID}}" id="o{{.ID}}"{{if .Picked}} checked{{end}}>
@@ -57,16 +57,16 @@
       {{end}}
 
       <footer class="exam-footer">
-        <p class="answered-summary">Answered {{.Answered}} of {{.Total}}</p>
+        <p class="answered-summary">{{t "exam.answered" .Answered .Total}}</p>
         <form id="submit-form" method="post" action="/exam/submit">
-          <button type="button" id="submit-open">Submit exam</button>
+          <button type="button" id="submit-open">{{t "exam.submit_exam"}}</button>
           <dialog id="submit-dialog" aria-labelledby="submit-title">
             <article>
-              <h2 id="submit-title">Submit your exam?</h2>
+              <h2 id="submit-title">{{t "exam.submit_title"}}</h2>
               <p id="submit-summary"></p>
               <footer class="dialog-actions">
-                <button type="button" id="submit-cancel" class="secondary">Keep working</button>
-                <button type="submit" id="submit-confirm">Submit</button>
+                <button type="button" id="submit-cancel" class="secondary">{{t "exam.keep_working"}}</button>
+                <button type="submit" id="submit-confirm">{{t "exam.submit"}}</button>
               </footer>
             </article>
           </dialog>
@@ -77,4 +77,4 @@
 </main>
 {{end}}
 
-{{define "scripts"}}<script src="{{static "exam.js"}}" defer></script>{{end}}
+{{define "scripts"}}<div id="exam-text" hidden data-saved="{{t "exam.saved"}}" data-saving="{{t "exam.saving"}}" data-not-saved="{{t "exam.not_saved"}}" data-all-saved="{{t "exam.all_saved"}}" data-retrying="{{t "exam.retrying"}}" data-check-answer="{{t "exam.check_answer"}}" data-choose-again="{{t "exam.choose_again"}}" data-waiting="{{t "exam.waiting"}}" data-submit="{{t "exam.submit"}}" data-answered="{{t "exam.answered" "{done}" "{total}"}}" data-summary="{{t "exam.summary" "{done}" "{total}"}}" data-missing-one="{{t "exam.missing.one" "{n}"}}" data-missing-other="{{t "exam.missing.other" "{n}"}}" data-summary-end="{{t "exam.summary_end"}}" data-announce-600="{{t "exam.announce_600"}}" data-announce-300="{{t "exam.announce_300"}}" data-announce-60="{{t "exam.announce_60"}}"></div><script src="{{static "exam.js"}}" defer></script>{{end}}
