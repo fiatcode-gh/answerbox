@@ -3,11 +3,9 @@ package web
 import (
 	"bytes"
 	"context"
-	"flag"
 	"net/http"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -16,19 +14,12 @@ import (
 	"github.com/fiatcode-gh/answerbox/internal/attempt"
 )
 
-var updateGolden = flag.Bool("update-golden", false, "write the page goldens of TestUnsectionedPages_Unchanged after their facts compare equal")
-
-// TestUnsectionedPages_Unchanged pins the pages of an exam without sections
-// to the output of release 293ab19. The goldens were written on that release.
-//
-// During the UI revamp the six page goldens are compared by pageFacts against
-// the 293ab19 files, so the markup around the facts may change while question
-// and option order, picks, correctness, scores and sections may not;
-// attempts.csv is compared byte for byte. -update-golden checks the facts,
-// refuses on any difference and then writes the six page goldens, never the
-// CSV golden. Task 14 of the revamp plan re-baselines the pages once and
-// restores byte comparison for all seven files: from then on a difference is
-// a defect.
+// TestUnsectionedPages_Unchanged pins the pages of an exam without sections.
+// attempts.csv is the output of release 293ab19. The six page goldens are the
+// output of the UI revamp head, written once after a check that they agree
+// with the 293ab19 goldens on question order, option order, picked and correct
+// state, scores and section structure. None of the seven is ever regenerated:
+// a difference is a defect.
 func TestUnsectionedPages_Unchanged(t *testing.T) {
 	env := newTestEnv(t)
 	admin, _, _ := env.signIn(t)
@@ -80,36 +71,8 @@ func TestUnsectionedPages_Unchanged(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if g.name == "attempts.csv" {
-			if !bytes.Equal(want, []byte(g.body)) {
-				t.Fatalf("golden %s differs; got:\n%s", g.name, g.body)
-			}
-			continue
-		}
-		wantFacts, gotFacts := pageFacts(g.name, string(want)), pageFacts(g.name, g.body)
-		if !slices.Equal(wantFacts, gotFacts) {
-			i := 0
-			for i < len(wantFacts) && i < len(gotFacts) && wantFacts[i] == gotFacts[i] {
-				i++
-			}
-			line := func(facts []string) string {
-				if i < len(facts) {
-					return facts[i]
-				}
-				return "(no more facts)"
-			}
-			t.Fatalf("golden %s: facts differ at fact %d\nwant: %s\ngot:  %s\npage:\n%s", g.name, i+1, line(wantFacts), line(gotFacts), g.body)
-		}
-	}
-	if !*updateGolden {
-		return
-	}
-	for _, g := range got {
-		if g.name == "attempts.csv" {
-			continue
-		}
-		if err := os.WriteFile(filepath.Join(dir, g.name+".golden"), []byte(g.body), 0o644); err != nil {
-			t.Fatal(err)
+		if !bytes.Equal(want, []byte(g.body)) {
+			t.Fatalf("golden %s differs; got:\n%s", g.name, g.body)
 		}
 	}
 }

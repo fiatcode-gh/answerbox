@@ -9,6 +9,7 @@
   
   
   <div class="review">
+    <h2 class="review-heading">Your answers</h2>
     
     
     <section class="review-question">
@@ -173,5 +174,5 @@
     
   </div>
   
-  <p class="result-home"><a href="/">Back to the start page</a></p>
+  <p class="result-home"><a class="button secondary" href="/">Back to the start page</a></p>
 </main>

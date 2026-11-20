@@ -1687,3 +1687,52 @@ func TestExamPage_Columns(t *testing.T) {
 	preview := factFirst(body, "section", `^<section class="exam-preview">$`).inner
 	inOrder("exam-preview", preview, `<h2>Preview</h2>`, `class="preview-lede"`, `class="preview-question"`)
 }
+
+type factElement struct{ open, inner string }
+
+// factElements returns, in page order, every element whose tag name matches
+// tag and whose opening tag matches attrs, with its inner HTML up to the
+// balancing closing tag.
+func factElements(s, tag, attrs string) []factElement {
+	attrRe := regexp.MustCompile(attrs)
+	var out []factElement
+	for _, loc := range regexp.MustCompile(`<(`+tag+`)\b[^>]*>`).FindAllStringSubmatchIndex(s, -1) {
+		open := s[loc[0]:loc[1]]
+		if !attrRe.MatchString(open) {
+			continue
+		}
+		name := s[loc[2]:loc[3]]
+		inner, ok := factBalanced(s[loc[1]:], name)
+		if !ok {
+			continue
+		}
+		out = append(out, factElement{open, inner})
+	}
+	return out
+}
+
+// factFirst is the first element factElements finds, zero when none.
+func factFirst(s, tag, attrs string) factElement {
+	if all := factElements(s, tag, attrs); len(all) > 0 {
+		return all[0]
+	}
+	return factElement{}
+}
+
+// factBalanced returns s up to the closing tag of name that balances an
+// opening tag just before s.
+func factBalanced(s, name string) (string, bool) {
+	re := regexp.MustCompile(`(?i)<(/?)` + regexp.QuoteMeta(name) + `\b[^>]*>`)
+	depth := 1
+	for _, loc := range re.FindAllStringSubmatchIndex(s, -1) {
+		if loc[3] > loc[2] {
+			depth--
+		} else {
+			depth++
+		}
+		if depth == 0 {
+			return s[:loc[0]], true
+		}
+	}
+	return "", false
+}

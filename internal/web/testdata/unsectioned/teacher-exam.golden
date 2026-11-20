@@ -6,82 +6,110 @@
     <span class="badge badge-ok">Open</span>
   </div>
   
-  <div class="exam-actions">
-    
-    
-    <form method="post" action="/admin/exams/1/close">
-      <input type="hidden" name="csrf_token" value="DNhydNZwhMqvDg02yEltt_71X-DhJXUKpgjV4g_8LRI">
-      <button type="submit" class="secondary">Close</button>
-    </form>
-    
-    <a role="button" class="secondary" href="/admin/exams/1/attempts">Results</a>
-    <a id="history-link" role="button" class="secondary" href="/admin/exams/1/revisions">History</a>
-    
-    <a id="download-link" role="button" class="secondary" href="/admin/exams/1/download">Download</a>
-    
-    <form id="copy-form" method="post" action="/admin/exams/1/copy">
-      <input type="hidden" name="csrf_token" value="DNhydNZwhMqvDg02yEltt_71X-DhJXUKpgjV4g_8LRI">
-      <button type="submit" class="secondary">Copy exam</button>
-    </form>
-    
-    
-    <form id="archive-form" method="post" action="/admin/exams/1/archive">
-      <input type="hidden" name="csrf_token" value="DNhydNZwhMqvDg02yEltt_71X-DhJXUKpgjV4g_8LRI">
-      <button type="submit" class="secondary">Archive</button>
-    </form>
-    
-  </div>
   
 
-  <section class="join">
-    <h2>Exam code</h2>
-    <p id="exam-code" class="exam-code">GRFW9M</p>
-    <p class="student-link">Student link: <a id="student-link" href="http://app.test/?code=GRFW9M">http://app.test/?code=GRFW9M</a></p>
-    
-  </section>
-
-  
-  <section class="schedule">
-    <h2>Schedule</h2>
-    <p id="schedule-times">No schedule. The exam follows the Open and Close buttons.</p>
-    <form id="schedule-form" method="post" action="/admin/exams/1/schedule">
-      <input type="hidden" name="csrf_token" value="DNhydNZwhMqvDg02yEltt_71X-DhJXUKpgjV4g_8LRI">
-      <div class="schedule-fields">
-        <label for="schedule-opens">Open time
-          <input type="datetime-local" id="schedule-opens" name="opens_at" value="">
-        </label>
-        <label for="schedule-closes">Close time
-          <input type="datetime-local" id="schedule-closes" name="closes_at" value="">
-        </label>
+  <div class="exam-live">
+    <section class="exam-state">
+      <h2 class="state-label">Right now</h2>
+      <p class="state-now" data-open="true">Students can join</p>
+      <p class="state-explain">Closing stops new starts. Students already inside can finish.</p>
+      <div class="exam-actions">
+        
+        
+        <form method="post" action="/admin/exams/1/close">
+          <input type="hidden" name="csrf_token" value="DNhydNZwhMqvDg02yEltt_71X-DhJXUKpgjV4g_8LRI">
+          <input type="hidden" name="from" value="exam">
+          <button type="submit">Close exam</button>
+        </form>
+        
+        
       </div>
-      <button type="submit">Save schedule</button>
-    </form>
-    <p class="zone-note">Times are shown in UTC. Without an open time the exam opens when you save; without a close time it stays open until you press Close. The close time stops new starts only. Open and Close remove the schedule.</p>
-  </section>
-  
+    </section>
+    <div class="exam-board on-board">
+      <section class="join">
+        <h2>Exam code</h2>
+        <p id="exam-code" class="exam-code"><span>G</span><span>R</span><span>F</span><span>W</span><span>9</span><span>M</span></p>
+        <p class="student-link">Student link: <a id="student-link" href="http://app.test/?code=GRFW9M">http://app.test/?code=GRFW9M</a></p>
+        <p class="join-actions"><button type="button" id="copy-link" data-copy="http://app.test/?code=GRFW9M" data-done="Copied" data-failed="Could not copy. Select the link and copy it." hidden>Copy link</button> <a id="projector-link" class="button secondary" href="/admin/exams/1/projector">Projector view</a> <span id="copy-status" class="copy-status" role="status"></span></p>
+        
+      </section>
+    </div>
+  </div>
 
-  <dl class="settings">
-    <dt>Length</dt>
-    <dd>60 minutes</dd>
-    <dt>Shuffle</dt>
-    <dd>Questions and options shuffled</dd>
-    <dt>Result shown to students</dt>
-    <dd>Score and review</dd>
-    <dt>Monitor</dt>
-    <dd>On</dd>
-    <dt>Questions</dt>
-    <dd>5</dd>
-  </dl>
-
-  <section class="replace">
-    <h2>Replace questions</h2>
+  <nav class="exam-links" aria-label="Exam">
+    <div class="results-entry">
+      <a class="button secondary" href="/admin/exams/1/attempts">Results</a>
+      <p id="attempt-counts" class="attempt-counts"><strong class="count-total">2 attempts</strong> <span class="count count-live">1 in progress</span> <span class="count count-done">1 submitted</span> <span class="count count-out">0 timed out</span></p>
+    </div>
     
-    <p class="frozen-notice">This exam has attempts, so its questions are frozen.</p>
-    
-  </section>
+    <a id="history-link" class="button quiet" href="/admin/exams/1/revisions">History</a>
+  </nav>
 
-  <h2>Preview</h2>
-  
+  <div class="exam-cols">
+    <div class="exam-side">
+      
+      <section class="schedule">
+        <h2>Schedule</h2>
+        <p id="schedule-times">No schedule. The exam follows the Open and Close buttons.</p>
+        <details id="schedule-details" class="disclosure">
+          <summary>Set a schedule</summary>
+          <form id="schedule-form" method="post" action="/admin/exams/1/schedule">
+            <input type="hidden" name="csrf_token" value="DNhydNZwhMqvDg02yEltt_71X-DhJXUKpgjV4g_8LRI">
+            <div class="schedule-fields">
+              <label for="schedule-opens">Open time
+                <input type="datetime-local" id="schedule-opens" name="opens_at" value="">
+              </label>
+              <label for="schedule-closes">Close time
+                <input type="datetime-local" id="schedule-closes" name="closes_at" value="">
+              </label>
+            </div>
+            <button type="submit" class="secondary">Save schedule</button>
+          </form>
+        </details>
+        <p class="zone-note">Times are shown in UTC. Without an open time the exam opens when you save; without a close time it stays open until you press Close. The close time stops new starts only. Open and Close remove the schedule.</p>
+      </section>
+      
+
+      <section class="exam-settings">
+        <h2>Settings</h2>
+        <dl class="settings">
+          <dt>Length</dt>
+          <dd>60 minutes</dd>
+          <dt>Shuffle</dt>
+          <dd>Questions and options shuffled</dd>
+          <dt>Result shown to students</dt>
+          <dd>Score and review</dd>
+          <dt>Monitor</dt>
+          <dd>On</dd>
+          <dt>Questions</dt>
+          <dd>5</dd>
+        </dl>
+      </section>
+
+      <section class="more">
+        <h2>More actions</h2>
+        <div class="more-actions">
+          <a id="download-link" class="quiet" href="/admin/exams/1/download">Download</a>
+          
+          <form id="copy-form" method="post" action="/admin/exams/1/copy">
+            <input type="hidden" name="csrf_token" value="DNhydNZwhMqvDg02yEltt_71X-DhJXUKpgjV4g_8LRI">
+            <button type="submit" class="quiet">Copy exam</button>
+          </form>
+          
+          <a id="archive-link" class="quiet" href="/admin/exams/1/archive">Archive</a>
+        </div>
+        <section class="replace">
+          <h3>Replace questions</h3>
+          
+          <p class="frozen-notice">This exam has attempts, so its questions are frozen.</p>
+          
+        </section>
+      </section>
+    </div>
+    <section class="exam-preview">
+      <h2>Preview</h2>
+      <p class="preview-lede">What students see. The correct answer is marked.</p>
+      
   
   <section class="preview-question" id="q1">
     <p class="eyebrow">Question 1</p>
@@ -184,4 +212,6 @@
   </section>
   
 
+    </section>
+  </div>
 </main>

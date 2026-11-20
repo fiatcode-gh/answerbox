@@ -1,8 +1,8 @@
 <main id="exam" data-remaining-ms="3600000" data-answer-url="/exam/answer" data-status-url="/exam/status" data-event-url="/exam/event" data-monitor="on">
-  <div class="exam-bar">
+  <div class="exam-bar on-board">
     <p class="timer-box"><span class="visually-hidden">Time remaining</span><span id="timer" role="timer" data-level="normal">60:00</span></p>
     <span id="save-state" role="status" data-state="saved">✓ All answers saved</span>
-    <button type="button" id="nav-toggle" aria-expanded="false" aria-controls="question-nav" hidden>Questions</button>
+    <button type="button" id="nav-toggle" aria-expanded="false" aria-controls="question-nav" hidden class="secondary">Questions</button>
     <div id="monitor-banner" class="banner banner-warn" role="alert" hidden>Your teacher has been notified.</div>
   </div>
   <p id="timer-announce" class="visually-hidden" aria-live="polite"></p>
