@@ -26,8 +26,6 @@ const (
 	// adminBodyLimit caps teacher-area POSTs so a 10 MiB upload plus form
 	// overhead fits.
 	adminBodyLimit = 11 << 20
-
-	csrfExpiredMessage = "This form has expired. Go back, reload the page and try again."
 )
 
 type adminSessionKey struct{}
@@ -183,7 +181,7 @@ func (s *server) requireTeacher(next http.Handler) http.Handler {
 			}()
 			given := r.PostFormValue("csrf_token")
 			if subtle.ConstantTimeCompare([]byte(given), []byte(sess.CSRFToken)) != 1 {
-				s.errorPageMessage(w, r, http.StatusForbidden, csrfExpiredMessage)
+				s.errorPageMessage(w, r, http.StatusForbidden, loc(r).T("error.csrf_expired"))
 				return
 			}
 		}

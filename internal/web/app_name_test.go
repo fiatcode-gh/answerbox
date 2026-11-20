@@ -39,7 +39,7 @@ func TestTemplates_TitlesNameTheApp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(base), `<title>{{block "title" .}}Answerbox{{end}}</title>`) {
+	if !strings.Contains(string(base), `<title>{{block "title" .Page}}Answerbox{{end}}</title>`) {
 		t.Error("base.html: default title does not name the app")
 	}
 	t.Logf("checked %d title lines", titles)

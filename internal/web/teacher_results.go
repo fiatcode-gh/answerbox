@@ -66,8 +66,6 @@ func attemptID(r *http.Request) (int64, bool) {
 
 const (
 	clockLayout    = "15:04"            // a time in the attempts table
-	dayLayout      = "2 Jan"            // put before a clock on another date
-	dateLayout     = "Mon, 2 Jan 2006"  // the shared start date above the table
 	fullTimeLayout = "2006-01-02 15:04" // tooltips and the attempt page
 )
 
@@ -171,18 +169,19 @@ func sameDay(a, b time.Time, loc *time.Location) bool {
 	return ay == by && am == bm && ad == bd
 }
 
-// listTimes formats the attempts table's times in loc. When every shown
-// attempt started on one date, shared is true and day is one of those starts:
-// a time on that date shows the clock alone. Any other time carries its
-// short date.
+// listTimes formats the attempts table's times in loc, its dates in the
+// language of l. When every shown attempt started on one date, shared is
+// true and day is one of those starts: a time on that date shows the clock
+// alone. Any other time carries its short date.
 type listTimes struct {
 	loc    *time.Location
+	l      localizer
 	day    time.Time
 	shared bool
 }
 
-func newListTimes(rows []attempt.Summary, loc *time.Location) listTimes {
-	lt := listTimes{loc: loc, shared: len(rows) > 0}
+func newListTimes(rows []attempt.Summary, loc *time.Location, l localizer) listTimes {
+	lt := listTimes{loc: loc, l: l, shared: len(rows) > 0}
 	for _, r := range rows {
 		if !sameDay(r.StartedAt, rows[0].StartedAt, loc) {
 			lt.shared = false
@@ -199,7 +198,7 @@ func (lt listTimes) cell(t time.Time) timeCell {
 	local := t.In(lt.loc)
 	c := timeCell{Text: local.Format(clockLayout), Full: local.Format(fullTimeLayout)}
 	if !lt.shared || !sameDay(t, lt.day, lt.loc) {
-		c.Text = local.Format(dayLayout) + " " + c.Text
+		c.Text = lt.l.Day(local) + " " + c.Text
 	}
 	return c
 }
@@ -256,7 +255,7 @@ func (s *server) attemptList(w http.ResponseWriter, r *http.Request) {
 	rows = filterByName(rows, filter)
 	by := parseSort(r.URL.Query())
 	sortAttempts(rows, by)
-	lt := newListTimes(rows, s.deps.Location)
+	lt := newListTimes(rows, s.deps.Location, loc(r))
 
 	nameDir, scoreDir := "asc", "desc"
 	if by.key == "name" && !by.desc {
@@ -285,7 +284,7 @@ func (s *server) attemptList(w http.ResponseWriter, r *http.Request) {
 		Score:     by.mark("score"),
 	}
 	if lt.shared {
-		data.Date = lt.day.In(s.deps.Location).Format(dateLayout)
+		data.Date = lt.l.Date(lt.day.In(s.deps.Location))
 	}
 	for i, sum := range rows {
 		row := attemptRow{

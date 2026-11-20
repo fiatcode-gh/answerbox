@@ -229,7 +229,7 @@ func (s *server) renderExamDetail(w http.ResponseWriter, r *http.Request, status
 	}
 	archivedOn := ""
 	if e.Archived() {
-		archivedOn = e.ArchivedAt.In(s.deps.Location).Format(dateLayout)
+		archivedOn = loc(r).Date(e.ArchivedAt.In(s.deps.Location))
 	}
 	input := scheduleInput{Opens: s.scheduleInputValue(e.Schedule.OpensAt), Closes: s.scheduleInputValue(e.Schedule.ClosesAt)}
 	if typed != nil {

@@ -159,7 +159,7 @@ func (s *server) landing(w http.ResponseWriter, r *http.Request) {
 		case found:
 			d.ExamTitle, d.Code, d.Minutes = e.Title, e.Code, e.DurationMinutes
 			if e.Availability == exam.NotYetOpen {
-				d.Alert = s.opensAtAlert(e.OpensAt)
+				d.Alert = s.opensAtAlert(r, e.OpensAt)
 			}
 		default:
 			d.Alert, d.Invalid = noOpenExamAlert, "code"
@@ -217,7 +217,7 @@ func (s *server) start(w http.ResponseWriter, r *http.Request) {
 		refused(landingData{
 			ExamTitle: early.Entry.Title,
 			Minutes:   early.Entry.DurationMinutes,
-			Alert:     s.opensAtAlert(early.Entry.OpensAt),
+			Alert:     s.opensAtAlert(r, early.Entry.OpensAt),
 		})
 	default:
 		s.serverError(w, r, err)
@@ -226,12 +226,12 @@ func (s *server) start(w http.ResponseWriter, r *http.Request) {
 
 // opensAtAlert tells a student when an exam opens, in Deps.Location: the
 // clock alone when that is today there, else the clock and the date.
-func (s *server) opensAtAlert(opensAt time.Time) string {
+func (s *server) opensAtAlert(r *http.Request, opensAt time.Time) string {
 	local := opensAt.In(s.deps.Location)
 	if sameDay(opensAt, s.deps.Now(), s.deps.Location) {
 		return "This exam opens at " + local.Format(clockLayout) + "."
 	}
-	return "This exam opens at " + local.Format(clockLayout) + " on " + local.Format(dateLayout) + "."
+	return "This exam opens at " + local.Format(clockLayout) + " on " + loc(r).Date(local) + "."
 }
 
 func (s *server) resume(w http.ResponseWriter, r *http.Request) {

@@ -1,17 +1,17 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>{{block "title" .}}Answerbox{{end}}</title>
+<title>{{block "title" .Page}}Answerbox{{end}}</title>
 <link rel="icon" href="{{static "mark.svg"}}" type="image/svg+xml">
 <link rel="stylesheet" href="{{static "app.css"}}">
-{{block "head" .}}{{end}}
+{{block "head" .Page}}{{end}}
 </head>
 <body>
-{{block "header" .}}{{end}}
-{{block "main" .}}{{end}}
-{{block "scripts" .}}{{end}}
+{{block "header" .Page}}{{end}}
+{{block "main" .Page}}{{end}}
+{{block "scripts" .Page}}{{end}}
 </body>
 </html>
