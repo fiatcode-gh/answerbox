@@ -90,6 +90,9 @@ func (s *server) page(w http.ResponseWriter, r *http.Request, status int, page s
 type errorData struct {
 	Status         int
 	Title, Message string
+	// Teacher offers the teacher pages as a way back; only errors under
+	// /admin do.
+	Teacher bool
 }
 
 var errorMessages = map[int]errorData{
@@ -115,5 +118,6 @@ func (s *server) errorPageMessage(w http.ResponseWriter, r *http.Request, status
 		data.Message = message
 	}
 	data.Status = status
+	data.Teacher = r.URL.Path == "/admin" || strings.HasPrefix(r.URL.Path, "/admin/")
 	s.page(w, r, status, "error.html", data)
 }

@@ -133,6 +133,60 @@ func TestConfirm_RemoveQuestion(t *testing.T) {
 	}
 }
 
+// The editor shows no Remove for an exam's only question; its typed
+// confirmation URL answers what posting the removal answers.
+func TestConfirm_RemoveLastQuestionRefused(t *testing.T) {
+	env := newTestEnv(t)
+	cookie, csrf, _ := env.signIn(t)
+	detail := importExam(t, env, cookie, csrf, "one.md", []byte(oneQuestionExam))
+	id := pathID(t, detail)
+
+	get := do(env.h, "GET", detail+"/questions/1/remove", cookie)
+	post := editorPost(env, detail, "/questions/1/remove", url.Values{"revision": {"1"}}, cookie, csrf)
+	requireAlert(t, post, http.StatusUnprocessableEntity, "Not saved: exam has no questions")
+	requireAlert(t, get, http.StatusUnprocessableEntity, "Not saved: exam has no questions")
+	if get.Body.String() != post.Body.String() {
+		t.Errorf("GET answers another page than the POST:\nGET:\n%s\nPOST:\n%s", get.Body.String(), post.Body.String())
+	}
+	if r, q := env.revisionCount(t, id), env.questionCount(t, id); r != 1 || q != 1 {
+		t.Errorf("revisions %d, questions %d, want 1 and 1", r, q)
+	}
+}
+
+// The editor shows no Remove for a section's only question either; its
+// typed confirmation URL answers what posting the removal answers.
+func TestConfirm_RemoveOnlyQuestionOfSectionRefused(t *testing.T) {
+	env := newTestEnv(t)
+	cookie, csrf, _ := env.signIn(t)
+	const leftWithout = "Not saved: section %d would be left without questions; remove the section first"
+	for _, c := range []struct {
+		name, text string
+		n, section int
+	}{
+		{"last section", partsExam, 3, 2},
+		{"first section", "# First alone\nshuffle: none\n\n## A\n\n1. Q1\n- a *\n- b\n\n## B\n\n2. Q2\n- a *\n- b\n\n3. Q3\n- a *\n- b\n", 1, 1},
+		{"one question in one section", "# Solo\n\n## Only part\n\n1. Only question\n- yes *\n- no\n", 1, 1},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			detail := importExam(t, env, cookie, csrf, "exam.md", []byte(c.text))
+			id := pathID(t, detail)
+			rest := fmt.Sprintf("/questions/%d/remove", c.n)
+			alert := fmt.Sprintf(leftWithout, c.section)
+
+			get := do(env.h, "GET", detail+rest, cookie)
+			post := editorPost(env, detail, rest, url.Values{"revision": {"1"}}, cookie, csrf)
+			requireAlert(t, post, http.StatusUnprocessableEntity, alert)
+			requireAlert(t, get, http.StatusUnprocessableEntity, alert)
+			if get.Body.String() != post.Body.String() {
+				t.Errorf("GET answers another page than the POST:\nGET:\n%s\nPOST:\n%s", get.Body.String(), post.Body.String())
+			}
+			if r := env.revisionCount(t, id); r != 1 {
+				t.Errorf("revisions %d, want 1", r)
+			}
+		})
+	}
+}
+
 func TestConfirm_RemoveSection(t *testing.T) {
 	env := newTestEnv(t)
 	cookie, csrf, _ := env.signIn(t)

@@ -237,6 +237,24 @@ func (s *server) removeQuestionConfirm(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
+	// The editor offers no Remove for a section's only question or the
+	// exam's only question; a typed URL gets what posting the removal
+	// answers. The parser refuses an empty section before an empty exam.
+	section := 0 // the number of question n's section, 0 before any
+	for _, q := range rev.Questions[:n] {
+		if q.Section != nil {
+			section++
+		}
+	}
+	alone := rev.Questions[n-1].Section != nil && (n == len(rev.Questions) || rev.Questions[n].Section != nil)
+	switch {
+	case alone:
+		s.renderEditor(w, r, http.StatusUnprocessableEntity, e.ID, notSavedPrefix+"section "+strconv.Itoa(section)+" would be left without questions; remove the section first")
+		return
+	case len(rev.Questions) == 1:
+		s.renderEditor(w, r, http.StatusUnprocessableEntity, e.ID, notSavedPrefix+"exam has no questions")
+		return
+	}
 	num := strconv.Itoa(n)
 	s.confirmPage(w, r, confirmData{
 		adminPage: adminPageFor(r),

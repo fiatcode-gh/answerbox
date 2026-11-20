@@ -1423,3 +1423,33 @@ func TestErrorPage_BrandAndWayBack(t *testing.T) {
 		}
 	}
 }
+
+// Only an error under /admin offers the way to the teacher pages; a student
+// or public error offers the start page alone.
+func TestErrorPage_TeacherLinkOnlyUnderAdmin(t *testing.T) {
+	env := newTestEnv(t)
+	cookie, _, _ := env.signIn(t)
+	const teacherLink = `<a class="quiet" href="/admin/exams">Teacher pages</a>`
+	for _, c := range []struct {
+		name    string
+		rec     *httptest.ResponseRecorder
+		status  int
+		teacher bool
+	}{
+		{"student POST /start too large", postForm(env.h, "/start", url.Values{"name": {strings.Repeat("x", studentBodyLimit)}}, nil), http.StatusRequestEntityTooLarge, false},
+		{"public GET /no/such/page", do(env.h, "GET", "/no/such/page", nil), http.StatusNotFound, false},
+		{"admin GET /admin/exams/999", do(env.h, "GET", "/admin/exams/999", cookie), http.StatusNotFound, true},
+	} {
+		body := c.rec.Body.String()
+		if c.rec.Code != c.status || !strings.Contains(body, `<main class="container narrow error-page" id="error"`) {
+			t.Errorf("%s = %d, want the %d error page:\n%s", c.name, c.rec.Code, c.status, body)
+			continue
+		}
+		if !strings.Contains(body, `<a class="button" href="/">Go to the start page</a>`) {
+			t.Errorf("%s lacks the start page link:\n%s", c.name, body)
+		}
+		if got := strings.Contains(body, teacherLink); got != c.teacher || strings.Contains(body, "Teacher pages") != c.teacher {
+			t.Errorf("%s shows the teacher link = %v, want %v:\n%s", c.name, got, c.teacher, body)
+		}
+	}
+}

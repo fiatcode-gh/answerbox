@@ -6,6 +6,6 @@
 <main class="container narrow error-page" id="error" data-status="{{.Status}}">
   <h1>{{.Title}}</h1>
   <p>{{.Message}}</p>
-  <p class="error-actions"><a class="button" href="/">Go to the start page</a> <a class="quiet" href="/admin/exams">Teacher pages</a></p>
+  <p class="error-actions"><a class="button" href="/">Go to the start page</a>{{if .Teacher}} <a class="quiet" href="/admin/exams">Teacher pages</a>{{end}}</p>
 </main>
 {{end}}
