@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"path"
-	"regexp"
 	"slices"
 	"strings"
 	"unicode"
@@ -64,22 +63,15 @@ type Source struct {
 }
 
 var (
-	errTitleLine        = &examfile.Error{Msg: "the title must be one line of text"}
-	errAnswerLine       = &examfile.Error{Msg: "an accepted answer must be one line of text"}
-	errSectionTitleLine = &examfile.Error{Msg: "the section title must be one line of text"}
-	errTooLarge         = &examfile.Error{Msg: "exam with its images is larger than 10 MB, the largest file that can be imported"}
-	errNotStorable      = &examfile.Error{Msg: "this text cannot be stored in an exam file"}
-	errImageSize        = &examfile.Error{Msg: "image is larger than 5 MB"}
-	errImageType        = &examfile.Error{Msg: "image is not a PNG, JPEG, GIF or WebP file"}
-	errImageHidden      = &examfile.Error{Msg: "the image line would not show at the end of the text, " +
-		"for example after raw HTML; change the end of the text and save again"}
-
-	lineStartRe    = regexp.MustCompile(`^line \d+: `)
-	lineRefRe      = regexp.MustCompile(` \(line \d+\)`)
-	emptySectionRe = regexp.MustCompile(`^section (\d+) has no questions$`)
+	errTitleLine        = examfile.NewError(examfile.CodeEditorTitleLine, 0)
+	errAnswerLine       = examfile.NewError(examfile.CodeEditorAnswerLine, 0)
+	errSectionTitleLine = examfile.NewError(examfile.CodeEditorSectionTitleLine, 0)
+	errTooLarge         = examfile.NewError(examfile.CodeEditorTooLarge, 0)
+	errNotStorable      = examfile.NewError(examfile.CodeEditorNotStorable, 0)
+	errImageSize        = examfile.NewError(examfile.CodeEditorImageSize, 0)
+	errImageType        = examfile.NewError(examfile.CodeEditorImageType, 0)
+	errImageHidden      = examfile.NewError(examfile.CodeEditorImageHidden, 0)
 )
-
-const lateFirstHeading = "the first section heading must come before question 1"
 
 // Source returns the current revision of an exam in actor's scope. An exam
 // outside the scope is ErrNotFound, one without a revision ErrNoRevision and
@@ -335,7 +327,7 @@ func (s *Service) edit(ctx context.Context, actor Actor, examID int64, base int,
 	if image != nil {
 		imgPath := path.Join(cur.Exam.Dir, img.Name)
 		if held, ok := files[imgPath]; ok && !bytes.Equal(held, img.Data) {
-			return &examfile.Error{Msg: "this exam already has a different image file named " + img.Name}
+			return examfile.NewError(examfile.CodeEditorImageNameTaken, 0, img.Name)
 		}
 		files[imgPath] = img.Data
 	}
@@ -423,9 +415,7 @@ func parseEdited(next examfile.Exam, dir string, files map[string][]byte, mediaK
 		return examfile.Exam{}, errTitleLine
 	}
 	if k := shapeDiffers(next, p1); k > 0 {
-		return examfile.Exam{}, &examfile.Error{Msg: fmt.Sprintf(`question %d: the text cannot be saved as written: `+
-			`a line that starts with "-" would become an option, and an option that ends with "*" would become the correct one; `+
-			`write \- or \* instead`, k)}
+		return examfile.Exam{}, examfile.NewError(examfile.CodeEditorShape, 0, k)
 	}
 
 	dl := examfile.Upload{Text: examfile.Format(p1), Dir: dir, Files: make(map[string][]byte, len(p1.ImagePaths))}
@@ -461,16 +451,15 @@ func editorError(err error) error {
 	if !errors.As(err, &fileErr) {
 		return err
 	}
-	msg := lineRefRe.ReplaceAllString(lineStartRe.ReplaceAllString(fileErr.Msg, ""), "")
-	switch {
-	case strings.HasSuffix(msg, `expected "# Title" as the first line`):
-		msg = "the exam needs a title"
-	case msg == lateFirstHeading:
-		msg = "the first section must start at question 1"
-	case emptySectionRe.MatchString(msg):
-		msg = emptySectionRe.ReplaceAllString(msg, "section $1 would be left without questions; remove the section first")
+	switch fileErr.Code {
+	case examfile.CodeTitleMissing:
+		return examfile.NewError(examfile.CodeEditorTitleMissing, 0)
+	case examfile.CodeSectionLate:
+		return examfile.NewError(examfile.CodeEditorFirstSection, 0)
+	case examfile.CodeSectionEmpty:
+		return examfile.NewError(examfile.CodeEditorSectionLeftEmpty, 0, fileErr.Args...)
 	}
-	return &examfile.Error{Msg: msg}
+	return fileErr.WithoutLine()
 }
 
 // shapeDiffers returns the 1-based number of the first question whose

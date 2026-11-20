@@ -95,7 +95,7 @@ func renderSection(r *renderer, k int, s *rawSection) (Section, error) {
 		return out, nil
 	}
 	var err error
-	if out.BodyHTML, err = r.render(out.Source, place{"section", k}); err != nil {
+	if out.BodyHTML, err = r.render(out.Source, place{section: true, n: k}); err != nil {
 		return Section{}, err
 	}
 	return out, nil
@@ -109,7 +109,7 @@ func scan(lines []string) (Exam, []*rawQuestion, []*rawSection, error) {
 		i++
 	}
 	if i == len(lines) {
-		return ex, nil, nil, errorf(`line 1: expected "# Title" as the first line`)
+		return ex, nil, nil, NewError(CodeTitleMissing, 1)
 	}
 	// titleRe's \S is ASCII-only, so a title of Unicode spaces such as "\v"
 	// matches but trims to nothing; it is rejected like a missing title.
@@ -118,10 +118,10 @@ func scan(lines []string) (Exam, []*rawQuestion, []*rawSection, error) {
 		ex.Title = strings.TrimSpace(m[1])
 	}
 	if ex.Title == "" {
-		return ex, nil, nil, errorf(`line %d: expected "# Title" as the first line`, i+1)
+		return ex, nil, nil, NewError(CodeTitleMissing, i+1)
 	}
 	if utf8.RuneCountInString(ex.Title) > MaxTitleRunes {
-		return ex, nil, nil, errorf("line %d: title is longer than %d characters", i+1, MaxTitleRunes)
+		return ex, nil, nil, NewError(CodeTitleTooLong, i+1, MaxTitleRunes)
 	}
 
 	headers := map[string]bool{}
@@ -147,7 +147,7 @@ func scan(lines []string) (Exam, []*rawQuestion, []*rawSection, error) {
 				continue
 			}
 			if !questionRe.MatchString(trimmed) && !sectionRe.MatchString(trimmed) {
-				return ex, nil, nil, errorf(`line %d: expected "shuffle:", "show_result:", "monitor:", "duration:", a "## " section heading or question 1`, n)
+				return ex, nil, nil, NewError(CodeHeaderExpected, n)
 			}
 		}
 
@@ -164,20 +164,20 @@ func scan(lines []string) (Exam, []*rawQuestion, []*rawSection, error) {
 		}
 		if m := sectionRe.FindStringSubmatch(trimmed); m != nil {
 			if len(sections) == 0 && len(questions) > 0 {
-				return ex, nil, nil, errorf("line %d: the first section heading must come before question 1", n)
+				return ex, nil, nil, NewError(CodeSectionLate, n)
 			}
 			if err := lastSectionHasQuestion(sections, len(questions)); err != nil {
 				return ex, nil, nil, err
 			}
 			title := strings.TrimSpace(m[1])
 			if title == "" {
-				return ex, nil, nil, errorf("line %d: section title is empty", n)
+				return ex, nil, nil, NewError(CodeSectionTitleEmpty, n)
 			}
 			if utf8.RuneCountInString(title) > MaxSectionTitleRunes {
-				return ex, nil, nil, errorf("line %d: section title is longer than %d characters", n, MaxSectionTitleRunes)
+				return ex, nil, nil, NewError(CodeSectionTitleTooLong, n, MaxSectionTitleRunes)
 			}
 			if len(sections) == MaxSections {
-				return ex, nil, nil, errorf("exam has more than %d sections", MaxSections)
+				return ex, nil, nil, NewError(CodeTooManySections, 0, MaxSections)
 			}
 			s := &rawSection{block: block{line: n}, title: title, start: len(questions) + 1}
 			sections = append(sections, s)
@@ -187,10 +187,10 @@ func scan(lines []string) (Exam, []*rawQuestion, []*rawSection, error) {
 		if m := matchQuestion(line, trimmed); m != nil {
 			num, _ := strconv.Atoi(m[1])
 			if want := len(questions) + 1; num != want {
-				return ex, nil, nil, errorf("line %d: expected question %d, found question %d", n, want, num)
+				return ex, nil, nil, NewError(CodeQuestionNumber, n, want, num)
 			}
 			if num > MaxQuestions {
-				return ex, nil, nil, errorf("exam has more than %d questions", MaxQuestions)
+				return ex, nil, nil, NewError(CodeTooManyQuestions, 0, MaxQuestions)
 			}
 			q := &rawQuestion{block: block{line: n, first: m[2]}}
 			questions = append(questions, q)
@@ -217,13 +217,13 @@ func scan(lines []string) (Exam, []*rawQuestion, []*rawSection, error) {
 		cur.cont = append(cur.cont, line)
 	}
 	if inFence {
-		return ex, nil, nil, errorf("line %d: code block is never closed", fenceLine)
+		return ex, nil, nil, NewError(CodeFenceOpen, fenceLine)
 	}
 	if err := lastSectionHasQuestion(sections, len(questions)); err != nil {
 		return ex, nil, nil, err
 	}
 	if len(questions) == 0 {
-		return ex, nil, nil, errorf("exam has no questions")
+		return ex, nil, nil, NewError(CodeNoQuestions, 0)
 	}
 	return ex, questions, sections, nil
 }
@@ -235,7 +235,7 @@ func lastSectionHasQuestion(sections []*rawSection, questions int) error {
 		return nil
 	}
 	if last := sections[len(sections)-1]; last.start > questions {
-		return errorf("section %d (line %d) has no questions", len(sections), last.line)
+		return NewError(CodeSectionEmpty, last.line, len(sections))
 	}
 	return nil
 }
@@ -263,7 +263,7 @@ func matchQuestion(line, trimmed string) []string {
 
 func setHeader(ex *Exam, seen map[string]bool, key, raw string, n int) error {
 	if seen[key] {
-		return errorf(`line %d: duplicate "%s" header`, n, key)
+		return NewError(CodeHeaderDuplicate, n, key)
 	}
 	seen[key] = true
 	value := strings.TrimSpace(commaRe.ReplaceAllString(strings.ToLower(raw), ","))
@@ -277,7 +277,7 @@ func setHeader(ex *Exam, seen map[string]bool, key, raw string, n int) error {
 		case "questions,options":
 			ex.Shuffle = ShuffleQuestionsOptions
 		default:
-			return errorf(`line %d: shuffle must be "none", "questions" or "questions, options"`, n)
+			return NewError(CodeShuffleValue, n)
 		}
 	case "show_result":
 		switch value {
@@ -288,7 +288,7 @@ func setHeader(ex *Exam, seen map[string]bool, key, raw string, n int) error {
 		case "review":
 			ex.ShowResult = ShowReview
 		default:
-			return errorf(`line %d: show_result must be "none", "score" or "review"`, n)
+			return NewError(CodeShowResultValue, n)
 		}
 	case "monitor":
 		switch value {
@@ -297,12 +297,12 @@ func setHeader(ex *Exam, seen map[string]bool, key, raw string, n int) error {
 		case "off":
 			ex.Monitor = false
 		default:
-			return errorf(`line %d: monitor must be "on" or "off"`, n)
+			return NewError(CodeMonitorValue, n)
 		}
 	case "duration":
 		minutes, err := strconv.Atoi(value)
 		if !durationRe.MatchString(value) || err != nil || minutes < MinDurationMinutes || minutes > MaxDurationMinutes {
-			return errorf("line %d: duration must be a whole number of minutes from %d to %d", n, MinDurationMinutes, MaxDurationMinutes)
+			return NewError(CodeDurationValue, n, MinDurationMinutes, MaxDurationMinutes)
 		}
 		ex.DurationMinutes = minutes
 	}
@@ -346,24 +346,24 @@ func validate(r *renderer, k int, q *rawQuestion) (Question, error) {
 	body := q.text()
 	switch {
 	case isBlank(body):
-		return Question{}, errorf("question %d (line %d) has no text", k, q.line)
+		return Question{}, NewError(CodeQuestionNoText, q.line, k)
 	case len(q.options) > 0 && len(q.answers) > 0:
-		return Question{}, errorf(`question %d (line %d) has both options and accepted answers; use "-" lines or "=" lines, not both`, k, q.line)
+		return Question{}, NewError(CodeQuestionBothKinds, q.line, k)
 	case len(q.options) == 0 && len(q.answers) == 0:
-		return Question{}, errorf(`question %d (line %d) needs options (lines starting with "-") or accepted answers (lines starting with "=")`, k, q.line)
+		return Question{}, NewError(CodeQuestionNoAnswers, q.line, k)
 	case len(q.answers) > 0:
 		return validateFillIn(r, k, q, body)
 	case len(q.options) < 2:
-		return Question{}, errorf("question %d (line %d) needs at least two options", k, q.line)
+		return Question{}, NewError(CodeQuestionFewOptions, q.line, k)
 	case len(q.options) > MaxOptions:
-		return Question{}, errorf("question %d (line %d) has more than %d options", k, q.line, MaxOptions)
+		return Question{}, NewError(CodeQuestionManyOptions, q.line, k, MaxOptions)
 	}
 	texts := make([]string, len(q.options))
 	correct := 0
 	for m, o := range q.options {
 		texts[m] = o.text()
 		if isBlank(texts[m]) {
-			return Question{}, errorf("question %d, option %d (line %d) has no text", k, m+1, o.line)
+			return Question{}, NewError(CodeOptionNoText, o.line, k, m+1)
 		}
 		if o.correct {
 			correct++
@@ -371,13 +371,13 @@ func validate(r *renderer, k int, q *rawQuestion) (Question, error) {
 	}
 	switch {
 	case correct == 0:
-		return Question{}, errorf("question %d (line %d) has no correct option", k, q.line)
+		return Question{}, NewError(CodeQuestionNoCorrect, q.line, k)
 	case correct > 1:
-		return Question{}, errorf("question %d (line %d) has more than one correct option", k, q.line)
+		return Question{}, NewError(CodeQuestionManyCorrect, q.line, k)
 	}
 
 	out := Question{Source: body, Options: make([]Option, len(q.options))}
-	at := place{"question", k}
+	at := place{n: k}
 	var err error
 	if out.BodyHTML, err = r.render(body, at); err != nil {
 		return Question{}, err
@@ -394,21 +394,21 @@ func validate(r *renderer, k int, q *rawQuestion) (Question, error) {
 // validateFillIn checks the accepted answers of q, whose text is body.
 func validateFillIn(r *renderer, k int, q *rawQuestion, body string) (Question, error) {
 	if len(q.answers) > MaxAnswers {
-		return Question{}, errorf("question %d (line %d) has more than %d accepted answers", k, q.line, MaxAnswers)
+		return Question{}, NewError(CodeQuestionManyAccepted, q.line, k, MaxAnswers)
 	}
 	texts := make([]string, len(q.answers))
 	for m, a := range q.answers {
 		texts[m] = a.text()
 		switch {
 		case isBlank(texts[m]):
-			return Question{}, errorf("question %d, accepted answer %d (line %d) has no text", k, m+1, a.line)
+			return Question{}, NewError(CodeAcceptedNoText, a.line, k, m+1)
 		case strings.Contains(texts[m], "\n"):
-			return Question{}, errorf("question %d, accepted answer %d (line %d) must be one line", k, m+1, a.line)
+			return Question{}, NewError(CodeAcceptedMultiline, a.line, k, m+1)
 		case utf8.RuneCountInString(texts[m]) > MaxAnswerRunes:
-			return Question{}, errorf("question %d, accepted answer %d (line %d) is longer than %d characters", k, m+1, a.line, MaxAnswerRunes)
+			return Question{}, NewError(CodeAcceptedTooLong, a.line, k, m+1, MaxAnswerRunes)
 		}
 	}
-	html, err := r.render(body, place{"question", k})
+	html, err := r.render(body, place{n: k})
 	if err != nil {
 		return Question{}, err
 	}

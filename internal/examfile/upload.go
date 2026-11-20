@@ -11,16 +11,16 @@ import (
 )
 
 var (
-	errUnreadableZip = &Error{Msg: "zip file could not be read"}
-	errUnsafeZipPath = &Error{Msg: "zip contains an unsafe file path"}
-	errNonUTF8Name   = &Error{Msg: "zip contains a file name that is not valid UTF-8"}
+	errUnreadableZip = NewError(CodeZipUnreadable, 0)
+	errUnsafeZipPath = NewError(CodeZipUnsafePath, 0)
+	errNonUTF8Name   = NewError(CodeZipNameNotUTF8, 0)
 )
 
 // ReadUpload validates an uploaded file and returns its exam text and,
 // for a zip, the other files it contains. Errors are *Error.
 func ReadUpload(data []byte) (Upload, error) {
 	if len(data) == 0 {
-		return Upload{}, &Error{Msg: "upload is empty"}
+		return Upload{}, NewError(CodeUploadEmpty, 0)
 	}
 	if !bytes.HasPrefix(data, []byte("PK\x03\x04")) && !bytes.HasPrefix(data, []byte("PK\x05\x06")) {
 		text, err := checkText(data)
@@ -58,7 +58,7 @@ func readZip(data []byte) (Upload, error) {
 		entries = append(entries, f)
 	}
 	if len(entries) > MaxZipFiles {
-		return Upload{}, errorf("zip has more than %d files", MaxZipFiles)
+		return Upload{}, NewError(CodeZipTooManyFiles, 0, MaxZipFiles)
 	}
 
 	files := make(map[string][]byte, len(entries))
@@ -71,11 +71,11 @@ func readZip(data []byte) (Upload, error) {
 			return Upload{}, err
 		}
 		if len(content) > MaxZipEntryBytes {
-			return Upload{}, errorf("zip file \"%s\" is larger than 5 MB", key)
+			return Upload{}, NewError(CodeZipEntryTooLarge, 0, key)
 		}
 		total += len(content)
 		if total > MaxZipTotalBytes {
-			return Upload{}, &Error{Msg: "zip contents are larger than 20 MB in total"}
+			return Upload{}, NewError(CodeZipTotalTooLarge, 0)
 		}
 		if ext := strings.ToLower(path.Ext(key)); ext == ".md" || ext == ".txt" {
 			textKeys = append(textKeys, key)
@@ -83,7 +83,7 @@ func readZip(data []byte) (Upload, error) {
 		files[key] = content
 	}
 	if len(textKeys) != 1 {
-		return Upload{}, errorf("zip must contain exactly one .md or .txt exam file, found %d", len(textKeys))
+		return Upload{}, NewError(CodeZipTextCount, 0, len(textKeys))
 	}
 
 	textKey := textKeys[0]
@@ -141,10 +141,10 @@ func readZipEntry(f *zip.File) ([]byte, error) {
 func checkText(text []byte) ([]byte, error) {
 	text = bytes.TrimPrefix(text, []byte("\uFEFF"))
 	if len(text) > MaxTextBytes {
-		return nil, &Error{Msg: "exam text is larger than 1 MB"}
+		return nil, NewError(CodeTextTooLarge, 0)
 	}
 	if !utf8.Valid(text) {
-		return nil, &Error{Msg: "exam text is not valid UTF-8"}
+		return nil, NewError(CodeTextNotUTF8, 0)
 	}
 	return text, nil
 }

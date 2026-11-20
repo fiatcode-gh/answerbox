@@ -3,10 +3,7 @@
 // no database, no HTTP handlers and no filesystem access.
 package examfile
 
-import (
-	"fmt"
-	"html/template"
-)
+import "html/template"
 
 // Shuffle says which parts of an exam are shuffled per attempt.
 type Shuffle string
@@ -110,13 +107,4 @@ type Option struct {
 type Image struct {
 	Name string
 	Data []byte
-}
-
-// Error is a user-facing sentence describing why an upload or exam is invalid.
-type Error struct{ Msg string }
-
-func (e *Error) Error() string { return e.Msg }
-
-func errorf(format string, args ...any) error {
-	return &Error{Msg: fmt.Sprintf(format, args...)}
 }

@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"strconv"
 	"strings"
 
 	"github.com/yuin/goldmark"
@@ -41,14 +40,21 @@ func newRenderer(u Upload, mediaBase string) *renderer {
 	return &renderer{upload: u, mediaBase: mediaBase, seen: map[string]bool{}}
 }
 
-// place names the block being rendered in image errors: "question 3" or
-// "section 2". It is formatted only when an error is built.
+// place names the block being rendered in image errors: question n or
+// section n.
 type place struct {
-	kind string // "question" or "section"
-	n    int    // 1-based number
+	section bool
+	n       int // 1-based number
 }
 
-func (p place) String() string { return p.kind + " " + strconv.Itoa(p.n) }
+// imageError is the image rule error of code (for a question) or
+// sectionCode (for a section) about ref in block at.
+func (at place) imageError(code, sectionCode Code, ref string) error {
+	if at.section {
+		code = sectionCode
+	}
+	return NewError(code, 0, at.n, ref)
+}
 
 // render converts Markdown to HTML, pointing every image at mediaBase.
 // at names the block in image errors.
@@ -81,7 +87,7 @@ func (r *renderer) render(src string, at place) (template.HTML, error) {
 // directory, and returns the image's content-addressed Name.
 func (r *renderer) resolveImage(ref string, at place) (string, error) {
 	outside := func() error {
-		return errorf(`%s: image "%s" must be a file inside the upload`, at, ref)
+		return at.imageError(CodeImageOutsideQuestion, CodeImageOutsideSection, ref)
 	}
 	decoded, err := url.PathUnescape(ref)
 	if err != nil {
@@ -99,11 +105,11 @@ func (r *renderer) resolveImage(ref string, at place) (string, error) {
 	}
 	data, ok := r.upload.Files[p]
 	if !ok {
-		return "", errorf(`%s: image "%s" not found in upload`, at, ref)
+		return "", at.imageError(CodeImageMissingQuestion, CodeImageMissingSection, ref)
 	}
 	name, ok := ImageName(data)
 	if !ok {
-		return "", errorf(`%s: image "%s" is not a PNG, JPEG, GIF or WebP file`, at, ref)
+		return "", at.imageError(CodeImageTypeQuestion, CodeImageTypeSection, ref)
 	}
 	if r.paths == nil {
 		r.paths = map[string]string{}
