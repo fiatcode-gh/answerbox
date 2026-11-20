@@ -879,23 +879,45 @@ def run(base_url: str, admin_email: str, oidc_url: str, out: Path) -> None:
                 m.locator("section.about").get_by_role("link", name="Learn more").click()
                 m.wait_for_function("() => Math.abs(document.getElementById('why').getBoundingClientRect().top) <= 1", timeout=5_000)
 
-        with step("27 hero: on a desktop the first view is the window's height with either tab, the entry does not move; a phone keeps its natural height"):
+        with step("27 hero: on a desktop the first view is the window's height, the student column centred in the board and still with either tab, with and without scripts; a phone keeps its natural height"):
             for viewport in ({"width": 1280, "height": 800}, {"width": 1440, "height": 900}):
-                hp = new_context(viewport=viewport).new_page()
-                hp.goto(base_url + "/")
-                tops = []
-                for tab in ("Join", "Resume"):
-                    hp.get_by_role("tab", name=tab, exact=True).click()
-                    expect(hp.get_by_role("tab", name=tab, exact=True)).to_have_attribute("aria-selected", "true")
-                    height = box(hp.locator(".landing-split"))["height"]
-                    if abs(height - viewport["height"]) > 1:
-                        raise AssertionError(f"{viewport['width']} × {viewport['height']}, {tab}: .landing-split is {height:.1f} px high, want the window's {viewport['height']}")
-                    tops.append(box(hp.locator(".entry-modes"))["y"])
-                    print(f"  {viewport['width']} × {viewport['height']} {tab}: hero {height:.1f} px, entry at y {tops[-1]:.1f}", flush=True)
-                if abs(tops[0] - tops[1]) > 1:
-                    raise AssertionError(f"{viewport['width']} px: .entry-modes starts at y {tops[0]:.1f} with Join, {tops[1]:.1f} with Resume")
-                shot(hp, f"h-hero-{viewport['width']}-resume.png")
-                hp.context.close()
+                for scripts in (True, False):
+                    hp = new_context(viewport=viewport, java_script_enabled=scripts).new_page()
+                    hp.goto(base_url + "/")
+                    where = f"{viewport['width']} × {viewport['height']}{'' if scripts else ' without scripts'}"
+                    cards = []
+                    for tab, other in (("join", "resume"), ("resume", "join")):
+                        hp.locator(f".entry-modes .tab-{tab}").click()
+                        if scripts:
+                            expect(hp.locator(f"#tab-{tab}")).to_have_attribute("aria-selected", "true")
+                        else:
+                            expect(hp.locator(f"#tab-{tab}-r")).to_be_checked()
+                        height = box(hp.locator(".landing-split"))["height"]
+                        if abs(height - viewport["height"]) > 1:
+                            raise AssertionError(f"{where}, {tab}: .landing-split is {height:.1f} px high, want the window's {viewport['height']}")
+                        board, column = box(hp.locator("main#landing")), box(hp.locator(".entry-col"))
+                        off = (column["y"] + column["height"] / 2) - (board["y"] + board["height"] / 2)
+                        card = box(hp.locator(".entry-modes .entry"))
+                        cards.append((card["y"], card["height"]))
+                        print(f"  {where} {tab}: hero {height:.1f} px, column {column['y']:.1f} to {column['y'] + column['height']:.1f}, {off:+.1f} px from the board's centre, card at y {card['y']:.1f}, {card['height']:.1f} px high", flush=True)
+                        if abs(off) > 2:
+                            raise AssertionError(f"{where}, {tab}: the student column's centre is {off:+.1f} px from the board's centre, want within 2")
+                        # Tab from the open tab to the end of the card: never into the closed panel.
+                        hp.locator(f"#tab-{tab}" if scripts else f"#tab-{tab}-r").focus()
+                        reached = set()
+                        for _ in range(8):
+                            hp.keyboard.press("Tab")
+                            panel = hp.evaluate("() => { const e = document.activeElement; return e.closest('.entry-modes') ? (e.closest('.tab-panel') || {id: ''}).id : null; }")
+                            if panel is None:
+                                break
+                            reached.add(panel)
+                        if f"panel-{other}" in reached or f"panel-{tab}" not in reached:
+                            raise AssertionError(f"{where}, {tab}: Tab reached the panels {sorted(reached - {''})}, want only panel-{tab}")
+                        hp.evaluate("() => document.activeElement.blur()")
+                        shot(hp, f"h-hero-{viewport['width']}-{tab}{'' if scripts else '-noscript'}.png")
+                    if abs(cards[0][0] - cards[1][0]) > 0.5 or abs(cards[0][1] - cards[1][1]) > 0.5:
+                        raise AssertionError(f"{where}: the card is at y {cards[0][0]:.1f}, {cards[0][1]:.1f} px high with Join, at y {cards[1][0]:.1f}, {cards[1][1]:.1f} px with Resume")
+                    hp.context.close()
             hp = new_context(**PHONE).new_page()
             hp.goto(base_url + "/")
             if (minimum := hp.locator(".landing-split").evaluate("el => getComputedStyle(el).minHeight")) not in ("0px", "auto"):

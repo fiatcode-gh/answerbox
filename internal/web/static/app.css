@@ -1410,9 +1410,8 @@ main.landing.on-board {
   padding: 64px var(--ge-space-7) 56px;
 }
 
-/* On a desktop the first view fills the window. The entry starts at a
-   fixed share of the window height instead of being centred, so it does
-   not jump when the other tab, a shorter panel, is picked. Phones keep
+/* On a desktop the first view fills the window, and the student column
+   is centred in the board as the teacher column is beside it. Phones keep
    their natural height. */
 @media (min-width: 761px) {
   .landing-split {
@@ -1421,8 +1420,8 @@ main.landing.on-board {
   }
 
   main.landing.on-board {
-    padding-top: clamp(32px, 11vh, 120px);
-    padding-bottom: 40px;
+    align-content: center;
+    padding-block: 56px;
   }
 }
 
@@ -1681,6 +1680,53 @@ main.landing.on-board {
 .entry-modes.is-live .tab-panel,
 .entry-modes.is-live #lead-resume {
   display: block;
+}
+
+/* On a desktop the two leads share one grid cell and the two panels
+   another; the closed one keeps its room but is hidden from sight, the
+   tab order and the accessibility tree. So picking a tab moves nothing
+   in the centred column. Phones keep the closed one out of the flow. */
+@media (min-width: 761px) {
+  .entry-modes {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .entry-modes .landing-lead {
+    grid-area: 1 / 1;
+  }
+
+  .entry-modes .tablist {
+    grid-row: 2;
+  }
+
+  .entry-modes .entry {
+    display: grid;
+    grid-row: 3;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .entry-modes .tab-panel {
+    grid-area: 1 / 1;
+  }
+
+  .tab-panel,
+  #lead-resume,
+  #tab-resume-r:checked ~ #lead-join {
+    display: block;
+  }
+
+  #tab-join-r:checked ~ #lead-resume,
+  #tab-resume-r:checked ~ #lead-join,
+  #tab-join-r:checked ~ .entry #panel-resume,
+  #tab-resume-r:checked ~ .entry #panel-join {
+    visibility: hidden;
+  }
+
+  .entry-modes.is-live :is(.tab-panel, .landing-lead)[hidden] {
+    display: block !important;
+    visibility: hidden;
+  }
 }
 
 .panel-text {
