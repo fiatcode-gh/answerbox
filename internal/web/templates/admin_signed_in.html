@@ -1,9 +1,9 @@
-{{define "title"}}Signed in · Answerbox{{end}}
+{{define "title"}}{{t "login.signed_in"}} · Answerbox{{end}}
 
 {{define "head"}}<meta http-equiv="refresh" content="0;url=/admin/exams">{{end}}
 
 {{define "header"}}{{template "brand_header" .}}{{end}}
 
 {{define "main"}}
-<main class="container narrow" id="signed-in"><h1>Signed in</h1><p><a href="/admin/exams">Continue to your exams</a></p></main>
+<main class="container narrow" id="signed-in"><h1>{{t "login.signed_in"}}</h1><p><a href="/admin/exams">{{t "login.continue"}}</a></p></main>
 {{end}}

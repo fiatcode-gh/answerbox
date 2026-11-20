@@ -1,13 +1,13 @@
-{{define "title"}}Sign in · Answerbox{{end}}
+{{define "title"}}{{t "login.title"}} · Answerbox{{end}}
 
 {{define "header"}}{{template "brand_header" .}}{{end}}
 
 {{define "main"}}
 <main class="container narrow login">
-  <h1>Teacher sign-in</h1>
+  <h1>{{t "login.heading"}}</h1>
   {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
-  <p>Use the Google account your school's Answerbox admin added.</p>
-  <a id="google-sign-in" class="button" href="/admin/auth/start">Sign in with Google</a>
-  <p><a href="/">Student? Go to the start page</a></p>
+  <p>{{t "login.lede"}}</p>
+  <a id="google-sign-in" class="button" href="/admin/auth/start">{{t "login.google"}}</a>
+  <p><a href="/">{{t "login.student_link"}}</a></p>
 </main>
 {{end}}

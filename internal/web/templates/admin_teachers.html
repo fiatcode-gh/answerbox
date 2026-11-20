@@ -1,43 +1,43 @@
-{{define "title"}}Teachers · Answerbox{{end}}
+{{define "title"}}{{t "teachers.title"}} · Answerbox{{end}}
 
 {{define "header"}}{{template "admin_header" .}}{{end}}
 
 {{define "main"}}
 <main class="container admin teachers-page">
-  <div class="page-head"><h1>Teachers</h1></div>
+  <div class="page-head"><h1>{{t "teachers.title"}}</h1></div>
   {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
   <form id="add-teacher-form" method="post" action="/admin/teachers">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <label for="add-teacher-email">Email address of the teacher's Google account</label>
+    <label for="add-teacher-email">{{t "teachers.email_label"}}</label>
     <div class="add-teacher-row">
       <input type="email" id="add-teacher-email" name="email" value="{{.AddEmail}}" maxlength="254" autocomplete="off" required>
-      <button type="submit">Add teacher</button>
+      <button type="submit">{{t "teachers.add"}}</button>
     </div>
   </form>
   <div class="overflow-auto">
     <table id="teachers">
       <thead>
         <tr>
-          <th scope="col">Email</th>
-          <th scope="col">Name</th>
-          <th scope="col">Last sign-in</th>
-          <th scope="col">Exams</th>
-          <th scope="col">Actions</th>
+          <th scope="col">{{t "teachers.col.email"}}</th>
+          <th scope="col">{{t "teachers.col.name"}}</th>
+          <th scope="col">{{t "teachers.col.last_sign_in"}}</th>
+          <th scope="col">{{t "teachers.col.exams"}}</th>
+          <th scope="col">{{t "teachers.col.actions"}}</th>
         </tr>
       </thead>
       <tbody>
         {{range .Teachers}}
         <tr data-teacher-id="{{.ID}}">
-          <td>{{.Email}}{{if .Admin}} <span class="badge badge-muted">Admin</span>{{end}}</td>
+          <td>{{.Email}}{{if .Admin}} <span class="badge badge-muted">{{t "teachers.admin_badge"}}</span>{{end}}</td>
           <td>{{.Name}}</td>
           <td>{{.LastLogin}}</td>
           <td class="numeric">{{.Exams}}</td>
-          <td class="row-actions">{{if not .Admin}}<a class="danger-link" href="/admin/teachers/{{.ID}}/remove">Remove</a>{{end}}</td>
+          <td class="row-actions">{{if not .Admin}}<a class="danger-link" href="/admin/teachers/{{.ID}}/remove">{{t "teachers.remove"}}</a>{{end}}</td>
         </tr>
         {{end}}
       </tbody>
     </table>
   </div>
-  <p class="zone-note">Times are shown in {{.Zone}}. Admins are set in ANSWERBOX_ADMIN_EMAILS.</p>
+  <p class="zone-note">{{t "teachers.zone_note" .Zone}}</p>
 </main>
 {{end}}

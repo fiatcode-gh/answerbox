@@ -215,9 +215,16 @@ const (
 	signInFailed     = "failed"
 )
 
-var signInAlerts = map[string]string{
-	signInNotAllowed: "This Google account is not allowed. Ask your Answerbox admin to add it.",
-	signInFailed:     "Sign-in did not complete. Try again.",
+// signInAlert is the login page's alert for the ?error= word; an unknown
+// word shows none.
+func signInAlert(l localizer, word string) string {
+	switch word {
+	case signInNotAllowed:
+		return l.T("login.not_allowed")
+	case signInFailed:
+		return l.T("login.failed")
+	}
+	return ""
 }
 
 type loginData struct {
@@ -234,7 +241,7 @@ func (s *server) loginPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/exams", http.StatusSeeOther)
 		return
 	}
-	s.page(w, r, http.StatusOK, "admin_login.html", loginData{Alert: signInAlerts[r.URL.Query().Get("error")]})
+	s.page(w, r, http.StatusOK, "admin_login.html", loginData{Alert: signInAlert(loc(r), r.URL.Query().Get("error"))})
 }
 
 // signInStart sends the browser to the provider. It is a link target, not a

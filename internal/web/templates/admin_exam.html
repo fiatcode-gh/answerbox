@@ -4,124 +4,124 @@
 
 {{define "main"}}
 <main class="container admin exam-detail" data-exam-id="{{.Exam.ID}}">
-  <p class="back"><a href="/admin/exams">← All exams</a></p>
+  <p class="back"><a href="/admin/exams">{{t "examdetail.back"}}</a></p>
   {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
   <div class="exam-head">
     <h1>{{.Exam.Title}}</h1>
-    {{if .Exam.Archived}}<span class="badge badge-archived">Archived</span>{{else if .Exam.Open}}<span class="badge badge-ok">Open</span>{{else}}<span class="badge badge-muted">Closed</span>{{end}}
+    {{if .Exam.Archived}}<span class="badge badge-archived">{{t "examdetail.badge.archived"}}</span>{{else if .Exam.Open}}<span class="badge badge-ok">{{t "examdetail.badge.open"}}</span>{{else}}<span class="badge badge-muted">{{t "examdetail.badge.closed"}}</span>{{end}}
   </div>
-  {{if .Exam.Archived}}<p id="archived-note" class="frozen-notice">Archived on {{.ArchivedOn}}. It stays closed and out of the exams list until you unarchive it.</p>{{end}}
+  {{if .Exam.Archived}}<p id="archived-note" class="frozen-notice">{{t "examdetail.archived_on" .ArchivedOn}}</p>{{end}}
   {{if and (not .Exam.Revision) (ne .Alert .NoRevisionNotice)}}<p id="no-revision" class="frozen-notice">{{.NoRevisionNotice}}</p>{{end}}
 
   <div class="exam-live">
     <section class="exam-state">
-      <h2 class="state-label">Right now</h2>
-      <p class="state-now" data-open="{{.Exam.Open}}">{{if .Exam.Archived}}Archived{{else if .Exam.Open}}Students can join{{else}}Students cannot join{{end}}</p>
-      <p class="state-explain">{{if .Exam.Archived}}Unarchive it to open or schedule it.{{else if .Exam.Schedule.Set}}The schedule decides when it is open. Open or Close removes the schedule.{{else if .Exam.Open}}Closing stops new starts. Students already inside can finish.{{else}}Open it when the class is ready.{{end}}</p>
+      <h2 class="state-label">{{t "examdetail.state.label"}}</h2>
+      <p class="state-now" data-open="{{.Exam.Open}}">{{if .Exam.Archived}}{{t "examdetail.state.archived"}}{{else if .Exam.Open}}{{t "examdetail.state.open"}}{{else}}{{t "examdetail.state.closed"}}{{end}}</p>
+      <p class="state-explain">{{if .Exam.Archived}}{{t "examdetail.explain.archived"}}{{else if .Exam.Schedule.Set}}{{t "examdetail.explain.scheduled"}}{{else if .Exam.Open}}{{t "examdetail.explain.open"}}{{else}}{{t "examdetail.explain.closed"}}{{end}}</p>
       <div class="exam-actions">
         {{if and (not .Exam.Archived) (or .Exam.Schedule.Set (not .Exam.Open))}}
         <form method="post" action="/admin/exams/{{.Exam.ID}}/open">
           <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
           <input type="hidden" name="from" value="exam">
-          <button type="submit">Open exam</button>
+          <button type="submit">{{t "examdetail.open_exam"}}</button>
         </form>
         {{end}}
         {{if or .Exam.Schedule.Set .Exam.Open}}
         <form method="post" action="/admin/exams/{{.Exam.ID}}/close">
           <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
           <input type="hidden" name="from" value="exam">
-          <button type="submit"{{if .Exam.Schedule.Set}} class="secondary"{{end}}>Close exam</button>
+          <button type="submit"{{if .Exam.Schedule.Set}} class="secondary"{{end}}>{{t "examdetail.close_exam"}}</button>
         </form>
         {{end}}
         {{if .Exam.Archived}}
         <form id="unarchive-form" method="post" action="/admin/exams/{{.Exam.ID}}/unarchive">
           <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-          <button type="submit">Unarchive</button>
+          <button type="submit">{{t "examdetail.unarchive"}}</button>
         </form>
         {{end}}
       </div>
     </section>
     <div class="exam-board on-board">
       <section class="join">
-        <h2>Exam code</h2>
+        <h2>{{t "examdetail.code"}}</h2>
         <p id="exam-code" class="exam-code">{{range chars .Exam.Code}}<span>{{.}}</span>{{end}}</p>
-        <p class="student-link">Student link: <a id="student-link" href="{{.StudentLink}}">{{.StudentLink}}</a></p>
-        <p class="join-actions"><button type="button" id="copy-link" data-copy="{{.StudentLink}}" data-done="Copied" data-failed="Could not copy. Select the link and copy it." hidden>Copy link</button> <a id="projector-link" class="button secondary" href="/admin/exams/{{.Exam.ID}}/projector">Projector view</a> <span id="copy-status" class="copy-status" role="status"></span></p>
-        {{if not .Exam.Open}}<p class="join-note">Students can start with this code only while the exam is open.</p>{{end}}
+        <p class="student-link">{{t "examdetail.student_link"}} <a id="student-link" href="{{.StudentLink}}">{{.StudentLink}}</a></p>
+        <p class="join-actions"><button type="button" id="copy-link" data-copy="{{.StudentLink}}" data-done="{{t "examdetail.copy.done"}}" data-failed="{{t "examdetail.copy.failed"}}" hidden>{{t "examdetail.copy.button"}}</button> <a id="projector-link" class="button secondary" href="/admin/exams/{{.Exam.ID}}/projector">{{t "examdetail.projector"}}</a> <span id="copy-status" class="copy-status" role="status"></span></p>
+        {{if not .Exam.Open}}<p class="join-note">{{t "examdetail.join_note"}}</p>{{end}}
       </section>
     </div>
   </div>
 
-  <nav class="exam-links" aria-label="Exam">
+  <nav class="exam-links" aria-label="{{t "examdetail.nav_label"}}">
     <div class="results-entry">
-      <a class="button secondary" href="/admin/exams/{{.Exam.ID}}/attempts">Results</a>
-      <p id="attempt-counts" class="attempt-counts">{{if .Counts.Total}}<strong class="count-total">{{.AttemptsLabel}}</strong> <span class="count count-live">{{.Counts.InProgress}} in progress</span> <span class="count count-done">{{.Counts.Submitted}} submitted</span> <span class="count count-out">{{.Counts.TimedOut}} timed out</span>{{else}}No attempts yet{{end}}</p>
+      <a class="button secondary" href="/admin/exams/{{.Exam.ID}}/attempts">{{t "examdetail.results"}}</a>
+      <p id="attempt-counts" class="attempt-counts">{{if .Counts.Total}}<strong class="count-total">{{.AttemptsLabel}}</strong> <span class="count count-live">{{t "examdetail.counts.in_progress" .Counts.InProgress}}</span> <span class="count count-done">{{t "examdetail.counts.submitted" .Counts.Submitted}}</span> <span class="count count-out">{{t "examdetail.counts.timed_out" .Counts.TimedOut}}</span>{{else}}{{t "examdetail.no_attempts"}}{{end}}</p>
     </div>
-    {{if and .Exam.Revision (eq .Exam.AttemptCount 0)}}<a id="edit-link" class="button quiet" href="/admin/exams/{{.Exam.ID}}/edit">Edit questions</a>{{end}}
-    <a id="history-link" class="button quiet" href="/admin/exams/{{.Exam.ID}}/revisions">History</a>
+    {{if and .Exam.Revision (eq .Exam.AttemptCount 0)}}<a id="edit-link" class="button quiet" href="/admin/exams/{{.Exam.ID}}/edit">{{t "examdetail.edit"}}</a>{{end}}
+    <a id="history-link" class="button quiet" href="/admin/exams/{{.Exam.ID}}/revisions">{{t "examdetail.history"}}</a>
   </nav>
 
   <div class="exam-cols">
     <div class="exam-side">
       {{if not .Exam.Archived}}
       <section class="schedule">
-        <h2>Schedule</h2>
-        <p id="schedule-times">{{if .Exam.Schedule.Set}}{{with .Opens}}Opens {{.}}{{end}}{{if and .Opens .Closes}} · {{end}}{{with .Closes}}Closes {{.}}{{end}}{{else}}No schedule. The exam follows the Open and Close buttons.{{end}}</p>
+        <h2>{{t "examdetail.schedule.heading"}}</h2>
+        <p id="schedule-times">{{if .Exam.Schedule.Set}}{{with .Opens}}{{t "examdetail.opens" .}}{{end}}{{if and .Opens .Closes}} · {{end}}{{with .Closes}}{{t "examdetail.closes" .}}{{end}}{{else}}{{t "examdetail.schedule.none"}}{{end}}</p>
         <details id="schedule-details" class="disclosure"{{if .ScheduleOpen}} open{{end}}>
-          <summary>{{if .Exam.Schedule.Set}}Change the schedule{{else}}Set a schedule{{end}}</summary>
+          <summary>{{if .Exam.Schedule.Set}}{{t "examdetail.schedule.change"}}{{else}}{{t "examdetail.schedule.set"}}{{end}}</summary>
           <form id="schedule-form" method="post" action="/admin/exams/{{.Exam.ID}}/schedule">
             <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
             <div class="schedule-fields">
-              <label for="schedule-opens">Open time
+              <label for="schedule-opens">{{t "examdetail.schedule.opens_label"}}
                 <input type="datetime-local" id="schedule-opens" name="opens_at" value="{{.Schedule.Opens}}">
               </label>
-              <label for="schedule-closes">Close time
+              <label for="schedule-closes">{{t "examdetail.schedule.closes_label"}}
                 <input type="datetime-local" id="schedule-closes" name="closes_at" value="{{.Schedule.Closes}}">
               </label>
             </div>
-            <button type="submit" class="secondary">Save schedule</button>
+            <button type="submit" class="secondary">{{t "examdetail.schedule.save"}}</button>
           </form>
         </details>
-        <p class="zone-note">Times are shown in {{.Zone}}. Without an open time the exam opens when you save; without a close time it stays open until you press Close. The close time stops new starts only. Open and Close remove the schedule.</p>
+        <p class="zone-note">{{t "examdetail.schedule.note" .Zone}}</p>
       </section>
       {{end}}
 
       <section class="exam-settings">
-        <h2>Settings</h2>
+        <h2>{{t "setting.heading"}}</h2>
         <dl class="settings">
-          <dt>Length</dt>
-          <dd>{{.Exam.DurationMinutes}} minutes</dd>
-          <dt>Shuffle</dt>
+          <dt>{{t "setting.length"}}</dt>
+          <dd>{{t "setting.minutes" .Exam.DurationMinutes}}</dd>
+          <dt>{{t "setting.shuffle"}}</dt>
           <dd>{{.ShuffleText}}</dd>
-          <dt>Result shown to students</dt>
+          <dt>{{t "setting.result_shown"}}</dt>
           <dd>{{.ShowResultText}}</dd>
-          <dt>Monitor</dt>
-          <dd>{{if .Exam.Monitor}}On{{else}}Off{{end}}</dd>
-          <dt>Questions</dt>
+          <dt>{{t "setting.monitor"}}</dt>
+          <dd>{{if .Exam.Monitor}}{{t "setting.monitor_on"}}{{else}}{{t "setting.monitor_off"}}{{end}}</dd>
+          <dt>{{t "setting.questions"}}</dt>
           <dd>{{.Exam.QuestionCount}}</dd>
         </dl>
       </section>
 
       <section class="more">
-        <h2>More actions</h2>
+        <h2>{{t "examdetail.more"}}</h2>
         <div class="more-actions">
-          {{if .Exam.Revision}}<a id="download-link" class="quiet" href="/admin/exams/{{.Exam.ID}}/download">Download</a>{{end}}
+          {{if .Exam.Revision}}<a id="download-link" class="quiet" href="/admin/exams/{{.Exam.ID}}/download">{{t "examdetail.download"}}</a>{{end}}
           {{if .Exam.Revision}}
           <form id="copy-form" method="post" action="/admin/exams/{{.Exam.ID}}/copy">
             <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-            <button type="submit" class="quiet">Copy exam</button>
+            <button type="submit" class="quiet">{{t "examdetail.copy_exam"}}</button>
           </form>
           {{end}}
-          {{if not .Exam.Archived}}<a id="archive-link" class="quiet" href="/admin/exams/{{.Exam.ID}}/archive">Archive</a>{{end}}
+          {{if not .Exam.Archived}}<a id="archive-link" class="quiet" href="/admin/exams/{{.Exam.ID}}/archive">{{t "examdetail.archive"}}</a>{{end}}
         </div>
         <section class="replace">
-          <h3>Replace questions</h3>
+          <h3>{{t "examdetail.replace.heading"}}</h3>
           {{if eq .Exam.AttemptCount 0}}
           <form id="replace-form" method="post" action="/admin/exams/{{.Exam.ID}}/replace" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-            <label for="replace-file">New exam file (.md, .txt or .zip)</label>
+            <label for="replace-file">{{t "examdetail.replace.label"}}</label>
             <input type="file" id="replace-file" name="file" accept=".md,.txt,.zip" required>
-            <button type="submit" class="secondary">Replace exam</button>
+            <button type="submit" class="secondary">{{t "examdetail.replace.submit"}}</button>
           </form>
           {{else}}
           <p class="frozen-notice">{{.FrozenNotice}}</p>
@@ -130,8 +130,8 @@
       </section>
     </div>
     <section class="exam-preview">
-      <h2>Preview</h2>
-      <p class="preview-lede">What students see. The correct answer is marked.</p>
+      <h2>{{t "preview.heading"}}</h2>
+      <p class="preview-lede">{{t "preview.lede"}}</p>
       {{template "preview_questions" .Questions}}
     </section>
   </div>

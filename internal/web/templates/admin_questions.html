@@ -1,8 +1,8 @@
 {{define "preview_question_body"}}
     <div class="question-body">{{.BodyHTML}}</div>
-    {{if .FillIn}}<div class="preview-answers"><p class="accepted-label">Accepted answers</p><ul class="accepted-answers">{{range .Answers}}<li>{{.}}</li>{{end}}</ul></div>{{else}}<ol class="preview-options">
+    {{if .FillIn}}<div class="preview-answers"><p class="accepted-label">{{t "preview.accepted"}}</p><ul class="accepted-answers">{{range .Answers}}<li>{{.}}</li>{{end}}</ul></div>{{else}}<ol class="preview-options">
       {{range .Options}}
-      <li data-correct="{{.Correct}}"><div class="option-body">{{.BodyHTML}}</div>{{if .Correct}}<span class="correct-mark">✓ Correct</span>{{end}}</li>
+      <li data-correct="{{.Correct}}"><div class="option-body">{{.BodyHTML}}</div>{{if .Correct}}<span class="correct-mark">{{t "preview.correct"}}</span>{{end}}</li>
       {{end}}
     </ol>{{end}}
 {{end}}
@@ -10,7 +10,7 @@
 {{define "preview_questions"}}
   {{range .}}
   {{with .Section}}{{template "section_head" .}}{{end}}<section class="preview-question" id="q{{.Position}}">
-    <p class="eyebrow">Question {{.Position}}</p>
+    <p class="eyebrow">{{t "preview.question" .Position}}</p>
     {{template "preview_question_body" .}}
   </section>
   {{end}}

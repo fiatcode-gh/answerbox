@@ -1,23 +1,23 @@
-{{define "title"}}Exams · Answerbox{{end}}
+{{define "title"}}{{t "exams.title"}} · Answerbox{{end}}
 
 {{define "header"}}{{template "admin_header" .}}{{end}}
 
 {{define "main"}}
 <main class="container admin exams-page">
-  <div class="page-head"><h1>Exams</h1><p class="page-actions"><a id="import-link" class="button secondary" href="#import">Import from file</a> <a id="new-exam" class="button secondary" href="/admin/exams/new">New exam</a></p></div>
+  <div class="page-head"><h1>{{t "exams.title"}}</h1><p class="page-actions"><a id="import-link" class="button secondary" href="#import">{{t "exams.import_link"}}</a> <a id="new-exam" class="button secondary" href="/admin/exams/new">{{t "exams.new"}}</a></p></div>
   {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
   {{if .Exams}}
   <div class="overflow-auto">
     <table id="exams">
       <thead>
         <tr>
-          <th scope="col">Title</th>
-          <th scope="col">Code</th>
-          {{if .Me.Admin}}<th scope="col">Owner</th>{{end}}
-          <th scope="col">Status</th>
-          <th scope="col">Questions</th>
-          <th scope="col">Attempts</th>
-          <th scope="col">Actions</th>
+          <th scope="col">{{t "exams.col.title"}}</th>
+          <th scope="col">{{t "exams.col.code"}}</th>
+          {{if .Me.Admin}}<th scope="col">{{t "exams.col.owner"}}</th>{{end}}
+          <th scope="col">{{t "exams.col.status"}}</th>
+          <th scope="col">{{t "exams.col.questions"}}</th>
+          <th scope="col">{{t "exams.col.attempts"}}</th>
+          <th scope="col">{{t "exams.col.actions"}}</th>
         </tr>
       </thead>
       <tbody>
@@ -26,66 +26,48 @@
           <td><a href="/admin/exams/{{.ID}}">{{.Title}}</a></td>
           <td class="code">{{.Code}}</td>
           {{if $.Me.Admin}}<td class="owner" title="{{.OwnerEmail}}">{{.OwnerEmail}}</td>{{end}}
-          <td>{{if .Archived}}<span class="badge badge-archived">Archived</span>{{else if .Open}}<span class="badge badge-ok">Open</span>{{else}}<span class="badge badge-muted">Closed</span>{{end}}{{with .Opens}}<small class="schedule">Opens {{.}}</small>{{end}}{{with .Closes}}<small class="schedule">Closes {{.}}</small>{{end}}</td>
+          <td>{{if .Archived}}<span class="badge badge-archived">{{t "exams.badge.archived"}}</span>{{else if .Open}}<span class="badge badge-ok">{{t "exams.badge.open"}}</span>{{else}}<span class="badge badge-muted">{{t "exams.badge.closed"}}</span>{{end}}{{with .Opens}}<small class="schedule">{{t "exams.opens" .}}</small>{{end}}{{with .Closes}}<small class="schedule">{{t "exams.closes" .}}</small>{{end}}</td>
           <td class="numeric">{{.QuestionCount}}</td>
           <td class="numeric">{{.AttemptCount}}</td>
-          <td class="row-actions">{{if and (not .Archived) (or .Schedule.Set (not .Open))}}<form method="post" action="/admin/exams/{{.ID}}/open"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit" class="secondary">Open</button></form>{{end}}{{if or .Schedule.Set .Open}}<form method="post" action="/admin/exams/{{.ID}}/close"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit" class="secondary">Close</button></form>{{end}} <a href="/admin/exams/{{.ID}}/attempts">Results</a></td>
+          <td class="row-actions">{{if and (not .Archived) (or .Schedule.Set (not .Open))}}<form method="post" action="/admin/exams/{{.ID}}/open"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit" class="secondary">{{t "exams.open"}}</button></form>{{end}}{{if or .Schedule.Set .Open}}<form method="post" action="/admin/exams/{{.ID}}/close"><input type="hidden" name="csrf_token" value="{{$.CSRFToken}}"><button type="submit" class="secondary">{{t "exams.close"}}</button></form>{{end}} <a href="/admin/exams/{{.ID}}/attempts">{{t "exams.results"}}</a></td>
         </tr>
         {{end}}
       </tbody>
     </table>
   </div>
-  {{if .Scheduled}}<p class="zone-note">Times are shown in {{.Zone}}.</p>{{end}}
+  {{if .Scheduled}}<p class="zone-note">{{t "common.times_zone" .Zone}}</p>{{end}}
   {{else if .HiddenArchived}}
-  <p id="all-archived" class="empty">All exams are archived. <a id="show-archived" href="/admin/exams?archived=1">Show archived</a></p>
+  <p id="all-archived" class="empty">{{t "exams.all_archived"}} <a id="show-archived" href="/admin/exams?archived=1">{{t "exams.show_archived"}}</a></p>
   {{else}}
-  <p class="empty">No exams yet. Use New exam to write one, or Import from file to upload one.</p>
+  <p class="empty">{{t "exams.empty"}}</p>
   {{end}}
-  {{if .ShowArchived}}<p class="list-filter"><a id="hide-archived" href="/admin/exams">Hide archived</a></p>{{else if and .Exams .HiddenArchived}}<p class="list-filter"><a id="show-archived" href="/admin/exams?archived=1">Show archived</a></p>{{end}}
+  {{if .ShowArchived}}<p class="list-filter"><a id="hide-archived" href="/admin/exams">{{t "exams.hide_archived"}}</a></p>{{else if and .Exams .HiddenArchived}}<p class="list-filter"><a id="show-archived" href="/admin/exams?archived=1">{{t "exams.show_archived"}}</a></p>{{end}}
   <section id="import" class="import">
-    <h2>Import from a file</h2>
-    <p class="import-lede">Write the exam in a text file, or zip it with its pictures, and upload it here.</p>
+    <h2>{{t "exams.import.heading"}}</h2>
+    <p class="import-lede">{{t "exams.import.lede"}}</p>
     <form id="import-form" method="post" action="/admin/exams" enctype="multipart/form-data">
       <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-      <label for="import-file">Exam file (.md, .txt or .zip, up to 10 MB)</label>
+      <label for="import-file">{{t "exams.import.label"}}</label>
       <div class="upload-row">
         <input type="file" id="import-file" name="file" accept=".md,.txt,.zip" required>
-        <button type="submit" class="secondary">Import exam</button>
+        <button type="submit" class="secondary">{{t "exams.import.submit"}}</button>
       </div>
     </form>
     <details class="format-help">
-      <summary>Exam file format</summary>
-      <p>A complete example:</p>
+      <summary>{{t "exams.format.summary"}}</summary>
+      <p>{{t "exams.format.example_lede"}}</p>
 <pre id="format-example">
-# Chapter 3 quiz
-shuffle: questions, options
-show_result: review
-
-1. What is the **area** of this triangle?
-![A right triangle with legs 3 and 4](triangle.png)
-- 6 *
-- 7
-- 12
-- 14
-
-2. What does this program print?
-```
-fmt.Println(2 + 3)
-```
-- `5` *
-- `23`
-- `2 + 3`
-</pre>
+{{t "exams.format_example"}}</pre>
       <ul>
-        <li>The first line is the title: <code># Title</code>.</li>
-        <li>Optional settings follow the title: <code>shuffle: none | questions | questions, options</code> (default <code>questions</code>), <code>show_result: none | score | review</code> (default <code>score</code>), <code>monitor: on | off</code> (default <code>on</code>; flags leaving the page, copy, paste, right-click and resizing) and <code>duration: &lt;minutes&gt;</code> (a whole number from 5 to 240, default <code>60</code>).</li>
-        <li>Questions are numbered <code>1.</code>, <code>2.</code>, … at the start of a line.</li>
-        <li>A line <code>## Title</code> starts a section. The lines after it, up to the next question, are its instructions, shown above the section's first question. Questions keep their running numbers, and the settings go before the first section.</li>
-        <li>Options start with <code>- </code>. Each question needs at least two.</li>
-        <li>Mark exactly one option per question as correct with a trailing <code>*</code>.</li>
-        <li>Text supports <strong>bold</strong> (<code>**bold**</code>), <em>italics</em> (<code>*italics*</code>), inline <code>`code`</code>, line breaks, fenced code blocks (<code>```</code>) and images (<code>![description](file.png)</code>).</li>
-        <li>To use images, upload a <code>.zip</code> containing the text file and the image files (PNG, JPEG, GIF or WebP).</li>
-        <li>Uploads are limited to 10 MB.</li>
+        <li>{{th "exams.format.title_html"}}</li>
+        <li>{{th "exams.format.settings_html"}}</li>
+        <li>{{th "exams.format.numbers_html"}}</li>
+        <li>{{th "exams.format.sections_html"}}</li>
+        <li>{{th "exams.format.options_html"}}</li>
+        <li>{{th "exams.format.correct_html"}}</li>
+        <li>{{th "exams.format.markup_html"}}</li>
+        <li>{{th "exams.format.images_html"}}</li>
+        <li>{{t "exams.format.limit"}}</li>
       </ul>
     </details>
   </section>

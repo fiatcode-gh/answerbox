@@ -9,11 +9,6 @@ import (
 	"github.com/fiatcode-gh/answerbox/internal/adminauth"
 )
 
-const (
-	invalidEmailMessage = "Enter a valid email address."
-	adminEmailMessage   = "Admin emails are set in ANSWERBOX_ADMIN_EMAILS and cannot be removed here."
-)
-
 // mountTeacherAccounts registers the Teachers page, for admins only.
 func (s *server) mountTeacherAccounts(admin *http.ServeMux) {
 	admin.HandleFunc("GET /admin/teachers", s.adminOnly(s.teacherList))
@@ -48,10 +43,10 @@ type teachersData struct {
 }
 
 func (s *server) teacherList(w http.ResponseWriter, r *http.Request) {
-	s.renderTeachers(w, r, http.StatusOK, "", "")
+	s.renderTeachers(w, r, loc(r), http.StatusOK, "", "")
 }
 
-func (s *server) renderTeachers(w http.ResponseWriter, r *http.Request, status int, addEmail, alert string) {
+func (s *server) renderTeachers(w http.ResponseWriter, r *http.Request, l localizer, status int, addEmail, alert string) {
 	list, err := s.deps.Admin.Teachers(r.Context())
 	if err != nil {
 		s.serverError(w, r, err)
@@ -59,7 +54,7 @@ func (s *server) renderTeachers(w http.ResponseWriter, r *http.Request, status i
 	}
 	rows := make([]teacherRow, len(list))
 	for i, t := range list {
-		row := teacherRow{ID: t.ID, Email: t.Email, Name: t.Name, LastLogin: "Never", Admin: t.Admin, Exams: t.ExamCount}
+		row := teacherRow{ID: t.ID, Email: t.Email, Name: t.Name, LastLogin: l.T("teachers.never"), Admin: t.Admin, Exams: t.ExamCount}
 		if row.Name == "" {
 			row.Name = "—"
 		}
@@ -82,7 +77,8 @@ func (s *server) addTeacher(w http.ResponseWriter, r *http.Request) {
 	err := s.deps.Admin.AddTeacher(r.Context(), email)
 	switch {
 	case errors.Is(err, adminauth.ErrInvalidEmail):
-		s.renderTeachers(w, r, http.StatusUnprocessableEntity, email, invalidEmailMessage)
+		l := loc(r)
+		s.renderTeachers(w, r, l, http.StatusUnprocessableEntity, email, l.T("teachers.invalid_email"))
 	case err != nil:
 		s.serverError(w, r, err)
 	default:
@@ -104,26 +100,27 @@ func (s *server) removeTeacherConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	i := slices.IndexFunc(list, func(t adminauth.Teacher) bool { return t.ID == id })
+	l := loc(r)
 	switch {
 	case i < 0:
 		s.notFound(w, r)
 		return
 	case list[i].Admin:
-		s.renderTeachers(w, r, http.StatusConflict, "", adminEmailMessage)
+		s.renderTeachers(w, r, l, http.StatusConflict, "", l.T("teachers.admin_email"))
 		return
 	}
 	s.confirmPage(w, r, confirmData{
 		adminPage: adminPageFor(r),
-		Heading:   "Remove teacher",
-		Question:  "Remove ‘" + list[i].Email + "’ from the teacher list?",
+		Heading:   l.T("confirm.remove_teacher.heading"),
+		Question:  l.T("confirm.remove_teacher.question", list[i].Email),
 		Notes: []string{
-			"They are signed out at once and cannot sign in again.",
-			"Their exams (" + strconv.Itoa(list[i].ExamCount) + ") stay, and admins keep seeing them. An exam that is open stays open until an admin closes it.",
-			"Adding the same email again gives back the access and the exams.",
+			l.T("confirm.remove_teacher.note_signed_out"),
+			l.T("confirm.remove_teacher.note_exams", list[i].ExamCount),
+			l.T("confirm.remove_teacher.note_add_again"),
 		},
 		FormID: "remove-teacher-form",
 		Action: "/admin/teachers/" + strconv.FormatInt(id, 10) + "/remove",
-		Submit: "Remove teacher",
+		Submit: l.T("confirm.remove_teacher.submit"),
 		Danger: true,
 		Cancel: "/admin/teachers",
 	})
@@ -140,7 +137,8 @@ func (s *server) removeTeacher(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, adminauth.ErrNotFound):
 		s.notFound(w, r)
 	case errors.Is(err, adminauth.ErrAdminEmail):
-		s.renderTeachers(w, r, http.StatusConflict, "", adminEmailMessage)
+		l := loc(r)
+		s.renderTeachers(w, r, l, http.StatusConflict, "", l.T("teachers.admin_email"))
 	case err != nil:
 		s.serverError(w, r, err)
 	default:

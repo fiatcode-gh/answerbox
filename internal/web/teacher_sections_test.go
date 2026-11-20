@@ -407,9 +407,9 @@ func TestSection_FrozenAndNoRevision(t *testing.T) {
 	env := newTestEnv(t)
 	cookie, csrf, _ := env.signIn(t)
 	frozen, _ := env.ownedExam(t, env.owner, "Frozen", true)
-	requireEditorRefused(t, env, frozen, cookie, csrf, frozenNotice, sectionRequests(examPath(frozen)))
+	requireEditorRefused(t, env, frozen, cookie, csrf, enText(t, "examdetail.frozen"), sectionRequests(examPath(frozen)))
 	old := env.examWithoutRevision(t, "EDTSNR", false)
-	requireEditorRefused(t, env, old, cookie, csrf, noRevisionNotice, sectionRequests(examPath(old)))
+	requireEditorRefused(t, env, old, cookie, csrf, enText(t, "examdetail.no_revision"), sectionRequests(examPath(old)))
 }
 
 func TestSection_RequiresCSRF(t *testing.T) {

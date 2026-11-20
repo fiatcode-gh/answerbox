@@ -42,7 +42,7 @@ func (s *server) revisionList(w http.ResponseWriter, r *http.Request) {
 		Exam:             e,
 		Rows:             make([]revisionRow, len(revs)),
 		Zone:             s.deps.Location.String(),
-		NoRevisionNotice: noRevisionNotice,
+		NoRevisionNotice: loc(r).T("examdetail.no_revision"),
 	}
 	for i, rev := range revs {
 		data.Rows[i] = revisionRow{Number: rev.Number, Saved: s.fullTime(rev.CreatedAt), Teacher: rev.TeacherEmail, Summary: rev.Summary}
@@ -79,13 +79,14 @@ func (s *server) revisionDetail(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	l := loc(r)
 	s.page(w, r, http.StatusOK, "admin_revision.html", revisionDetailData{
 		adminPage:      adminPageFor(r),
 		Exam:           e,
 		Revision:       rev,
 		Saved:          s.fullTime(rev.CreatedAt),
-		ShuffleText:    shuffleText[rev.Shuffle],
-		ShowResultText: showResultText[rev.ShowResult],
+		ShuffleText:    l.shuffle(rev.Shuffle),
+		ShowResultText: l.showResult(rev.ShowResult),
 		Zone:           s.deps.Location.String(),
 	})
 }

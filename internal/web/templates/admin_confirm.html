@@ -15,7 +15,7 @@
       {{with .Revision}}<input type="hidden" name="revision" value="{{.}}">{{end}}
       <button type="submit"{{if .Danger}} class="danger"{{end}}>{{.Submit}}</button>
     </form>
-    <a class="button secondary" href="{{.Cancel}}">Cancel</a>
+    <a class="button secondary" href="{{.Cancel}}">{{t "confirm.cancel"}}</a>
   </div>
 </main>
 {{end}}

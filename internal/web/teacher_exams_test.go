@@ -1051,7 +1051,7 @@ func TestDownload_Route(t *testing.T) {
 		t.Errorf("exam without a revision shows the download link")
 	}
 	rec := do(env.h, "GET", old+"/download", cookie)
-	alert := `<div role="alert" class="alert">` + html.EscapeString(noRevisionNotice) + `</div>`
+	alert := `<div role="alert" class="alert">` + html.EscapeString(enText(t, "examdetail.no_revision")) + `</div>`
 	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), alert) {
 		t.Errorf("GET %s/download = %d, want 409 with %s:\n%s", old, rec.Code, alert, rec.Body.String())
 	}
@@ -1126,7 +1126,7 @@ func TestCopy_Flow(t *testing.T) {
 		t.Errorf("exam without a revision shows the copy form")
 	}
 	rec = postForm(env.h, old+"/copy", url.Values{"csrf_token": {csrf}}, cookie)
-	alert := `<div role="alert" class="alert">` + html.EscapeString(noRevisionNotice) + `</div>`
+	alert := `<div role="alert" class="alert">` + html.EscapeString(enText(t, "examdetail.no_revision")) + `</div>`
 	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), alert) {
 		t.Errorf("POST %s/copy = %d, want 409 with %s:\n%s", old, rec.Code, alert, rec.Body.String())
 	}
@@ -1361,7 +1361,7 @@ func TestNoRevision_SentenceOnce(t *testing.T) {
 	env := newTestEnv(t)
 	cookie, csrf, _ := env.signIn(t)
 	old := examPath(env.examWithoutRevision(t, "NRVKDZ", false))
-	notice := html.EscapeString(noRevisionNotice)
+	notice := html.EscapeString(enText(t, "examdetail.no_revision"))
 
 	page := getOK(t, env, old, cookie)
 	if n := strings.Count(page, notice); n != 1 || !strings.Contains(page, `<p id="no-revision" class="frozen-notice">`+notice+`</p>`) {
@@ -1502,7 +1502,7 @@ func TestOpenClose_RefusalsIgnoreFrom(t *testing.T) {
 	if err := env.exams.Archive(context.Background(), env.owner, id); err != nil {
 		t.Fatal(err)
 	}
-	requireAlert(t, press(sid, "open", who, nil), http.StatusConflict, archivedNotice)
+	requireAlert(t, press(sid, "open", who, nil), http.StatusConflict, enText(t, "examdetail.archived_refusal"))
 	env.requireArchivedClosed(t, "open with from=exam", id)
 	requireRedirect(t, press(sid, "close", who, nil), examPath(id))
 	env.requireArchivedClosed(t, "close with from=exam", id)

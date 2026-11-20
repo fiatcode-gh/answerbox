@@ -25,23 +25,14 @@ import (
 var pendingTemplates = []string{
 	"admin_attempt.html",
 	"admin_attempts.html",
-	"admin_confirm.html",
 	"admin_editor_fields.html",
-	"admin_exam.html",
 	"admin_exam_edit.html",
 	"admin_exam_new.html",
 	"admin_exam_settings.html",
-	"admin_exams.html",
-	"admin_header.html",
-	"admin_login.html",
-	"admin_projector.html",
 	"admin_question.html",
-	"admin_questions.html",
 	"admin_revision.html",
 	"admin_revisions.html",
 	"admin_section.html",
-	"admin_signed_in.html",
-	"admin_teachers.html",
 }
 
 // literalAllowed are the only words a template may hold outside an action,
@@ -55,8 +46,8 @@ var literalAllowed = []string{
 
 // computedKeyFuncs may call T or N with a key built at run time; each has
 // its own table test: errorPageMessage TestErrorPage_Texts, Date and Day
-// TestDates.
-var computedKeyFuncs = []string{"errorPageMessage", "Date", "Day"}
+// TestDates, setExamSchedule TestTeacherPages_SameRefusals.
+var computedKeyFuncs = []string{"errorPageMessage", "Date", "Day", "setExamSchedule"}
 
 // enText is the English catalogue text of key; the test fails on an unknown
 // key.

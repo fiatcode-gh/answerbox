@@ -437,14 +437,14 @@ func TestEditor_FrozenEveryRoute(t *testing.T) {
 	env := newTestEnv(t)
 	cookie, csrf, _ := env.signIn(t)
 	id, _ := env.ownedExam(t, env.owner, "Frozen", true)
-	requireEditorRefused(t, env, id, cookie, csrf, frozenNotice, editorRequests(examPath(id)))
+	requireEditorRefused(t, env, id, cookie, csrf, enText(t, "examdetail.frozen"), editorRequests(examPath(id)))
 }
 
 func TestEditor_NoRevisionEveryRoute(t *testing.T) {
 	env := newTestEnv(t)
 	cookie, csrf, _ := env.signIn(t)
 	id := env.examWithoutRevision(t, "EDTNRZ", false)
-	requireEditorRefused(t, env, id, cookie, csrf, noRevisionNotice, editorRequests(examPath(id)))
+	requireEditorRefused(t, env, id, cookie, csrf, enText(t, "examdetail.no_revision"), editorRequests(examPath(id)))
 }
 
 func TestEditor_RequiresCSRF(t *testing.T) {
@@ -1012,9 +1012,9 @@ func TestQuestion_FrozenAndNoRevision(t *testing.T) {
 	env := newTestEnv(t)
 	cookie, csrf, _ := env.signIn(t)
 	frozen, _ := env.ownedExam(t, env.owner, "Frozen", true)
-	requireEditorRefused(t, env, frozen, cookie, csrf, frozenNotice, questionRequests(examPath(frozen)))
+	requireEditorRefused(t, env, frozen, cookie, csrf, enText(t, "examdetail.frozen"), questionRequests(examPath(frozen)))
 	old := env.examWithoutRevision(t, "EDTQNR", false)
-	requireEditorRefused(t, env, old, cookie, csrf, noRevisionNotice, questionRequests(examPath(old)))
+	requireEditorRefused(t, env, old, cookie, csrf, enText(t, "examdetail.no_revision"), questionRequests(examPath(old)))
 }
 
 func TestQuestionAndNewExam_RequireCSRF(t *testing.T) {

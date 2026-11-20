@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -85,8 +84,6 @@ func (s *server) scheduleTime(t time.Time) string {
 	return s.fullTime(t)
 }
 
-const missingFileMessage = "Choose an exam file (.md, .txt or .zip) to upload."
-
 // rerenderFunc renders the form page a request came from again, with status
 // and an alert above the form.
 type rerenderFunc func(status int, alert string)
@@ -94,10 +91,10 @@ type rerenderFunc func(status int, alert string)
 // readUpload reads the "file" part of the multipart form requireTeacher has
 // already parsed. On failure it has responded — 422 through rerender, 413 or
 // 500 — and returns ok false.
-func (s *server) readUpload(w http.ResponseWriter, r *http.Request, rerender rerenderFunc) (data []byte, ok bool) {
+func (s *server) readUpload(w http.ResponseWriter, r *http.Request, l localizer, rerender rerenderFunc) (data []byte, ok bool) {
 	f, _, err := r.FormFile("file")
 	if err != nil {
-		rerender(http.StatusUnprocessableEntity, missingFileMessage)
+		rerender(http.StatusUnprocessableEntity, l.T("exams.missing_file"))
 		return nil, false
 	}
 	defer f.Close()
@@ -108,7 +105,7 @@ func (s *server) readUpload(w http.ResponseWriter, r *http.Request, rerender rer
 	case len(data) > examfile.MaxUploadBytes:
 		s.errorPage(w, r, http.StatusRequestEntityTooLarge)
 	case len(data) == 0:
-		rerender(http.StatusUnprocessableEntity, missingFileMessage)
+		rerender(http.StatusUnprocessableEntity, l.T("exams.missing_file"))
 	default:
 		return data, true
 	}
@@ -116,8 +113,9 @@ func (s *server) readUpload(w http.ResponseWriter, r *http.Request, rerender rer
 }
 
 func (s *server) importExam(w http.ResponseWriter, r *http.Request) {
+	l := loc(r)
 	rerender := func(status int, alert string) { s.renderExamList(w, r, status, alert) }
-	data, ok := s.readUpload(w, r, rerender)
+	data, ok := s.readUpload(w, r, l, rerender)
 	if !ok {
 		return
 	}
@@ -125,7 +123,7 @@ func (s *server) importExam(w http.ResponseWriter, r *http.Request) {
 	var invalid *examfile.Error
 	switch {
 	case errors.As(err, &invalid):
-		rerender(http.StatusUnprocessableEntity, "Import failed: "+invalid.Msg)
+		rerender(http.StatusUnprocessableEntity, l.T("exams.import_failed", l.FileError(invalid)))
 	case err != nil:
 		s.serverError(w, r, err)
 	default:
@@ -137,16 +135,31 @@ func examPath(id int64) string {
 	return "/admin/exams/" + strconv.FormatInt(id, 10)
 }
 
-var shuffleText = map[examfile.Shuffle]string{
-	examfile.ShuffleNone:             "No shuffling",
-	examfile.ShuffleQuestions:        "Questions shuffled",
-	examfile.ShuffleQuestionsOptions: "Questions and options shuffled",
+// shuffle names a shuffle setting; an unknown value is "".
+func (l localizer) shuffle(v examfile.Shuffle) string {
+	switch v {
+	case examfile.ShuffleNone:
+		return l.T("setting.shuffle.none")
+	case examfile.ShuffleQuestions:
+		return l.T("setting.shuffle.questions")
+	case examfile.ShuffleQuestionsOptions:
+		return l.T("setting.shuffle.questions_options")
+	}
+	return ""
 }
 
-var showResultText = map[examfile.ShowResult]string{
-	examfile.ShowNone:   "Nothing",
-	examfile.ShowScore:  "Score",
-	examfile.ShowReview: "Score and review",
+// showResult names what students see after an attempt; an unknown value is
+// "".
+func (l localizer) showResult(v examfile.ShowResult) string {
+	switch v {
+	case examfile.ShowNone:
+		return l.T("setting.show_result.none")
+	case examfile.ShowScore:
+		return l.T("setting.show_result.score")
+	case examfile.ShowReview:
+		return l.T("setting.show_result.review")
+	}
+	return ""
 }
 
 type examDetailData struct {
@@ -186,7 +199,7 @@ func (s *server) examDetail(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
-	s.renderExamDetail(w, r, http.StatusOK, id, "", nil)
+	s.renderExamDetail(w, r, loc(r), http.StatusOK, id, "", nil)
 }
 
 // examID parses the {id} path value; ok is false when it is not a number.
@@ -195,15 +208,9 @@ func examID(r *http.Request) (int64, bool) {
 	return id, err == nil
 }
 
-const frozenNotice = "This exam has attempts, so its questions are frozen."
-
-const noRevisionNotice = "This exam has no revision yet: its stored text could not be turned back into exam text. It works as before, but it has no history and cannot be downloaded or copied."
-
-const archivedNotice = "This exam is archived. Unarchive it to open or schedule it."
-
-// renderExamDetail renders the exam page. typed holds the schedule form
-// values as the teacher entered them; nil fills the form from the exam.
-func (s *server) renderExamDetail(w http.ResponseWriter, r *http.Request, status int, id int64, alert string, typed *scheduleInput) {
+// renderExamDetail renders the exam page in l. typed holds the schedule
+// form values as the teacher entered them; nil fills the form from the exam.
+func (s *server) renderExamDetail(w http.ResponseWriter, r *http.Request, l localizer, status int, id int64, alert string, typed *scheduleInput) {
 	e, err := s.deps.Exams.Get(r.Context(), actorFrom(r), id)
 	if errors.Is(err, exam.ErrNotFound) {
 		s.notFound(w, r)
@@ -223,13 +230,9 @@ func (s *server) renderExamDetail(w http.ResponseWriter, r *http.Request, status
 		s.serverError(w, r, err)
 		return
 	}
-	attemptsLabel := fmt.Sprintf("%d attempts", counts.Total())
-	if counts.Total() == 1 {
-		attemptsLabel = "1 attempt"
-	}
 	archivedOn := ""
 	if e.Archived() {
-		archivedOn = loc(r).Date(e.ArchivedAt.In(s.deps.Location))
+		archivedOn = l.Date(e.ArchivedAt.In(s.deps.Location))
 	}
 	input := scheduleInput{Opens: s.scheduleInputValue(e.Schedule.OpensAt), Closes: s.scheduleInputValue(e.Schedule.ClosesAt)}
 	if typed != nil {
@@ -238,12 +241,12 @@ func (s *server) renderExamDetail(w http.ResponseWriter, r *http.Request, status
 	s.page(w, r, status, "admin_exam.html", examDetailData{
 		adminPage:        adminPageFor(r),
 		Exam:             e,
-		ShuffleText:      shuffleText[e.Shuffle],
-		ShowResultText:   showResultText[e.ShowResult],
+		ShuffleText:      l.shuffle(e.Shuffle),
+		ShowResultText:   l.showResult(e.ShowResult),
 		Questions:        questions,
 		Alert:            alert,
-		FrozenNotice:     frozenNotice,
-		NoRevisionNotice: noRevisionNotice,
+		FrozenNotice:     l.T("examdetail.frozen"),
+		NoRevisionNotice: l.T("examdetail.no_revision"),
 		StudentLink:      s.deps.PublicURL + "/?code=" + e.Code,
 		Opens:            s.scheduleTime(e.Schedule.OpensAt),
 		Closes:           s.scheduleTime(e.Schedule.ClosesAt),
@@ -252,7 +255,7 @@ func (s *server) renderExamDetail(w http.ResponseWriter, r *http.Request, status
 		Zone:             s.deps.Location.String(),
 		ArchivedOn:       archivedOn,
 		Counts:           counts,
-		AttemptsLabel:    attemptsLabel,
+		AttemptsLabel:    l.N("examdetail.attempts", counts.Total()),
 	})
 }
 
@@ -312,15 +315,14 @@ func (s *server) parseScheduleInput(v string) (t time.Time, ok bool) {
 	return t, err == nil
 }
 
-const invalidScheduleTimeMessage = "Enter a valid date and time."
-
+// scheduleMessages are the keys of the schedule rules' refusals.
 var scheduleMessages = []struct {
 	err error
-	msg string
+	key string
 }{
-	{exam.ErrScheduleEmpty, "Enter an open time, a close time or both. To remove the schedule, press Open or Close."},
-	{exam.ErrScheduleOrder, "The close time must be after the open time."},
-	{exam.ErrSchedulePast, "The close time must be in the future."},
+	{exam.ErrScheduleEmpty, "examdetail.schedule.empty"},
+	{exam.ErrScheduleOrder, "examdetail.schedule.order"},
+	{exam.ErrSchedulePast, "examdetail.schedule.past"},
 }
 
 // setExamSchedule gives an exam the open and close times of the schedule
@@ -331,20 +333,21 @@ func (s *server) setExamSchedule(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
+	l := loc(r)
 	typed := scheduleInput{Opens: r.PostFormValue("opens_at"), Closes: r.PostFormValue("closes_at")}
 	rerender := func(alert string) {
-		s.renderExamDetail(w, r, http.StatusUnprocessableEntity, id, alert, &typed)
+		s.renderExamDetail(w, r, l, http.StatusUnprocessableEntity, id, alert, &typed)
 	}
 	opens, okOpens := s.parseScheduleInput(typed.Opens)
 	closes, okCloses := s.parseScheduleInput(typed.Closes)
 	if !okOpens || !okCloses {
-		rerender(invalidScheduleTimeMessage)
+		rerender(l.T("examdetail.schedule.invalid_time"))
 		return
 	}
 	err := s.deps.Exams.SetSchedule(r.Context(), actorFrom(r), id, exam.Schedule{OpensAt: opens, ClosesAt: closes})
 	for _, m := range scheduleMessages {
 		if errors.Is(err, m.err) {
-			rerender(m.msg)
+			rerender(l.T(m.key))
 			return
 		}
 	}
@@ -352,7 +355,7 @@ func (s *server) setExamSchedule(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, exam.ErrNotFound):
 		s.notFound(w, r)
 	case errors.Is(err, exam.ErrArchived):
-		s.renderExamDetail(w, r, http.StatusConflict, id, archivedNotice, nil)
+		s.renderExamDetail(w, r, l, http.StatusConflict, id, l.T("examdetail.archived_refusal"), nil)
 	case err != nil:
 		s.serverError(w, r, err)
 	default:
@@ -366,8 +369,9 @@ func (s *server) replaceExam(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
-	rerender := func(status int, alert string) { s.renderExamDetail(w, r, status, id, alert, nil) }
-	data, ok := s.readUpload(w, r, rerender)
+	l := loc(r)
+	rerender := func(status int, alert string) { s.renderExamDetail(w, r, l, status, id, alert, nil) }
+	data, ok := s.readUpload(w, r, l, rerender)
 	if !ok {
 		return
 	}
@@ -375,9 +379,9 @@ func (s *server) replaceExam(w http.ResponseWriter, r *http.Request) {
 	var invalid *examfile.Error
 	switch {
 	case errors.As(err, &invalid):
-		rerender(http.StatusUnprocessableEntity, "Replace failed: "+invalid.Msg)
+		rerender(http.StatusUnprocessableEntity, l.T("examdetail.replace_failed", l.FileError(invalid)))
 	case errors.Is(err, exam.ErrFrozen):
-		rerender(http.StatusConflict, frozenNotice)
+		rerender(http.StatusConflict, l.T("examdetail.frozen"))
 	case errors.Is(err, exam.ErrNotFound):
 		s.notFound(w, r)
 	case err != nil:
@@ -399,7 +403,8 @@ func (s *server) downloadExam(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, exam.ErrNotFound):
 		s.notFound(w, r)
 	case errors.Is(err, exam.ErrNoRevision):
-		s.renderExamDetail(w, r, http.StatusConflict, id, noRevisionNotice, nil)
+		l := loc(r)
+		s.renderExamDetail(w, r, l, http.StatusConflict, id, l.T("examdetail.no_revision"), nil)
 	case err != nil:
 		s.serverError(w, r, err)
 	default:
@@ -422,7 +427,8 @@ func (s *server) copyExam(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, exam.ErrNotFound):
 		s.notFound(w, r)
 	case errors.Is(err, exam.ErrNoRevision):
-		s.renderExamDetail(w, r, http.StatusConflict, id, noRevisionNotice, nil)
+		l := loc(r)
+		s.renderExamDetail(w, r, l, http.StatusConflict, id, l.T("examdetail.no_revision"), nil)
 	case err != nil:
 		s.serverError(w, r, err)
 	default:
@@ -462,7 +468,8 @@ func (s *server) examAction(change func(context.Context, exam.Actor, int64) erro
 		case errors.Is(err, exam.ErrNotFound):
 			s.notFound(w, r)
 		case errors.Is(err, exam.ErrArchived):
-			s.renderExamDetail(w, r, http.StatusConflict, id, archivedNotice, nil)
+			l := loc(r)
+			s.renderExamDetail(w, r, l, http.StatusConflict, id, l.T("examdetail.archived_refusal"), nil)
 		case err != nil:
 			s.serverError(w, r, err)
 		default:
@@ -491,19 +498,20 @@ func (s *server) archiveConfirm(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, examPath(id), http.StatusSeeOther)
 		return
 	}
+	l := loc(r)
 	s.confirmPage(w, r, confirmData{
 		adminPage: adminPageFor(r),
-		Heading:   "Archive exam",
-		Question:  "Archive ‘" + e.Title + "’?",
+		Heading:   l.T("confirm.archive.heading"),
+		Question:  l.T("confirm.archive.question", e.Title),
 		Notes: []string{
-			"The exam closes now and its schedule is removed. Students in a running attempt keep their time.",
-			"It leaves the exams list. Show archived brings it back into view.",
-			"Results, History, Download and Copy keep working.",
-			"Unarchive returns it closed, without a schedule.",
+			l.T("confirm.archive.note_close"),
+			l.T("confirm.archive.note_list"),
+			l.T("confirm.archive.note_keeps"),
+			l.T("confirm.archive.note_unarchive"),
 		},
 		FormID: "archive-form",
 		Action: examPath(id) + "/archive",
-		Submit: "Archive",
+		Submit: l.T("confirm.archive.submit"),
 		Cancel: examPath(id),
 	})
 }

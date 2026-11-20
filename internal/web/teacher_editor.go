@@ -74,9 +74,11 @@ func (s *server) editorRefused(w http.ResponseWriter, r *http.Request, id int64,
 	case errors.Is(err, exam.ErrNotFound):
 		s.notFound(w, r)
 	case errors.Is(err, exam.ErrNoRevision):
-		s.renderExamDetail(w, r, http.StatusConflict, id, noRevisionNotice, nil)
+		l := loc(r)
+		s.renderExamDetail(w, r, l, http.StatusConflict, id, l.T("examdetail.no_revision"), nil)
 	case errors.Is(err, exam.ErrFrozen):
-		s.renderExamDetail(w, r, http.StatusConflict, id, frozenNotice, nil)
+		l := loc(r)
+		s.renderExamDetail(w, r, l, http.StatusConflict, id, l.T("examdetail.frozen"), nil)
 	default:
 		s.serverError(w, r, err)
 	}
@@ -145,10 +147,12 @@ func (s *server) editorRevision(w http.ResponseWriter, r *http.Request, id int64
 		s.serverError(w, r, err)
 		return exam.Exam{}, exam.Revision{}, false
 	case e.Revision == 0:
-		s.renderExamDetail(w, r, http.StatusConflict, id, noRevisionNotice, nil)
+		l := loc(r)
+		s.renderExamDetail(w, r, l, http.StatusConflict, id, l.T("examdetail.no_revision"), nil)
 		return exam.Exam{}, exam.Revision{}, false
 	case e.AttemptCount > 0:
-		s.renderExamDetail(w, r, http.StatusConflict, id, frozenNotice, nil)
+		l := loc(r)
+		s.renderExamDetail(w, r, l, http.StatusConflict, id, l.T("examdetail.frozen"), nil)
 		return exam.Exam{}, exam.Revision{}, false
 	}
 	rev, err := s.deps.Exams.Revision(r.Context(), id, e.Revision)
@@ -338,31 +342,35 @@ type choice struct {
 	Selected     bool
 }
 
-// settingsInput holds the values of the settings fields as typed.
+// settingsInput holds the values of the settings fields as typed; loc
+// labels the options of its selects.
 type settingsInput struct {
 	Title, Shuffle, ShowResult string
 	Monitor                    bool
 	Duration                   string
+	loc                        localizer
 }
 
-func settingsInputOf(set exam.Settings) settingsInput {
+func settingsInputOf(set exam.Settings, l localizer) settingsInput {
 	return settingsInput{
 		Title:      set.Title,
 		Shuffle:    string(set.Shuffle),
 		ShowResult: string(set.ShowResult),
 		Monitor:    set.Monitor,
 		Duration:   strconv.Itoa(set.DurationMinutes),
+		loc:        l,
 	}
 }
 
 // settingsInputFrom reads the settings fields of the posted form.
-func settingsInputFrom(r *http.Request) settingsInput {
+func settingsInputFrom(r *http.Request, l localizer) settingsInput {
 	return settingsInput{
 		Title:      r.PostFormValue("title"),
 		Shuffle:    r.PostFormValue("shuffle"),
 		ShowResult: r.PostFormValue("show_result"),
 		Monitor:    r.PostForm.Has("monitor"),
 		Duration:   r.PostFormValue("duration"),
+		loc:        l,
 	}
 }
 
@@ -387,7 +395,7 @@ func (in settingsInput) settings() exam.Settings {
 func (in settingsInput) ShuffleChoices() []choice {
 	out := make([]choice, 0, 3)
 	for _, v := range []examfile.Shuffle{examfile.ShuffleNone, examfile.ShuffleQuestions, examfile.ShuffleQuestionsOptions} {
-		out = append(out, choice{Value: string(v), Label: shuffleText[v], Selected: in.Shuffle == string(v)})
+		out = append(out, choice{Value: string(v), Label: in.loc.shuffle(v), Selected: in.Shuffle == string(v)})
 	}
 	return out
 }
@@ -397,7 +405,7 @@ func (in settingsInput) ShuffleChoices() []choice {
 func (in settingsInput) ShowResultChoices() []choice {
 	out := make([]choice, 0, 3)
 	for _, v := range []examfile.ShowResult{examfile.ShowNone, examfile.ShowScore, examfile.ShowReview} {
-		out = append(out, choice{Value: string(v), Label: showResultText[v], Selected: in.ShowResult == string(v)})
+		out = append(out, choice{Value: string(v), Label: in.loc.showResult(v), Selected: in.ShowResult == string(v)})
 	}
 	return out
 }
@@ -440,7 +448,7 @@ func (s *server) settingsPage(w http.ResponseWriter, r *http.Request) {
 		ExamID:    id,
 		ExamTitle: src.Settings.Title,
 		Revision:  strconv.Itoa(src.Revision),
-		Input:     settingsInputOf(src.Settings),
+		Input:     settingsInputOf(src.Settings, loc(r)),
 	})
 }
 
@@ -449,7 +457,7 @@ func (s *server) saveSettings(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	in := settingsInputFrom(r)
+	in := settingsInputFrom(r, loc(r))
 	err := s.deps.Exams.SaveSettings(r.Context(), actorFrom(r), id, formInt(r, "revision"), in.settings())
 	rerender := func(status int, alert string) {
 		s.page(w, r, status, "admin_exam_settings.html", settingsData{
@@ -807,6 +815,7 @@ func (s *server) newExamPage(w http.ResponseWriter, r *http.Request) {
 			ShowResult: string(examfile.ShowScore),
 			Monitor:    true,
 			Duration:   strconv.Itoa(examfile.DefaultDurationMinutes),
+			loc:        loc(r),
 		},
 		Fields: blankQuestionForm().fields(false),
 	})
@@ -815,7 +824,7 @@ func (s *server) newExamPage(w http.ResponseWriter, r *http.Request) {
 // createExam answers the new-exam form: an option action re-renders it,
 // do=save creates the exam and goes to its editor page.
 func (s *server) createExam(w http.ResponseWriter, r *http.Request) {
-	in := settingsInputFrom(r)
+	in := settingsInputFrom(r, loc(r))
 	form := questionFormFrom(r)
 	img := postedImage(r)
 	rerender := func(status int, alert string) {

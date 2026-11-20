@@ -233,7 +233,7 @@ func TestArchive_OpenAndScheduleRefused409(t *testing.T) {
 		{"empty schedule", func() *httptest.ResponseRecorder { return schedule("", "") }},
 		{"past close", func() *httptest.ResponseRecorder { return schedule("", "2026-11-01T08:00") }},
 	} {
-		requireAlert(t, c.rec(), http.StatusConflict, archivedNotice)
+		requireAlert(t, c.rec(), http.StatusConflict, enText(t, "examdetail.archived_refusal"))
 		env.requireArchivedClosed(t, c.label, id)
 	}
 

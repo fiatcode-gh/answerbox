@@ -161,12 +161,12 @@ func TestExamPage_HistoryLinkAndNoRevisionNotice(t *testing.T) {
 	}
 
 	old := examPath(env.examWithoutRevision(t, "HANDZZ", false))
-	notice := `<p id="no-revision" class="frozen-notice">` + noRevisionNotice + `</p>`
+	notice := `<p id="no-revision" class="frozen-notice">` + enText(t, "examdetail.no_revision") + `</p>`
 	if body := getOK(t, env, old, cookie); !strings.Contains(body, notice) {
 		t.Errorf("exam page without a revision lacks %s:\n%s", notice, body)
 	}
 	history := getOK(t, env, old+"/revisions", cookie)
-	if !strings.Contains(history, `<p id="no-revision" class="empty">`+noRevisionNotice+`</p>`) || strings.Contains(history, `id="revisions"`) {
+	if !strings.Contains(history, `<p id="no-revision" class="empty">`+enText(t, "examdetail.no_revision")+`</p>`) || strings.Contains(history, `id="revisions"`) {
 		t.Errorf("history without a revision: want the notice and no #revisions:\n%s", history)
 	}
 }
