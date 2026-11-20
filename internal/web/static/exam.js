@@ -772,6 +772,77 @@
     submit();
   });
 
+  // ---- Language switch ---------------------------------------------------
+  // A press of the switch first sends what is unsent and waits until every
+  // answer is saved (at most SWITCH_WAIT_MS), then submits the switch's form.
+  // If saving does not finish, nothing navigates; the save line says why.
+
+  var SWITCH_WAIT_MS = 5000;
+  var langSwitch = document.getElementById("lang-switch");
+  var langForm = langSwitch && langSwitch.querySelector("form");
+
+  if (langForm) {
+    var langButtons = langForm.querySelectorAll("button[name=lang]");
+    var langInput = null;
+    var switchWaiting = false;
+
+    var setLangButtonsDisabled = function (disabled) {
+      Array.prototype.forEach.call(langButtons, function (button) {
+        button.disabled = disabled;
+      });
+    };
+
+    var goToLanguage = function (value) {
+      if (langInput === null) {
+        langInput = document.createElement("input");
+        langInput.type = "hidden";
+        langInput.name = "lang";
+        langForm.appendChild(langInput);
+      }
+      langInput.value = value;
+      leaving = true;
+      langForm.submit();
+    };
+
+    var switchLanguage = function (value) {
+      if (switchWaiting || (stopped && !moved)) {
+        return;
+      }
+      if (moved) {
+        goToLanguage(value);
+        return;
+      }
+      switchWaiting = true;
+      setLangButtonsDisabled(true);
+      questions.forEach(function (q) {
+        if (q.typeTimer !== null) {
+          clearTypeTimer(q);
+          pump(q);
+        }
+      });
+      var since = performance.now();
+      (function waitForSaves() {
+        if (!anyUnsaved() && !anyInFlight()) {
+          goToLanguage(value);
+          return;
+        }
+        if (performance.now() - since >= SWITCH_WAIT_MS) {
+          switchWaiting = false;
+          setLangButtonsDisabled(false);
+          return;
+        }
+        setTimeout(waitForSaves, 50);
+      })();
+    };
+
+    Array.prototype.forEach.call(langButtons, function (button) {
+      button.addEventListener("click", function (event) {
+        event.preventDefault();
+        switchLanguage(button.value);
+      });
+    });
+  }
+
   // ---- Boot ----------------------------------------------------------------
 
   document.documentElement.classList.add("js");
