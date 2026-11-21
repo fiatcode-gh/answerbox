@@ -31,7 +31,7 @@ Answerbox is a small, self-hosted web app for classroom exams. Students join wit
 | Score, or score plus a review, as you choose | Open and close by hand or on a schedule, several exams at once |
 | Light and dark, readable type, big tap targets | A projector view of the code for the room |
 | Resume an interrupted exam anywhere | Results with filters, per-section scores and a CSV export |
-| Pages in Indonesian or English, as the browser prefers | Every change saved as a revision; download, copy and archive exams |
+| Pages in Indonesian or English: the browser's language at first, then the menu at the top right of every page, which remembers the choice | Every change saved as a revision; download, copy and archive exams |
 
 | | |
 | --- | --- |

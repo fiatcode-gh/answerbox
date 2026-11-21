@@ -450,14 +450,13 @@ func (s *server) attemptDetail(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	s.renderAttemptDetail(w, r, http.StatusOK, e, d, d.StudentName, "")
+	s.renderAttemptDetail(w, r, loc(r), http.StatusOK, e, d, d.StudentName, "")
 }
 
 // renderAttemptDetail renders the attempt page. renameName fills the rename
 // field; a non-empty alert reports a refused rename or mark.
-func (s *server) renderAttemptDetail(w http.ResponseWriter, r *http.Request, status int,
+func (s *server) renderAttemptDetail(w http.ResponseWriter, r *http.Request, l localizer, status int,
 	e exam.Exam, d attempt.Detail, renameName, alert string) {
-	l := loc(r)
 	data := attemptDetailData{
 		adminPage:  adminPageFor(r),
 		Exam:       e,
@@ -505,7 +504,8 @@ func (s *server) attemptRename(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, attempt.ErrInvalidName):
 		if e, d, ok := s.resultsAttempt(w, r); ok {
-			s.renderAttemptDetail(w, r, http.StatusUnprocessableEntity, e, d, name, loc(r).T("attempt.rename_refused"))
+			l := loc(r)
+			s.renderAttemptDetail(w, r, l, http.StatusUnprocessableEntity, e, d, name, l.T("attempt.rename_refused"))
 		}
 	case errors.Is(err, attempt.ErrNotFound):
 		s.notFound(w, r)
@@ -534,18 +534,19 @@ func (s *server) attemptOverride(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err = s.deps.Attempts.Override(r.Context(), e.ID, aid, n, actorFrom(r).TeacherID, attempt.Mark(r.PostFormValue("mark")))
+	l := loc(r)
 	refused := func(status int, alert string) {
 		if e, d, ok := s.resultsAttempt(w, r); ok {
-			s.renderAttemptDetail(w, r, status, e, d, d.StudentName, alert)
+			s.renderAttemptDetail(w, r, l, status, e, d, d.StudentName, alert)
 		}
 	}
 	switch {
 	case errors.Is(err, attempt.ErrNotFound):
 		s.notFound(w, r)
 	case errors.Is(err, attempt.ErrInProgress):
-		refused(http.StatusConflict, loc(r).T("attempt.override_in_progress"))
+		refused(http.StatusConflict, l.T("attempt.override_in_progress"))
 	case errors.Is(err, attempt.ErrNotOverridable), errors.Is(err, attempt.ErrInvalidMark):
-		refused(http.StatusUnprocessableEntity, loc(r).T("attempt.override_refused"))
+		refused(http.StatusUnprocessableEntity, l.T("attempt.override_refused"))
 	case err != nil:
 		s.serverError(w, r, err)
 	default:

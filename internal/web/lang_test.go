@@ -38,6 +38,15 @@ func TestPreferIndonesian(t *testing.T) {
 		{"en;q=0, id;q=0.1", true},
 		{"id;q=nan", false},
 		{",,id", true},
+		{"id;q=0x1p-1", false},
+		{"id;q=5e-1", false},
+		{"id;q=0.5000", false},
+		{"id;q=1.001", false},
+		{"id;q=.5", false},
+		{"id;q=+0.5", false},
+		{"id;q=1.000, en;q=0.999", true},
+		{"id;q=1., en;q=0.", true},
+		{"en;q=0.001, id;q=0.002", true},
 	} {
 		if got := preferIndonesian(tc.header); got != tc.want {
 			t.Errorf("preferIndonesian(%q) = %v, want %v", tc.header, got, tc.want)
@@ -155,7 +164,8 @@ func TestErrorPage_Indonesian(t *testing.T) {
 // TestErrorPage_Texts is the table test of errorPageMessage's computed keys:
 // every status the app answers with the error page shows its title and
 // message in both languages, English as the page said before, and any other
-// status keeps its standard title with the 400 message.
+// status shows the generic texts: in English its standard title with the
+// 400 message as before, in Indonesian no English at all.
 func TestErrorPage_Texts(t *testing.T) {
 	env := newTestEnv(t)
 	s, err := newServer(env.deps)
@@ -192,8 +202,17 @@ func TestErrorPage_Texts(t *testing.T) {
 			t.Errorf("id %d: want the texts of %s:\n%s", status, key, body)
 		}
 	}
-	if body := render(http.StatusConflict, langID); !shows(body, http.StatusText(http.StatusConflict), idText(t, "error.400.message")) {
-		t.Errorf("other status:\n%s", body)
+	for _, status := range []int{http.StatusConflict, http.StatusServiceUnavailable} {
+		if body := render(status, langEN); !shows(body, http.StatusText(status), "The request could not be completed.") {
+			t.Errorf("en other status %d:\n%s", status, body)
+		}
+		body := render(status, langID)
+		if english := http.StatusText(status); strings.Contains(body, english) {
+			t.Errorf("id other status %d shows %q:\n%s", status, english, body)
+		}
+		if !shows(body, idText(t, "error.other.title"), idText(t, "error.other.message")) {
+			t.Errorf("id other status %d: want the texts of error.other:\n%s", status, body)
+		}
 	}
 }
 

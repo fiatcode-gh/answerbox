@@ -125,14 +125,18 @@ func (s *server) errorPage(w http.ResponseWriter, r *http.Request, status int) {
 
 // errorPageMessage renders error.html for status in the request's language;
 // a non-empty message replaces the standard one. A status without texts of
-// its own keeps its standard title and gets the 400 message.
+// its own gets the error.other texts, titled in English with its standard
+// text.
 func (s *server) errorPageMessage(w http.ResponseWriter, r *http.Request, status int, message string) {
 	l := loc(r)
-	data := errorData{Title: http.StatusText(status), Message: l.T("error.400.message")}
+	key := "error.other"
 	switch status {
 	case http.StatusBadRequest, http.StatusForbidden, http.StatusNotFound, http.StatusRequestEntityTooLarge, http.StatusInternalServerError:
-		key := "error." + strconv.Itoa(status)
-		data.Title, data.Message = l.T(key+".title"), l.T(key+".message")
+		key = "error." + strconv.Itoa(status)
+	}
+	data := errorData{Title: l.T(key + ".title"), Message: l.T(key + ".message")}
+	if key == "error.other" && l.lang == langEN {
+		data.Title = http.StatusText(status)
 	}
 	if message != "" {
 		data.Message = message

@@ -24,6 +24,10 @@ var coreMessages = bundle{
 		"error.csrf_expired":  "This form has expired. Go back, reload the page and try again.",
 		"error.start_page":    "Go to the start page",
 		"error.teacher_pages": "Teacher pages",
+		// error.other is any other status. The English page titles it with
+		// the status's standard text instead of error.other.title.
+		"error.other.title":   "Request not completed",
+		"error.other.message": "The request could not be completed.",
 
 		"common.times_zone": "Times are shown in %s.",
 
@@ -66,6 +70,8 @@ var coreMessages = bundle{
 		"error.csrf_expired":  "Formulir ini sudah kedaluwarsa. Kembali, muat ulang halaman, lalu coba lagi.",
 		"error.start_page":    "Ke halaman awal",
 		"error.teacher_pages": "Halaman guru",
+		"error.other.title":   "Permintaan tidak berhasil",
+		"error.other.message": "Permintaan ini tidak bisa diselesaikan.",
 
 		"common.times_zone": "Waktu ditampilkan dalam zona %s.",
 

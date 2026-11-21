@@ -45,7 +45,7 @@ func requestLang(r *http.Request) lang {
 // preferIndonesian reports whether an Accept-Language header ranks
 // Indonesian above English: its best q is higher, or equal and above 0 with
 // the first Indonesian range before the first English one. A range without
-// q has q 1; a q that is not a number from 0 to 1, or is 0, drops the range.
+// q has q 1; a q that is not an RFC 9110 qvalue, or is 0, drops the range.
 // Indonesian is the primary subtag "id" or the retired "in"; any other
 // language, and "*", is ignored.
 func preferIndonesian(header string) bool {
@@ -90,13 +90,34 @@ func rangeQ(params string) (q float64, ok bool) {
 		if !found || !strings.EqualFold(strings.TrimSpace(name), "q") {
 			continue
 		}
-		v, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
-		if err != nil || !(v > 0 && v <= 1) {
+		v, valid := qValue(strings.TrimSpace(value))
+		if !valid || v == 0 {
 			return 0, false
 		}
 		q = v
 	}
 	return q, true
+}
+
+// qValue reads an RFC 9110 qvalue: "0" or "1", optionally followed by "."
+// and up to three digits, all zeros after "1".
+func qValue(s string) (float64, bool) {
+	if s == "" || (s[0] != '0' && s[0] != '1') {
+		return 0, false
+	}
+	if len(s) > 1 {
+		frac, ok := strings.CutPrefix(s[1:], ".")
+		if !ok || len(frac) > 3 {
+			return 0, false
+		}
+		for _, c := range []byte(frac) {
+			if c < '0' || c > '9' || (s[0] == '1' && c != '0') {
+				return 0, false
+			}
+		}
+	}
+	q, err := strconv.ParseFloat(s, 64)
+	return q, err == nil
 }
 
 // langCookieMaxAge keeps the chosen language for a year.

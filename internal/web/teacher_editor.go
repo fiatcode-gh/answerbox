@@ -338,13 +338,13 @@ type choice struct {
 	Selected     bool
 }
 
-// settingsInput holds the values of the settings fields as typed; loc
-// labels the options of its selects.
+// settingsInput holds the values of the settings fields as typed; l labels
+// the options of its selects.
 type settingsInput struct {
 	Title, Shuffle, ShowResult string
 	Monitor                    bool
 	Duration                   string
-	loc                        localizer
+	l                          localizer
 }
 
 func settingsInputOf(set exam.Settings, l localizer) settingsInput {
@@ -354,7 +354,7 @@ func settingsInputOf(set exam.Settings, l localizer) settingsInput {
 		ShowResult: string(set.ShowResult),
 		Monitor:    set.Monitor,
 		Duration:   strconv.Itoa(set.DurationMinutes),
-		loc:        l,
+		l:          l,
 	}
 }
 
@@ -366,7 +366,7 @@ func settingsInputFrom(r *http.Request, l localizer) settingsInput {
 		ShowResult: r.PostFormValue("show_result"),
 		Monitor:    r.PostForm.Has("monitor"),
 		Duration:   r.PostFormValue("duration"),
-		loc:        l,
+		l:          l,
 	}
 }
 
@@ -391,7 +391,7 @@ func (in settingsInput) settings() exam.Settings {
 func (in settingsInput) ShuffleChoices() []choice {
 	out := make([]choice, 0, 3)
 	for _, v := range []examfile.Shuffle{examfile.ShuffleNone, examfile.ShuffleQuestions, examfile.ShuffleQuestionsOptions} {
-		out = append(out, choice{Value: string(v), Label: in.loc.shuffle(v), Selected: in.Shuffle == string(v)})
+		out = append(out, choice{Value: string(v), Label: in.l.shuffle(v), Selected: in.Shuffle == string(v)})
 	}
 	return out
 }
@@ -401,7 +401,7 @@ func (in settingsInput) ShuffleChoices() []choice {
 func (in settingsInput) ShowResultChoices() []choice {
 	out := make([]choice, 0, 3)
 	for _, v := range []examfile.ShowResult{examfile.ShowNone, examfile.ShowScore, examfile.ShowReview} {
-		out = append(out, choice{Value: string(v), Label: in.loc.showResult(v), Selected: in.ShowResult == string(v)})
+		out = append(out, choice{Value: string(v), Label: in.l.showResult(v), Selected: in.ShowResult == string(v)})
 	}
 	return out
 }
@@ -811,7 +811,7 @@ func (s *server) newExamPage(w http.ResponseWriter, r *http.Request) {
 			ShowResult: string(examfile.ShowScore),
 			Monitor:    true,
 			Duration:   strconv.Itoa(examfile.DefaultDurationMinutes),
-			loc:        loc(r),
+			l:          loc(r),
 		},
 		Fields: blankQuestionForm().fields(false),
 	})
