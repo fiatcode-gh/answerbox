@@ -1,24 +1,24 @@
 {{define "settings_fields"}}
 <div class="settings-fields">
-  <label for="exam-title" class="settings-title">Title
+  <label for="exam-title" class="settings-title">{{t "editor.field.title"}}
     <input type="text" id="exam-title" name="title" value="{{.Title}}" required>
   </label>
-  <label for="exam-shuffle">Shuffle
+  <label for="exam-shuffle">{{t "editor.field.shuffle"}}
     <select id="exam-shuffle" name="shuffle">
       {{range .ShuffleChoices}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
     </select>
   </label>
-  <label for="exam-show-result">Result shown to students
+  <label for="exam-show-result">{{t "editor.field.show_result"}}
     <select id="exam-show-result" name="show_result">
       {{range .ShowResultChoices}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
     </select>
   </label>
-  <label for="exam-duration">Length in minutes
+  <label for="exam-duration">{{t "editor.field.duration"}}
     <input type="number" id="exam-duration" name="duration" value="{{.Duration}}" min="5" max="240" required>
   </label>
   <label for="exam-monitor" class="settings-monitor">
     <input type="checkbox" id="exam-monitor" name="monitor" value="on"{{if .Monitor}} checked{{end}}>
-    Monitor: block copy and paste and report when students leave the exam page
+    {{t "editor.field.monitor"}}
   </label>
 </div>
 {{end}}
@@ -26,49 +26,49 @@
 {{define "question_fields"}}
 <div class="question-fields">
   <input type="hidden" name="kind" value="{{if .FillIn}}fill_in{{else}}choice{{end}}">
-  <p class="question-kind"><span class="kind-label">Question type:</span> <strong>{{if .FillIn}}Fill-in{{else}}Multiple choice{{end}}</strong> {{if .FillIn}}<button type="submit" class="secondary" name="do" value="kind:choice" formnovalidate>Switch to multiple choice</button>{{else}}<button type="submit" class="secondary" name="do" value="kind:fill_in" formnovalidate>Switch to fill-in</button>{{end}}</p>
-  <label for="question-text">Question text</label>
+  <p class="question-kind"><span class="kind-label">{{t "question.type"}}</span> <strong>{{if .FillIn}}{{t "question.kind.fill_in"}}{{else}}{{t "question.kind.choice"}}{{end}}</strong> {{if .FillIn}}<button type="submit" class="secondary" name="do" value="kind:choice" formnovalidate>{{t "question.switch_to_choice"}}</button>{{else}}<button type="submit" class="secondary" name="do" value="kind:fill_in" formnovalidate>{{t "question.switch_to_fill_in"}}</button>{{end}}</p>
+  <label for="question-text">{{t "question.text_label"}}</label>
   <textarea id="question-text" name="text" rows="6">
 {{.Text}}</textarea>
   <fieldset class="option-list"{{if .FillIn}} hidden{{end}}>
-    <legend>Options</legend>
+    <legend>{{t "question.options"}}</legend>
     {{range .Options}}
     <div class="option-row">
-      <label class="option-correct"><input type="radio" name="correct" value="{{.Index}}"{{if .Checked}} checked{{end}}> Correct</label>
-      <textarea name="option" rows="2" aria-label="Option {{.Number}}">
+      <label class="option-correct"><input type="radio" name="correct" value="{{.Index}}"{{if .Checked}} checked{{end}}> {{t "question.correct"}}</label>
+      <textarea name="option" rows="2" aria-label="{{t "question.option_label" .Number}}">
 {{.Text}}</textarea>
       <div class="option-buttons">
-        {{if .Up}}<button type="submit" class="quiet" name="do" value="up:{{.Index}}" formnovalidate>Up</button>{{end}}
-        {{if .Down}}<button type="submit" class="quiet" name="do" value="down:{{.Index}}" formnovalidate>Down</button>{{end}}
-        {{if .Remove}}<button type="submit" class="quiet" name="do" value="remove:{{.Index}}" formnovalidate>Remove</button>{{end}}
+        {{if .Up}}<button type="submit" class="quiet" name="do" value="up:{{.Index}}" formnovalidate>{{t "question.up"}}</button>{{end}}
+        {{if .Down}}<button type="submit" class="quiet" name="do" value="down:{{.Index}}" formnovalidate>{{t "question.down"}}</button>{{end}}
+        {{if .Remove}}<button type="submit" class="quiet" name="do" value="remove:{{.Index}}" formnovalidate>{{t "question.remove"}}</button>{{end}}
       </div>
     </div>
     {{end}}
   </fieldset>
-  {{if .CanAdd}}<div class="option-add"{{if .FillIn}} hidden{{end}}><button type="submit" class="secondary" name="do" value="add" formnovalidate>Add option</button></div>{{end}}
+  {{if .CanAdd}}<div class="option-add"{{if .FillIn}} hidden{{end}}><button type="submit" class="secondary" name="do" value="add" formnovalidate>{{t "question.add_option"}}</button></div>{{end}}
   <fieldset class="answer-list"{{if not .FillIn}} hidden{{end}}>
-    <legend>Accepted answers</legend>
+    <legend>{{t "question.answers"}}</legend>
     {{range .Answers}}
     <div class="answer-row">
-      <input type="text" name="answer" value="{{.Text}}" maxlength="200" autocomplete="off" aria-label="Accepted answer {{.Number}}">
-      {{if .Remove}}<button type="submit" class="quiet" name="do" value="answer-remove:{{.Index}}" formnovalidate>Remove</button>{{end}}
+      <input type="text" name="answer" value="{{.Text}}" maxlength="200" autocomplete="off" aria-label="{{t "question.answer_label" .Number}}">
+      {{if .Remove}}<button type="submit" class="quiet" name="do" value="answer-remove:{{.Index}}" formnovalidate>{{t "question.remove"}}</button>{{end}}
     </div>
     {{end}}
-    {{if .CanAddAnswer}}<div class="answer-add"><button type="submit" class="secondary" name="do" value="answer-add" formnovalidate>Add accepted answer</button></div>{{end}}
-    <small>A typed answer is right when it matches one of these, ignoring capital letters and extra spaces. Numbers match by value: 1.003 and 1003, or 0,5 and 0,50.</small>
+    {{if .CanAddAnswer}}<div class="answer-add"><button type="submit" class="secondary" name="do" value="answer-add" formnovalidate>{{t "question.add_answer"}}</button></div>{{end}}
+    <small>{{t "question.answers_note"}}</small>
   </fieldset>
-  <label for="question-image">Add an image (PNG, JPEG, GIF or WebP, up to 5 MB)</label>
+  <label for="question-image">{{t "editor.image_label"}}</label>
   <input type="file" id="question-image" name="image" accept="image/png,image/jpeg,image/gif,image/webp" aria-describedby="question-image-note">
-  {{if .ImageDropped}}<p class="image-dropped">The image was not kept. Choose it again.</p>{{end}}
-  <small id="question-image-note">Saving adds the image on a new line at the end of the question text. Move that line to place it elsewhere, also into an option.</small>
+  {{if .ImageDropped}}<p class="image-dropped">{{t "editor.image_dropped"}}</p>{{end}}
+  <small id="question-image-note">{{t "question.image_note"}}</small>
   <details class="format-help">
-    <summary>Text format</summary>
+    <summary>{{t "editor.format_help"}}</summary>
     <ul>
-      <li><strong>Bold</strong>: <code>**bold**</code>; <em>italics</em>: <code>*italics*</code>; inline code: <code>`code`</code>.</li>
-      <li>Code blocks: a line <code>```</code> before and after the code.</li>
-      <li>Images: <code>![description](file.png)</code>, as on the import page.</li>
-      <li>As in an exam file, a line that starts with <code>-</code> is read as an option and an option that ends with <code>*</code> is read as the correct one. Write <code>\-</code> or <code>\*</code> to show the character.</li>
-      <li>In an exam file, a fill-in question lists its accepted answers on lines that start with <code>=</code> instead of option lines. An accepted answer is plain text on one line, up to 200 characters. A line of question or option text that starts with <code>=</code> stays text.</li>
+      <li>{{th "question.format.inline_html"}}</li>
+      <li>{{th "question.format.code_html"}}</li>
+      <li>{{th "question.format.images_html"}}</li>
+      <li>{{th "question.format.options_html"}}</li>
+      <li>{{th "question.format.fill_in_html"}}</li>
     </ul>
   </details>
 </div>

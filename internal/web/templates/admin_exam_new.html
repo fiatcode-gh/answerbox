@@ -1,20 +1,20 @@
-{{define "title"}}New exam · Answerbox{{end}}
+{{define "title"}}{{t "editor.new_exam"}} · Answerbox{{end}}
 
 {{define "header"}}{{template "admin_header" .}}{{end}}
 
 {{define "main"}}
 <main class="container admin new-exam-page">
-  <p class="back"><a href="/admin/exams">← All exams</a></p>
-  <h1>New exam</h1>
+  <p class="back"><a href="/admin/exams">← {{t "editor.all_exams"}}</a></p>
+  <h1>{{t "editor.new_exam"}}</h1>
   {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
   <form id="new-exam-form" method="post" enctype="multipart/form-data" action="/admin/exams/new">
-    <button type="submit" name="do" value="save" class="visually-hidden" tabindex="-1" aria-hidden="true">Save</button>
+    <button type="submit" name="do" value="save" class="visually-hidden" tabindex="-1" aria-hidden="true">{{t "editor.save"}}</button>
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     {{template "settings_fields" .Input}}
-    <h2>Question 1</h2>
+    <h2>{{t "editor.question" 1}}</h2>
     {{template "question_fields" .Fields}}
-    <div class="form-actions"><button type="submit" id="save" name="do" value="save">Create exam</button> <a class="quiet" href="/admin/exams">Cancel</a></div>
+    <div class="form-actions"><button type="submit" id="save" name="do" value="save">{{t "editor.create_exam"}}</button> <a class="quiet" href="/admin/exams">{{t "editor.cancel"}}</a></div>
   </form>
-  <p class="zone-note">The new exam is closed. Add more questions on its editor page.</p>
+  <p class="zone-note">{{t "editor.new_exam_note"}}</p>
 </main>
 {{end}}

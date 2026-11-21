@@ -22,14 +22,7 @@ import (
 
 // pendingTemplates are skipped by TestTemplates_NoLiteralText until the task
 // that moves their text into the catalogue deletes their name here.
-var pendingTemplates = []string{
-	"admin_editor_fields.html",
-	"admin_exam_edit.html",
-	"admin_exam_new.html",
-	"admin_exam_settings.html",
-	"admin_question.html",
-	"admin_section.html",
-}
+var pendingTemplates = []string{}
 
 // literalAllowed are the only words a template may hold outside an action,
 // <code> and <pre>.

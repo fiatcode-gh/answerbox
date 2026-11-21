@@ -248,7 +248,7 @@ func TestQuestion_FillInRefusedKeepsTypedAnswers(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec = formPost(t, env, detail+"/questions/2", fillInSaveForm("1", "Typed stale", "a", "b"), nil, cookie, csrf)
-	requireAlert(t, rec, http.StatusConflict, staleNotice)
+	requireAlert(t, rec, http.StatusConflict, enText(t, "editor.stale"))
 	requireKind(t, rec.Body.String(), true)
 	requireAnswers(t, rec.Body.String(), []string{"a", "b"})
 	requireShown(t, rec.Body.String(), shownForm{"Typed stale", []string{"o1", "o2"}, 0})

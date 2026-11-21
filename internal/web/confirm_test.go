@@ -121,7 +121,7 @@ func TestConfirm_RemoveQuestion(t *testing.T) {
 	// The page went out of date: another save lands before its form is posted.
 	stale := postedRevision(t, body)
 	requireRedirect(t, editorPost(env, detail, "/questions/1/move", url.Values{"revision": {"1"}, "to": {"2"}}, cookie, csrf), detail+"/edit")
-	requireAlert(t, editorPost(env, detail, "/questions/2/remove", url.Values{"revision": {stale}}, cookie, csrf), http.StatusConflict, staleNotice)
+	requireAlert(t, editorPost(env, detail, "/questions/2/remove", url.Values{"revision": {stale}}, cookie, csrf), http.StatusConflict, enText(t, "editor.stale"))
 	if q := env.questionCount(t, id); q != 3 {
 		t.Errorf("stale removal left %d questions, want 3", q)
 	}

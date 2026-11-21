@@ -14,11 +14,6 @@ import (
 	"github.com/fiatcode-gh/answerbox/internal/examfile"
 )
 
-const staleNotice = "This exam changed since you opened this page. Nothing was saved."
-
-// notSavedPrefix starts the alert of an editor save the file rules refused.
-const notSavedPrefix = "Not saved: "
-
 // mountTeacherEditor registers the exam editor on the admin sub-mux. The
 // rules of every save live in exam.Service; these handlers only read the
 // path and form values and choose the answer.
@@ -90,14 +85,15 @@ func (s *server) editorRefused(w http.ResponseWriter, r *http.Request, id int64,
 // page, with 422 and "Not saved: …" when the file rules refused the text or
 // image, and editorRefused for anything else.
 func (s *server) answerSave(w http.ResponseWriter, r *http.Request, id int64, err error, target string, rerender rerenderFunc) {
+	l := loc(r)
 	var invalid *examfile.Error
 	switch {
 	case err == nil:
 		http.Redirect(w, r, target, http.StatusSeeOther)
 	case errors.Is(err, exam.ErrStale):
-		rerender(http.StatusConflict, staleNotice)
+		rerender(http.StatusConflict, l.T("editor.stale"))
 	case errors.As(err, &invalid):
-		rerender(http.StatusUnprocessableEntity, notSavedPrefix+invalid.Msg)
+		rerender(http.StatusUnprocessableEntity, l.T("editor.not_saved", l.FileError(invalid)))
 	default:
 		s.editorRefused(w, r, id, err)
 	}
@@ -251,27 +247,27 @@ func (s *server) removeQuestionConfirm(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	alone := rev.Questions[n-1].Section != nil && (n == len(rev.Questions) || rev.Questions[n].Section != nil)
+	l := loc(r)
 	switch {
 	case alone:
-		s.renderEditor(w, r, http.StatusUnprocessableEntity, e.ID, notSavedPrefix+"section "+strconv.Itoa(section)+" would be left without questions; remove the section first")
+		s.renderEditor(w, r, http.StatusUnprocessableEntity, e.ID, l.T("editor.not_saved", l.FileError(examfile.NewError(examfile.CodeEditorSectionLeftEmpty, 0, section))))
 		return
 	case len(rev.Questions) == 1:
-		s.renderEditor(w, r, http.StatusUnprocessableEntity, e.ID, notSavedPrefix+"exam has no questions")
+		s.renderEditor(w, r, http.StatusUnprocessableEntity, e.ID, l.T("editor.not_saved", l.FileError(examfile.NewError(examfile.CodeNoQuestions, 0))))
 		return
 	}
-	num := strconv.Itoa(n)
 	s.confirmPage(w, r, confirmData{
 		adminPage: adminPageFor(r),
-		Heading:   "Remove question " + num,
-		Question:  "Remove question " + num + " from ‘" + e.Title + "’?",
-		Notes:     []string{"This makes a new revision. The question stays readable in earlier revisions, but it cannot be restored from there."},
+		Heading:   l.T("editor.confirm_remove_question.heading", n),
+		Question:  l.T("editor.confirm_remove_question.question", n, e.Title),
+		Notes:     []string{l.T("editor.confirm_remove_question.note")},
 		Preview:   &rev.Questions[n-1],
 		FormID:    "remove-question-form",
 		Action:    questionPath(e.ID, n) + "/remove",
 		Revision:  strconv.Itoa(rev.Number),
-		Submit:    "Remove question",
+		Submit:    l.T("editor.confirm_remove_question.submit"),
 		Danger:    true,
-		Cancel:    editPath(e.ID) + "#q" + num,
+		Cancel:    editPath(e.ID) + "#q" + strconv.Itoa(n),
 	})
 }
 
@@ -290,27 +286,27 @@ func (s *server) removeSectionConfirm(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
+	l := loc(r)
 	var first string
 	switch {
 	case k > 1:
-		first = "Its questions join the section before it."
+		first = l.T("editor.confirm_remove_section.note_join_before")
 	case len(sections) > 1:
-		first = "Its questions join the next section, which then starts at question 1."
+		first = l.T("editor.confirm_remove_section.note_join_next")
 	default:
-		first = "The questions stay. The exam has no sections after this."
+		first = l.T("editor.confirm_remove_section.note_no_sections")
 	}
-	num := strconv.Itoa(k)
 	s.confirmPage(w, r, confirmData{
 		adminPage: adminPageFor(r),
-		Heading:   "Remove section " + num,
-		Question:  "Remove section " + num + ", ‘" + sections[k-1].Title + "’, from ‘" + e.Title + "’?",
-		Notes:     []string{first, "This makes a new revision. The section stays readable in earlier revisions."},
+		Heading:   l.T("editor.confirm_remove_section.heading", k),
+		Question:  l.T("editor.confirm_remove_section.question", k, sections[k-1].Title, e.Title),
+		Notes:     []string{first, l.T("editor.confirm_remove_section.note_revision")},
 		FormID:    "remove-section-form",
 		Action:    sectionPath(e.ID, k) + "/remove",
 		Revision:  strconv.Itoa(rev.Number),
-		Submit:    "Remove section",
+		Submit:    l.T("editor.confirm_remove_section.submit"),
 		Danger:    true,
-		Cancel:    editPath(e.ID) + "#s" + num,
+		Cancel:    editPath(e.ID) + "#s" + strconv.Itoa(k),
 	})
 }
 
@@ -728,7 +724,7 @@ func (s *server) editQuestionPage(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
-	page := questionPage(r, id, src, "Question "+strconv.Itoa(n), questionPath(id, n))
+	page := questionPage(r, id, src, loc(r).T("question.heading", n), questionPath(id, n))
 	page.Fields = questionFormOf(src.Questions[n-1]).fields(false)
 	s.page(w, r, http.StatusOK, "admin_question.html", page)
 }
@@ -746,7 +742,7 @@ func (s *server) saveQuestion(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
-	page := questionPage(r, id, src, "Question "+strconv.Itoa(n), questionPath(id, n))
+	page := questionPage(r, id, src, loc(r).T("question.heading", n), questionPath(id, n))
 	s.postQuestion(w, r, page, n, func(base int, q exam.QuestionSource) error {
 		return s.deps.Exams.SaveQuestion(r.Context(), actorFrom(r), id, base, n, q)
 	})
@@ -757,7 +753,7 @@ func (s *server) newQuestionPage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	page := questionPage(r, id, src, "New question "+strconv.Itoa(len(src.Questions)+1), examPath(id)+"/questions/new")
+	page := questionPage(r, id, src, loc(r).T("question.heading_new", len(src.Questions)+1), examPath(id)+"/questions/new")
 	page.Fields = blankQuestionForm().fields(false)
 	s.page(w, r, http.StatusOK, "admin_question.html", page)
 }
@@ -768,7 +764,7 @@ func (s *server) addQuestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	n := len(src.Questions) + 1
-	page := questionPage(r, id, src, "New question "+strconv.Itoa(n), examPath(id)+"/questions/new")
+	page := questionPage(r, id, src, loc(r).T("question.heading_new", n), examPath(id)+"/questions/new")
 	s.postQuestion(w, r, page, n, func(base int, q exam.QuestionSource) error {
 		return s.deps.Exams.AddQuestion(r.Context(), actorFrom(r), id, base, q)
 	})
@@ -851,7 +847,8 @@ func (s *server) createExam(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		http.Redirect(w, r, editPath(id), http.StatusSeeOther)
 	case errors.As(err, &invalid):
-		rerender(http.StatusUnprocessableEntity, notSavedPrefix+invalid.Msg)
+		l := loc(r)
+		rerender(http.StatusUnprocessableEntity, l.T("editor.not_saved", l.FileError(invalid)))
 	default:
 		s.serverError(w, r, err)
 	}

@@ -207,7 +207,7 @@ func TestEditor_StaleMoveRefused(t *testing.T) {
 	}
 
 	rec := editorPost(env, detail, "/questions/2/move", url.Values{"revision": {"1"}, "to": {"1"}}, cookie, csrf)
-	requireAlert(t, rec, http.StatusConflict, staleNotice)
+	requireAlert(t, rec, http.StatusConflict, enText(t, "editor.stale"))
 	if !strings.Contains(rec.Body.String(), `name="revision" value="2"`) {
 		t.Errorf("stale refusal does not show revision 2:\n%s", rec.Body.String())
 	}
@@ -216,7 +216,7 @@ func TestEditor_StaleMoveRefused(t *testing.T) {
 	}
 
 	rec = editorPost(env, detail, "/questions/2/move", url.Values{"revision": {"x"}, "to": {"1"}}, cookie, csrf)
-	requireAlert(t, rec, http.StatusConflict, staleNotice)
+	requireAlert(t, rec, http.StatusConflict, enText(t, "editor.stale"))
 	if n := env.revisionCount(t, id); n != 2 {
 		t.Errorf("revisions = %d, want 2", n)
 	}
@@ -343,7 +343,7 @@ func TestSettings_StaleKeepsTypedValues(t *testing.T) {
 
 	form := url.Values{"revision": {"1"}, "title": {"Typed title"}, "shuffle": {"none"}, "show_result": {"review"}, "monitor": {"on"}, "duration": {"60"}}
 	rec := editorPost(env, detail, "/settings", form, cookie, csrf)
-	requireAlert(t, rec, http.StatusConflict, staleNotice)
+	requireAlert(t, rec, http.StatusConflict, enText(t, "editor.stale"))
 	body := rec.Body.String()
 	if got := inputValue(t, body, "exam-title"); got != "Typed title" {
 		t.Errorf("title input = %q, want the typed title", got)
@@ -819,7 +819,7 @@ func TestQuestion_StaleKeepsTypedText(t *testing.T) {
 
 	form := url.Values{"revision": {"1"}, "do": {"save"}, "text": {"Typed stale"}, "option": {"s1", "s2"}, "correct": {"1"}}
 	rec := formPost(t, env, detail+"/questions/1", form, nil, cookie, csrf)
-	requireAlert(t, rec, http.StatusConflict, staleNotice)
+	requireAlert(t, rec, http.StatusConflict, enText(t, "editor.stale"))
 	requireShown(t, rec.Body.String(), shownForm{"Typed stale", []string{"s1", "s2"}, 1})
 	if !strings.Contains(rec.Body.String(), `name="revision" value="1"`) {
 		t.Errorf("stale form does not keep revision 1:\n%s", rec.Body.String())

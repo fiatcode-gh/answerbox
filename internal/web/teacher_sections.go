@@ -54,7 +54,7 @@ func (s *server) newSectionPage(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
-	page := sectionPage(r, id, src, "New section at question "+strconv.Itoa(n), questionPath(id, n)+"/section")
+	page := sectionPage(r, id, src, loc(r).T("section.heading_new", n), questionPath(id, n)+"/section")
 	s.page(w, r, http.StatusOK, "admin_section.html", page)
 }
 
@@ -71,7 +71,7 @@ func (s *server) startSection(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
-	page := sectionPage(r, id, src, "New section at question "+strconv.Itoa(n), questionPath(id, n)+"/section")
+	page := sectionPage(r, id, src, loc(r).T("section.heading_new", n), questionPath(id, n)+"/section")
 	s.postSection(w, r, page, "#q"+strconv.Itoa(n), func(base int, sec exam.SectionSource) error {
 		return s.deps.Exams.StartSection(r.Context(), actorFrom(r), id, base, n, sec)
 	})
@@ -88,7 +88,7 @@ func (s *server) editSectionPage(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
-	page := sectionPage(r, id, src, "Section "+strconv.Itoa(k), sectionPath(id, k))
+	page := sectionPage(r, id, src, loc(r).T("section.heading", k), sectionPath(id, k))
 	page.Title, page.Text = src.Sections[k-1].Title, src.Sections[k-1].Text
 	s.page(w, r, http.StatusOK, "admin_section.html", page)
 }
@@ -106,7 +106,7 @@ func (s *server) saveSection(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
-	page := sectionPage(r, id, src, "Section "+strconv.Itoa(k), sectionPath(id, k))
+	page := sectionPage(r, id, src, loc(r).T("section.heading", k), sectionPath(id, k))
 	s.postSection(w, r, page, "#s"+strconv.Itoa(k), func(base int, sec exam.SectionSource) error {
 		return s.deps.Exams.SaveSection(r.Context(), actorFrom(r), id, base, k, sec)
 	})

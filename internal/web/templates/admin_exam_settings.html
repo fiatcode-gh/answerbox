@@ -1,18 +1,18 @@
-{{define "title"}}Settings: {{.ExamTitle}} · Answerbox{{end}}
+{{define "title"}}{{t "editor.settings_title" .ExamTitle}} · Answerbox{{end}}
 
 {{define "header"}}{{template "admin_header" .}}{{end}}
 
 {{define "main"}}
 <main class="container admin settings-page" data-exam-id="{{.ExamID}}">
-  <p class="back"><a href="/admin/exams/{{.ExamID}}/edit">← Edit questions: {{.ExamTitle}}</a></p>
-  <h1>Settings</h1>
+  <p class="back"><a href="/admin/exams/{{.ExamID}}/edit">← {{t "editor.title" .ExamTitle}}</a></p>
+  <h1>{{t "editor.settings"}}</h1>
   {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
   <form id="settings-form" method="post" action="/admin/exams/{{.ExamID}}/settings">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <input type="hidden" name="revision" value="{{.Revision}}">
     {{template "settings_fields" .Input}}
-    <div class="form-actions"><button type="submit">Save settings</button> <a class="quiet" href="/admin/exams/{{.ExamID}}/edit">Cancel</a></div>
+    <div class="form-actions"><button type="submit">{{t "editor.save_settings"}}</button> <a class="quiet" href="/admin/exams/{{.ExamID}}/edit">{{t "editor.cancel"}}</a></div>
   </form>
-  <p class="zone-note">Saving makes a new revision. Earlier revisions stay readable in <a href="/admin/exams/{{.ExamID}}/revisions">History</a>.</p>
+  <p class="zone-note">{{th "editor.saving_note_html" (printf "/admin/exams/%d/revisions" .ExamID)}}</p>
 </main>
 {{end}}

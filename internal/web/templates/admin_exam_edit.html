@@ -1,35 +1,35 @@
-{{define "title"}}Edit questions: {{.Exam.Title}} · Answerbox{{end}}
+{{define "title"}}{{t "editor.title" .Exam.Title}} · Answerbox{{end}}
 
 {{define "header"}}{{template "admin_header" .}}{{end}}
 
 {{define "main"}}
 <main class="container admin editor-page" data-exam-id="{{.Exam.ID}}" data-revision="{{.Revision}}">
   <p class="back"><a href="/admin/exams/{{.Exam.ID}}">← {{.Exam.Title}}</a></p>
-  <div class="page-head"><h1>Edit questions</h1><p class="page-actions"><a id="settings-link" class="button secondary" href="/admin/exams/{{.Exam.ID}}/settings">Settings</a> <a id="add-question" class="button" href="/admin/exams/{{.Exam.ID}}/questions/new">Add question</a></p></div>
+  <div class="page-head"><h1>{{t "editor.heading"}}</h1><p class="page-actions"><a id="settings-link" class="button secondary" href="/admin/exams/{{.Exam.ID}}/settings">{{t "editor.settings"}}</a> <a id="add-question" class="button" href="/admin/exams/{{.Exam.ID}}/questions/new">{{t "editor.add_question"}}</a></p></div>
   {{with .Alert}}<div role="alert" class="alert">{{.}}</div>{{end}}
-  <p class="zone-note">Revision {{.Revision}}. Every save makes a new revision. Earlier revisions stay readable in <a href="/admin/exams/{{.Exam.ID}}/revisions">History</a>.</p>
+  <p class="zone-note">{{th "editor.revision_note_html" .Revision (printf "/admin/exams/%d/revisions" .Exam.ID)}}</p>
   {{range .Questions}}
   {{- if .Section}}
   <div class="section-head editor-section" id="s{{.SectionNumber}}">
     <h2 class="section-title">{{.Section.Title}}</h2>
     {{with .Section.BodyHTML}}<div class="section-body question-body">{{.}}</div>{{end}}
     <div class="section-actions">
-      <a class="edit-section quiet" href="/admin/exams/{{$.Exam.ID}}/sections/{{.SectionNumber}}">Edit section</a>
-      <a class="remove-section quiet danger" href="/admin/exams/{{$.Exam.ID}}/sections/{{.SectionNumber}}/remove">Remove section</a>
+      <a class="edit-section quiet" href="/admin/exams/{{$.Exam.ID}}/sections/{{.SectionNumber}}">{{t "editor.edit_section"}}</a>
+      <a class="remove-section quiet danger" href="/admin/exams/{{$.Exam.ID}}/sections/{{.SectionNumber}}/remove">{{t "editor.remove_section"}}</a>
     </div>
   </div>
   {{- end}}
   <section class="preview-question" id="q{{.Position}}">
-    <p class="eyebrow">Question {{.Position}}</p>
+    <p class="eyebrow">{{t "editor.question" .Position}}</p>
     {{template "preview_question_body" .}}
     <div class="question-actions">
-      <a class="edit-question button secondary" href="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}">Edit</a>
+      <a class="edit-question button secondary" href="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}">{{t "editor.edit"}}</a>
       {{if .CanMoveUp}}
       <form class="move-up" method="post" action="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}/move">
         <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
         <input type="hidden" name="revision" value="{{$.Revision}}">
         <input type="hidden" name="to" value="{{.Up}}">
-        <button type="submit" class="quiet">Move up</button>
+        <button type="submit" class="quiet">{{t "editor.move_up"}}</button>
       </form>
       {{end}}
       {{if .CanMoveDown}}
@@ -37,14 +37,14 @@
         <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
         <input type="hidden" name="revision" value="{{$.Revision}}">
         <input type="hidden" name="to" value="{{.Down}}">
-        <button type="submit" class="quiet">Move down</button>
+        <button type="submit" class="quiet">{{t "editor.move_down"}}</button>
       </form>
       {{end}}
-      {{if .StartSection}}<a class="start-section quiet" href="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}/section">Start a section here</a>{{end}}
-      {{if .Remove}}<a class="remove-question quiet danger" href="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}/remove">Remove</a>{{end}}
+      {{if .StartSection}}<a class="start-section quiet" href="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}/section">{{t "editor.start_section"}}</a>{{end}}
+      {{if .Remove}}<a class="remove-question quiet danger" href="/admin/exams/{{$.Exam.ID}}/questions/{{.Position}}/remove">{{t "editor.remove"}}</a>{{end}}
     </div>
   </section>
   {{end}}
-  <p class="list-end"><a class="button secondary" href="/admin/exams/{{.Exam.ID}}/questions/new">Add question</a></p>
+  <p class="list-end"><a class="button secondary" href="/admin/exams/{{.Exam.ID}}/questions/new">{{t "editor.add_question"}}</a></p>
 </main>
 {{end}}

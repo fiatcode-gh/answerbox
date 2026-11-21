@@ -364,7 +364,7 @@ func TestSection_StaleKeepsTypedValues(t *testing.T) {
 		// The typed text starts with an empty line, which the form keeps.
 		form := url.Values{"revision": {"1"}, "title": {"Typed title"}, "text": {"\nTyped body"}}
 		rec := formPost(t, env, detail+path, form, nil, cookie, csrf)
-		requireAlert(t, rec, http.StatusConflict, staleNotice)
+		requireAlert(t, rec, http.StatusConflict, enText(t, "editor.stale"))
 		body := rec.Body.String()
 		if inputValue(t, body, "section-title") != "Typed title" || shownSectionText(t, body) != "\nTyped body" {
 			t.Errorf("stale %s lost the typed values:\n%s", path, body)
@@ -374,7 +374,7 @@ func TestSection_StaleKeepsTypedValues(t *testing.T) {
 		}
 	}
 	rec := editorPost(env, detail, "/sections/1/remove", url.Values{"revision": {"1"}}, cookie, csrf)
-	requireAlert(t, rec, http.StatusConflict, staleNotice)
+	requireAlert(t, rec, http.StatusConflict, enText(t, "editor.stale"))
 	if !strings.Contains(rec.Body.String(), `<h1>Edit questions</h1>`) {
 		t.Errorf("stale remove is not the editor page:\n%s", rec.Body.String())
 	}
