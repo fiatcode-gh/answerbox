@@ -49,7 +49,7 @@ How Answerbox behaves, page by page. For the file format see [exam-format.md](ex
 ## Results
 
 - **Results** lists every attempt: status, score, a column per section, time left and resume code while in progress, and the monitor's flags. **View** opens every answer of an attempt.
-- Sort by Name or Score, filter by name, and **Export CSV** for a spreadsheet.
+- Sort by Name or Score, filter by name, and **Export CSV** for a spreadsheet. The CSV's header row and status words are in the language of the page it was downloaded from; the data is the same in both.
 - While an attempt is in progress or the exam is open, the list refreshes itself every 10 seconds and keeps your filter and sort.
 - Beside Results, the exam page counts attempts in progress, submitted and timed out.
 
@@ -73,3 +73,14 @@ Remove question, Remove section, Remove teacher, Archive and Delete attempt each
 ## Look
 
 Pages follow the device's light or dark setting. Student pages and question text use Atkinson Hyperlegible Next, served by the app itself. Every teacher page and the start page work without scripts; scripts only add Copy link, the refreshing results and the code boxes' typing help.
+
+## Language
+
+- Every page comes in Indonesian and English.
+- A first visit follows the browser's language: Indonesian when the browser prefers it over English, otherwise English.
+- The switch is at the top right of every page: an icon button named "Bahasa / Language" opens a small menu with **Indonesia** and **English**. It works without scripts.
+- The choice is kept in that browser for a year, in the cookie `answerbox_lang`. Nothing is stored on the server, so your choice does not follow you to another device or browser.
+- After a switch you are back on the same page. On a form that was refused and shown again, the switch returns to the form's own page and the typed text is lost.
+- On the exam page the switch first saves the student's answers, then reloads the page in the other language. If saving does not finish within 5 seconds, the page stays and its save line says why. The monitor does not count a switch.
+- Not translated: exam content (titles, sections, questions, options, accepted answers), names and emails, codes, the exam-file keywords and the downloaded exam file.
+- The CSV download uses the language of the page it was downloaded from, for its header row and status words.

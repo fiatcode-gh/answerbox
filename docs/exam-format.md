@@ -53,6 +53,7 @@ fmt.Println(2 + 3)
 - **Text** supports `**bold**`, `*italics*`, `` `code` ``, line breaks, fenced code blocks and images (`![description](file.png)`). Write `\-` or `\*` for a line that starts with `-` or an option that ends with `*`.
 - **Images:** upload a `.zip` with the text file and the images (PNG, JPEG, GIF or WebP).
 - **Limits:** 10 MB per upload, and the upload must finish within 60 seconds.
+- **Language:** the keywords (`shuffle:`, `show_result:`, `monitor:`, `duration:`) and their values stay English, whatever language the pages are in. When a file is refused, the error message comes in the page's language and names the same line.
 
 ## How fill-in answers are matched
 
