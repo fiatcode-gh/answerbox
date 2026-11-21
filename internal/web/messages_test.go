@@ -9,6 +9,7 @@ import (
 	"html"
 	htmltemplate "html/template"
 	"io/fs"
+	"maps"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -18,11 +19,10 @@ import (
 	"text/template"
 	"text/template/parse"
 	"unicode"
-)
+	"unicode/utf8"
 
-// pendingTemplates are skipped by TestTemplates_NoLiteralText until the task
-// that moves their text into the catalogue deletes their name here.
-var pendingTemplates = []string{}
+	"github.com/fiatcode-gh/answerbox/internal/examfile"
+)
 
 // literalAllowed are the only words a template may hold outside an action,
 // <code> and <pre>.
@@ -429,16 +429,8 @@ func literalTextProblems(name, src string) []string {
 }
 
 func TestTemplates_NoLiteralText(t *testing.T) {
-	checked := 0
 	for name, src := range templateFiles(t) {
-		if slices.Contains(pendingTemplates, name) {
-			continue
-		}
-		checked++
 		requireProblems(t, name, literalTextProblems(name, src))
-	}
-	if checked < 4 {
-		t.Errorf("checked %d templates, want at least base, brand, error and section_head", checked)
 	}
 	requireProblems(t, "broken", literalTextProblems("x", `<p>Hello</p><p title="Close">{{t "a.b"}}</p>`+
 		`<input placeholder="Your name" aria-label="{{t "a.b"}}"><img alt="Logo" src="x"><div data-state="Saved now"></div>`+
@@ -497,15 +489,17 @@ func goKeysProblems(fset *token.FileSet, files []*ast.File, has func(key string)
 	return out
 }
 
-func TestGo_KeysExist(t *testing.T) {
-	fset := token.NewFileSet()
+// webSourceFiles parses the non-test Go files of internal/web whose name
+// keep accepts.
+func webSourceFiles(t *testing.T, fset *token.FileSet, keep func(name string) bool) []*ast.File {
+	t.Helper()
 	paths, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var files []*ast.File
 	for _, p := range paths {
-		if strings.HasSuffix(p, "_test.go") {
+		if strings.HasSuffix(p, "_test.go") || !keep(p) {
 			continue
 		}
 		f, err := parser.ParseFile(fset, p, nil, 0)
@@ -517,6 +511,12 @@ func TestGo_KeysExist(t *testing.T) {
 	if len(files) < 10 {
 		t.Fatalf("parsed %d files", len(files))
 	}
+	return files
+}
+
+func TestGo_KeysExist(t *testing.T) {
+	fset := token.NewFileSet()
+	files := webSourceFiles(t, fset, func(string) bool { return true })
 	requireProblems(t, "internal/web", goKeysProblems(fset, files, catalogueHas))
 
 	src := `package x
@@ -539,6 +539,272 @@ func Date(l localizer, k string) string { return l.T("a." + k) }
 	if len(got) != 3 {
 		t.Errorf("broken: want 3 problems, got %q", got)
 	}
+}
+
+// sentenceLiteralAllowed are the string literals of internal/web that may
+// look like an English sentence or equal an English catalogue text, each
+// with the reason it is not page wording.
+var sentenceLiteralAllowed = map[string]string{
+	"name":     "form field and query parameter (start, rename, results filter) and a sort key; equals csv.col.name",
+	"score":    "sort key of the results list; equals csv.col.score",
+	"started":  "sort key of the results list; equals csv.col.started",
+	"finished": "error code of the JSON answer and monitor endpoints, read by exam.js; equals csv.col.finished",
+	"title":    "form field of the settings and section editors; equals summary.setting.title",
+	"shuffle":  "form field of the settings editor; equals summary.setting.shuffle",
+	"monitor":  "form field of the settings editor; equals summary.setting.monitor",
+	"stack":    "log attribute name of the panic log line; equals landing.stack",
+	"status":   "log attribute name of the request log line; equals csv.col.status",
+}
+
+var sentenceLiteralRe = regexp.MustCompile(`^[A-Z][a-z]+ [a-z]`)
+
+// englishTexts is every English catalogue text of four or more characters.
+func englishTexts(bs []bundle) map[string]bool {
+	out := map[string]bool{}
+	for _, b := range bs {
+		for _, text := range b.en {
+			if utf8.RuneCountInString(text) >= 4 {
+				out[text] = true
+			}
+		}
+	}
+	return out
+}
+
+// sentenceLiteralProblems reports every string literal of files, import
+// paths and struct tags aside, that reads like an English sentence or label
+// or equals an English catalogue text, unless allowed lists it; and every
+// allowed entry no literal needed.
+func sentenceLiteralProblems(fset *token.FileSet, files []*ast.File, english map[string]bool, allowed map[string]string) []string {
+	var out []string
+	used := map[string]bool{}
+	for _, f := range files {
+		tags := map[*ast.BasicLit]bool{}
+		ast.Inspect(f, func(n ast.Node) bool {
+			switch n := n.(type) {
+			case *ast.ImportSpec:
+				return false
+			case *ast.Field:
+				if n.Tag != nil {
+					tags[n.Tag] = true
+				}
+			case *ast.BasicLit:
+				if n.Kind != token.STRING || tags[n] {
+					return true
+				}
+				s, err := strconv.Unquote(n.Value)
+				if err != nil {
+					out = append(out, fmt.Sprintf("%s: %v", fset.Position(n.Pos()), err))
+					return true
+				}
+				if !sentenceLiteralRe.MatchString(s) && !english[s] {
+					return true
+				}
+				if _, ok := allowed[s]; ok {
+					used[s] = true
+					return true
+				}
+				out = append(out, fmt.Sprintf("%s: English literal %q", fset.Position(n.Pos()), s))
+			}
+			return true
+		})
+	}
+	for s := range allowed {
+		if !used[s] {
+			out = append(out, fmt.Sprintf("allowed literal %q is not in the source", s))
+		}
+	}
+	return out
+}
+
+func TestGo_NoSentenceLiterals(t *testing.T) {
+	fset := token.NewFileSet()
+	files := webSourceFiles(t, fset, func(name string) bool { return !strings.HasPrefix(name, "messages_") })
+	requireProblems(t, "internal/web", sentenceLiteralProblems(fset, files, englishTexts(bundles), sentenceLiteralAllowed))
+
+	src := "package x\n" +
+		"import \"Fmt package\"\n" +
+		"type row struct{ A string `json:\"Name here\"` }\n" +
+		"func f() []string {\n" +
+		"	return []string{\"Start exam\", \"Hello there\", \"Saved\", \"text/html\", \"Hi\", \"OK go\", \"Fine thanks\", \"Kept as is\"}\n" +
+		"}\n"
+	f, err := parser.ParseFile(fset, "broken.go", src, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	english := englishTexts([]bundle{{en: map[string]string{"a.start": "Start exam", "a.saved": "Saved", "a.hi": "Hi"}}})
+	got := sentenceLiteralProblems(fset, []*ast.File{f}, english, map[string]string{"Fine thanks": "a reason", "Gone now": "a reason"})
+	requireProblems(t, "broken", got, `"Start exam"`, `"Hello there"`, `literal "Saved"`, `"Kept as is"`, `allowed literal "Gone now"`)
+	if len(got) != 5 {
+		t.Errorf("broken: want 5 problems, got %q", got)
+	}
+}
+
+// sameInBothLanguages are the keys whose Indonesian text is rightly the
+// English text, each with the reason.
+var sameInBothLanguages = map[string]string{
+	"lang.menu":            "the switch's bilingual name, the same in every language (PLAN 7)",
+	"lang.id.name":         "endonym, never translated (PLAN 2.5)",
+	"lang.en.name":         "endonym, never translated (PLAN 2.5)",
+	"date.month.1":         "the Indonesian month abbreviation is the same (annex 00 section 4)",
+	"date.month.2":         "the Indonesian month abbreviation is the same (annex 00 section 4)",
+	"date.month.3":         "the Indonesian month abbreviation is the same (annex 00 section 4)",
+	"date.month.4":         "the Indonesian month abbreviation is the same (annex 00 section 4)",
+	"date.month.6":         "the Indonesian month abbreviation is the same (annex 00 section 4)",
+	"date.month.7":         "the Indonesian month abbreviation is the same (annex 00 section 4)",
+	"date.month.9":         "the Indonesian month abbreviation is the same (annex 00 section 4)",
+	"date.month.11":        "the Indonesian month abbreviation is the same (annex 00 section 4)",
+	"teachers.admin_badge": "established term kept as is (annex 00 section 1: admin)",
+	"teachers.col.email":   "established term kept as is (annex 00 section 1: email)",
+	"exams.col.status":     "a word Indonesian shares with English",
+	"results.col.status":   "a word Indonesian shares with English",
+	"csv.col.status":       "a word Indonesian shares with English",
+	"csv.col.total":        "a word Indonesian shares with English",
+}
+
+// sameTextProblems reports every key whose id text equals its en text and
+// allowed does not list, and every allowed key that is missing or differs.
+func sameTextProblems(bs []bundle, allowed map[string]string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, b := range bs {
+		for k, en := range b.en {
+			id, ok := b.id[k]
+			if !ok {
+				continue
+			}
+			seen[k] = true
+			_, listed := allowed[k]
+			switch {
+			case en == id && !listed:
+				out = append(out, fmt.Sprintf("%q: the Indonesian text is the English text %q", k, en))
+			case en != id && listed:
+				out = append(out, fmt.Sprintf("%q is listed as the same in both languages but differs", k))
+			}
+		}
+	}
+	for k := range allowed {
+		if !seen[k] {
+			out = append(out, fmt.Sprintf("listed key %q is not in the catalogue", k))
+		}
+	}
+	return out
+}
+
+func TestMessages_IndonesianDiffers(t *testing.T) {
+	requireProblems(t, "catalogue", sameTextProblems(bundles, sameInBothLanguages))
+	got := sameTextProblems([]bundle{{
+		en: map[string]string{"a.save": "Save", "a.total": "Total", "a.open": "Open"},
+		id: map[string]string{"a.save": "Save", "a.total": "Total", "a.open": "Buka"},
+	}}, map[string]string{"a.total": "shared word", "a.open": "wrongly listed", "a.gone": "stale"})
+	requireProblems(t, "broken", got, `"a.save": the Indonesian text`, `"a.open" is listed`, `listed key "a.gone"`)
+	if len(got) != 3 {
+		t.Errorf("broken: want 3 problems, got %q", got)
+	}
+}
+
+// reviewSection is one section of the Indonesian text table of checkpoint A.
+type reviewSection struct {
+	title    string
+	readers  string
+	prefixes []string
+}
+
+var reviewSections = []reviewSection{
+	{"Student pages", "Read by students, fifth graders, addressed as `kamu`.", []string{"landing.", "exam.", "result."}},
+	{"Shared texts and errors", "Read by students and teachers alike, so these texts avoid `kamu` and `Anda`.", []string{"lang.", "error.", "common.", "date."}},
+	{"Teacher pages: sign-in, exams, projector, teachers", "Read by teachers, addressed as `Anda`.", []string{"nav.", "login.", "exams.", "examdetail.", "projector.", "confirm.", "teachers.", "setting.", "preview."}},
+	{"Teacher pages: results, attempts, History", "Read by teachers, addressed as `Anda`.", []string{"results.", "attempt.", "csv.", "status.", "event.", "history.", "revision.", "summary."}},
+	{"Teacher pages: editor", "Read by teachers, addressed as `Anda`.", []string{"editor.", "question.", "section."}},
+	{"Exam file rules", "Read by teachers when a file or an edit is refused, addressed as `Anda`. `{line}` marks where the English names the line.", []string{"file."}},
+}
+
+// placeKeys puts every key into the section whose prefix it starts with, in
+// prefix order and then key order, and reports a key no section or more
+// than one section takes.
+func placeKeys(sections []reviewSection, keys []string) ([][]string, []string) {
+	placed := make([][]string, len(sections))
+	var out []string
+	sorted := slices.Clone(keys)
+	slices.Sort(sorted)
+	for _, k := range sorted {
+		var in []int
+		for i, s := range sections {
+			if slices.ContainsFunc(s.prefixes, func(p string) bool { return strings.HasPrefix(k, p) }) {
+				in = append(in, i)
+			}
+		}
+		if len(in) != 1 {
+			out = append(out, fmt.Sprintf("%q is in %d sections", k, len(in)))
+			continue
+		}
+		placed[in[0]] = append(placed[in[0]], k)
+	}
+	for i, s := range sections {
+		slices.SortStableFunc(placed[i], func(a, b string) int {
+			rank := func(k string) int {
+				return slices.IndexFunc(s.prefixes, func(p string) bool { return strings.HasPrefix(k, p) })
+			}
+			return rank(a) - rank(b)
+		})
+	}
+	return placed, out
+}
+
+// reviewTexts is the English and the Indonesian of every key the table
+// shows: the catalogue, and the file rules with their English from
+// examfile.
+func reviewTexts() (map[string][2]string, []string) {
+	texts := map[string][2]string{}
+	var out []string
+	for _, b := range bundles {
+		for k, en := range b.en {
+			texts[k] = [2]string{en, b.id[k]}
+		}
+	}
+	english := examfile.English()
+	for k, id := range fileMessagesID {
+		en, ok := english[examfile.Code(strings.TrimPrefix(k, "file."))]
+		switch {
+		case k == "file.line":
+			en = "line %[1]d: %[2]s ({line} at the start of a sentence; inside one it reads \" (line N)\")"
+		case !ok:
+			out = append(out, fmt.Sprintf("%q has no English in examfile", k))
+		}
+		texts[k] = [2]string{en, id}
+	}
+	return texts, out
+}
+
+var reviewCellEscaper = strings.NewReplacer("\r\n", "⏎", "\n", "⏎", "|", `\|`)
+
+func TestMessages_ReviewTable(t *testing.T) {
+	texts, problems := reviewTexts()
+	requireProblems(t, "texts", problems)
+	placed, problems := placeKeys(reviewSections, slices.Collect(maps.Keys(texts)))
+	requireProblems(t, "catalogue", problems)
+
+	_, problems = placeKeys(reviewSections[:1], []string{"landing.a", "landing.b", "nav.a"})
+	requireProblems(t, "broken", problems, `"nav.a" is in 0 sections`)
+	_, problems = placeKeys([]reviewSection{{prefixes: []string{"a."}}, {prefixes: []string{"a.b"}}}, []string{"a.b.c"})
+	requireProblems(t, "broken", problems, `"a.b.c" is in 2 sections`)
+	order, _ := placeKeys(reviewSections[:1], []string{"result.a", "exam.b", "landing.z", "exam.a"})
+	if want := []string{"landing.z", "exam.a", "exam.b", "result.a"}; !slices.Equal(order[0], want) {
+		t.Errorf("section order = %q, want %q", order[0], want)
+	}
+
+	if !testing.Verbose() || t.Failed() {
+		return
+	}
+	fmt.Println("BEGIN INDONESIAN TEXT")
+	for i, s := range reviewSections {
+		fmt.Printf("\n## %d. %s\n\n%s\n\n| Key | English | Indonesian |\n|---|---|---|\n", i+1, s.title, s.readers)
+		for _, k := range placed[i] {
+			fmt.Printf("| `%s` | %s | %s |\n", k, reviewCellEscaper.Replace(texts[k][0]), reviewCellEscaper.Replace(texts[k][1]))
+		}
+	}
+	fmt.Printf("\n%d keys.\n", len(texts))
+	fmt.Println("END INDONESIAN TEXT")
 }
 
 // --- localizer and template functions ---

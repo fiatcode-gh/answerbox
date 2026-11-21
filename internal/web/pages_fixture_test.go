@@ -365,6 +365,16 @@ func pageCases(t *testing.T) (*testEnv, []pageCase) {
 // returns the body.
 func (env *testEnv) fetch(t *testing.T, c pageCase, l lang) string {
 	t.Helper()
+	rec := env.response(t, c, l)
+	if rec.Code != c.status {
+		t.Fatalf("%s: %s %s = %d, want %d:\n%s", c.name, c.method, c.path, rec.Code, c.status, rec.Body.String())
+	}
+	return rec.Body.String()
+}
+
+// response requests c with the language cookie of l.
+func (env *testEnv) response(t *testing.T, c pageCase, l lang) *httptest.ResponseRecorder {
+	t.Helper()
 	var req *http.Request
 	switch {
 	case c.upload != nil:
@@ -401,9 +411,5 @@ func (env *testEnv) fetch(t *testing.T, c pageCase, l lang) string {
 		}
 	}
 	req.Header.Add("Cookie", langCookieName+"="+string(l))
-	rec := serve(env.h, req)
-	if rec.Code != c.status {
-		t.Fatalf("%s: %s %s = %d, want %d:\n%s", c.name, c.method, c.path, rec.Code, c.status, rec.Body.String())
-	}
-	return rec.Body.String()
+	return serve(env.h, req)
 }
