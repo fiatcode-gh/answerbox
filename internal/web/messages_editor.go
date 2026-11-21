@@ -121,7 +121,7 @@ var editorMessages = bundle{
 		"editor.image_dropped":      "Gambar belum tersimpan. Pilih gambarnya lagi.",
 		"editor.format_help":        "Format teks",
 		"editor.stale":              "Ujian ini sudah berubah sejak Anda membuka halaman ini. Tidak ada yang disimpan.",
-		"editor.not_saved":          "Belum tersimpan: %s",
+		"editor.not_saved":          "Gagal disimpan: %s",
 
 		"editor.confirm_remove_question.heading":  "Hapus soal %d",
 		"editor.confirm_remove_question.question": "Hapus soal %[1]d dari ‘%[2]s’?",
@@ -157,9 +157,9 @@ var editorMessages = bundle{
 		"question.add_answer":         "Tambah jawaban yang diterima",
 		"question.answers_note":       "Jawaban yang diketik benar jika sama dengan salah satu jawaban ini. Huruf besar dan spasi berlebih tidak dihitung. Angka dicocokkan menurut nilainya: 1.003 dan 1003, atau 0,5 dan 0,50.",
 		"question.image_note":         "Saat disimpan, gambar ditambahkan di baris baru di akhir teks soal. Pindahkan baris itu untuk menaruh gambar di tempat lain, juga ke dalam pilihan.",
-		"question.format.inline_html": "<strong>Tebal</strong>: <code>**bold**</code>; <em>miring</em>: <code>*italics*</code>; kode dalam baris: <code>`code`</code>.",
+		"question.format.inline_html": "<strong>Tebal</strong>: <code>**tebal**</code>; <em>miring</em>: <code>*miring*</code>; kode dalam baris: <code>`code`</code>.",
 		"question.format.code_html":   "Blok kode: satu baris <code>```</code> sebelum dan sesudah kodenya.",
-		"question.format.images_html": "Gambar: <code>![description](file.png)</code>, sama seperti di halaman impor.",
+		"question.format.images_html": "Gambar: <code>![keterangan](gambar.png)</code>, sama seperti di halaman impor.",
 		"question.format.options_html": `Seperti di file ujian, baris yang diawali <code>-</code> dibaca sebagai pilihan, dan pilihan yang diakhiri <code>*</code> dibaca sebagai pilihan yang benar. ` +
 			`Tulis <code>\-</code> atau <code>\*</code> untuk menampilkan karakter itu.`,
 		"question.format.fill_in_html": `Di file ujian, soal isian menulis jawaban yang diterima pada baris yang diawali <code>=</code>, bukan baris pilihan. ` +
@@ -170,8 +170,8 @@ var editorMessages = bundle{
 		"section.title_label": "Judul bagian",
 		"section.text_label":  "Petunjuk (boleh kosong)",
 		"section.image_note":  "Saat disimpan, gambar ditambahkan di baris baru di akhir petunjuk. Pindahkan baris itu untuk menaruh gambar di tempat lain.",
-		"section.format.same_html": "Petunjuk memakai format teks yang sama dengan soal: <code>**bold**</code>, <code>*italics*</code>, <code>`code`</code>, " +
-			"blok kode di antara baris <code>```</code>, dan gambar sebagai <code>![description](file.png)</code>.",
+		"section.format.same_html": "Petunjuk memakai format teks yang sama dengan soal: <code>**tebal**</code>, <code>*miring*</code>, <code>`code`</code>, " +
+			"blok kode di antara baris <code>```</code>, dan gambar sebagai <code>![keterangan](gambar.png)</code>.",
 		"section.format.list_html": "Di sini, baris yang diawali <code>-</code> adalah butir daftar, bukan pilihan.",
 		"section.save":             "Simpan bagian",
 	},
