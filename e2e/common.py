@@ -135,20 +135,21 @@ def import_exam(page: Page, zip_path) -> int:
     return int(re.search(r"/admin/exams/(\d+)$", page.url).group(1))
 
 
-def open_exam(page: Page, exam_id: int) -> None:
+def open_exam(page: Page, exam_id: int, open_word: str = "Open") -> None:
     """Press Open for exam_id on its exam page or on the exams list; ends on the exams list.
 
     Pressed on the exam page, Open lands back on it; this then goes to the list.
+    open_word is the badge text of an open exam in the page's language.
     """
     on_exam_page = re.search(rf"/admin/exams/{exam_id}$", page.url) is not None
     page.locator(f"form[action='/admin/exams/{exam_id}/open'] button[type=submit]").click()
     if on_exam_page:
         expect(page).to_have_url(re.compile(rf"/admin/exams/{exam_id}$"))
-        expect(page.locator(".exam-head .badge")).to_have_text("Open")
+        expect(page.locator(".exam-head .badge")).to_have_text(open_word)
         parts = urlsplit(page.url)
         page.goto(f"{parts.scheme}://{parts.netloc}/admin/exams")
     expect(page).to_have_url(re.compile(r"/admin/exams$"))
-    expect(page.locator(f"#exams tr[data-exam-id='{exam_id}']")).to_contain_text("Open")
+    expect(page.locator(f"#exams tr[data-exam-id='{exam_id}']")).to_contain_text(open_word)
 
 
 def confirm(page: Page, form_id: str) -> None:

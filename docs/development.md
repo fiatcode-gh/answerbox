@@ -37,6 +37,7 @@ The scripts in `e2e/` drive Chromium through Playwright and run with `uv`. Each 
 ```sh
 args="--base-url http://localhost:8080 --admin-email admin@example.test --oidc-url http://127.0.0.1:9096"
 uv run e2e/student_ui.py $args --out e2e/out/student-ui
+uv run e2e/walkthrough_id.py $args --out e2e/out/walkthrough-id
 ```
 
 | Script | Covers |
