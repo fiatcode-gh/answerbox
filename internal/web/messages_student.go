@@ -243,7 +243,7 @@ var studentMessages = bundle{
 		"exam.saving":        "Menyimpan…",
 		"exam.not_saved":     "Belum tersimpan",
 		"exam.all_saved":     "✓ Semua jawaban tersimpan",
-		"exam.retrying":      "✗ Belum tersimpan — mencoba lagi",
+		"exam.retrying":      "✗ Belum tersimpan…",
 		"exam.check_answer":  "✗ Belum tersimpan — periksa jawabanmu",
 		"exam.choose_again":  "✗ Belum tersimpan — pilih lagi",
 		"exam.waiting":       "Menunggu jawaban tersimpan…",
